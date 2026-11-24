@@ -1,0 +1,10 @@
+{
+  "video": {
+    "source_lock_sha256": "0a01a1812d9c2295f1c56cbeedf703f576894753fad93f13aa23fd833c470026",
+    "required_feature": "graphics.textDiagnostics and owned decode"
+  },
+  "image": {
+    "source_lock_sha256": "8927da49c7a25e93d2887324beddae8e5374b5c3abed88e1eb03c8276b681518",
+    "required_feature": "native layered text, shaped font diagnostics and pixel roundtrip"
+  }
+}

@@ -1,0 +1,452 @@
+diff --git a/apps/vectorcraft-cli/Cargo.toml b/apps/vectorcraft-cli/Cargo.toml
+index 376f431..80fd2cb 100644
+--- a/apps/vectorcraft-cli/Cargo.toml
++++ b/apps/vectorcraft-cli/Cargo.toml
+@@ -13,6 +13,14 @@ path = "src/main.rs"
+ [lints]
+ workspace = true
+ 
++[features]
++dobe = ["vectorcraft-mcp/dobe"]
++
++[[bin]]
++name = "dobe-vector"
++path = "src/main.rs"
++required-features = ["dobe"]
++
+ [dependencies]
+ vectorcraft-color = { workspace = true }
+ vectorcraft-doc = { workspace = true }
+diff --git a/apps/vectorcraft-cli/src/main.rs b/apps/vectorcraft-cli/src/main.rs
+index 57ab103..26eaa28 100644
+--- a/apps/vectorcraft-cli/src/main.rs
++++ b/apps/vectorcraft-cli/src/main.rs
+@@ -65,10 +65,28 @@ fn stdout_failed(e: std::io::Error) -> ! {
+     if e.kind() == std::io::ErrorKind::BrokenPipe {
+         std::process::exit(0);
+     }
+-    eprintln!("vectorcraft-cli: can't write to stdout: {e}");
++    eprintln!("{CLI_NAME}: can't write to stdout: {e}");
+     std::process::exit(1);
+ }
+ 
++#[cfg(feature = "dobe")]
++const CLI_NAME: &str = "dobe-vector";
++#[cfg(not(feature = "dobe"))]
++const CLI_NAME: &str = "vectorcraft-cli";
++
++#[cfg(feature = "dobe")]
++const USAGE: &str = "dobe-vector — Dobe Vector headless automation
++USAGE:
++  dobe-vector mcp [--automation-read-root DIR]... [--automation-write-root DIR]...
++  dobe-vector run [--in FILE] [--cmd ID --params JSON | --commands FILE|-]... [--export FILE]...
++  dobe-vector commands
++  dobe-vector convert IN OUT [--scale N] [--ppi N]
++  dobe-vector info FILE
++The supported product MCP endpoint is `dobe mcp`.
++Native .vectorcraft files stay editable. Editor connections are unavailable.
++Safe mode is always enabled; installed plug-ins are not loaded.";
++
++#[cfg(not(feature = "dobe"))]
+ const USAGE: &str = "\
+ vectorcraft-cli — VectorCraft automation
+ 
+@@ -203,9 +221,13 @@ fn main() -> ExitCode {
+     prefs_dir::install_fonts();
+     let mut args: Vec<String> = std::env::args().skip(1).collect();
+     // Before any subcommand attaches the plug-in folder.
+-    let safe_mode = args.first().is_some_and(|a| a == "--safe-mode");
+-    if safe_mode {
++    let requested_safe_mode = args.first().is_some_and(|a| a == "--safe-mode");
++    if requested_safe_mode {
+         args.remove(0);
++    }
++    // A private production engine must never attach to a user's editor implicitly.
++    let safe_mode = cfg!(feature = "dobe") || requested_safe_mode;
++    if safe_mode {
+         vectorcraft_engine::cmd::plugin::start_in_safe_mode();
+     }
+     let r = match args.first().map(String::as_str) {
+@@ -221,7 +243,7 @@ fn main() -> ExitCode {
+         Some("perf") => perf::run(&args[1..]),
+         Some("-h" | "--help" | "help") | None => help(),
+         Some("-V" | "--version") => {
+-            outln!("vectorcraft-cli {}", env!("CARGO_PKG_VERSION"));
++            outln!("{CLI_NAME} {}", env!("CARGO_PKG_VERSION"));
+             Ok(())
+         }
+         Some(other) => Err(format!("unknown subcommand `{other}`\n\n{}", usage())),
+@@ -229,7 +251,7 @@ fn main() -> ExitCode {
+     match r {
+         Ok(()) => ExitCode::SUCCESS,
+         Err(e) => {
+-            eprintln!("vectorcraft-cli: {e}");
++            eprintln!("{CLI_NAME}: {e}");
+             ExitCode::FAILURE
+         }
+     }
+@@ -260,6 +282,10 @@ fn accepting_grants(mut h: Headless, allow: bool) -> Headless {
+ /// `mcp`. With `--safe-mode` (`safe_mode`) it serves a headless session: a running app loads its own
+ /// plug-ins, so `--connect` is refused and the default does not connect.
+ fn mcp(args: &[String], safe_mode: bool) -> Result<(), String> {
++    #[cfg(feature = "dobe")]
++    if args.iter().any(|a| a == "--connect" || a.starts_with("--connect=")) {
++        return Err("editor connections are unavailable in Dobe Vector".into());
++    }
+     if help_requested(args, &["--connect", "--automation-read-root", "--automation-write-root"]) {
+         return help();
+     }
+@@ -307,7 +333,7 @@ fn mcp(args: &[String], safe_mode: bool) -> Result<(), String> {
+     let backend: Box<dyn Backend> = if let Some(roots) = roots {
+         // Every thread of this process, not only the server's: nothing reaches past the roots.
+         file_access::confine_process(roots.clone());
+-        eprintln!("vectorcraft-cli: files confined: {}", roots.describe());
++        eprintln!("{CLI_NAME}: files confined: {}", roots.describe());
+         Box::new(accepting_grants(Headless::with_document().with_automation_roots(Some(roots)), allow_grants))
+     } else if headless || safe_mode || allow_grants {
+         Box::new(accepting_grants(with_stores(Headless::with_document()), allow_grants))
+@@ -320,7 +346,7 @@ fn mcp(args: &[String], safe_mode: bool) -> Result<(), String> {
+             Err(_) => Box::new(with_stores(Headless::with_document())),
+         }
+     };
+-    eprintln!("vectorcraft-cli: MCP server on stdio ({})", backend.describe());
++    eprintln!("{CLI_NAME}: MCP server on stdio ({})", backend.describe());
+     // The binary owns the logger, not the library: installing one here keeps an embedder that
+     // uses `vectorcraft_mcp` free to bring its own. Silent until a client sends logging/setLevel.
+     vectorcraft_mcp::logging::install();
+diff --git a/crates/mcp/Cargo.toml b/crates/mcp/Cargo.toml
+index 30cb6ae..f3d6e96 100644
+--- a/crates/mcp/Cargo.toml
++++ b/crates/mcp/Cargo.toml
+@@ -9,6 +9,7 @@ description = "VectorCraft MCP server: JSON-RPC 2.0 over stdio, driving a runnin
+ workspace = true
+ 
+ [features]
++dobe = []
+ default = ["bundled-fonts"]
+ # The fonts vectorcraft-text bundles for documents, through the engine's `bundled-fonts`, as
+ # vectorcraft-ui-egui's. Off, for an embedder that supplies every document font at run time.
+diff --git a/crates/mcp/src/lib.rs b/crates/mcp/src/lib.rs
+index d2f1145..17b12a3 100644
+--- a/crates/mcp/src/lib.rs
++++ b/crates/mcp/src/lib.rs
+@@ -14,6 +14,13 @@
+ //! Entry points: [`Server::serve`] (stdio loop) and [`Server::handle_line`] (one message).
+ #![forbid(unsafe_code)]
+ 
++// Keep native resource templates consistent with the selected product identity.
++macro_rules! resource_uri {
++    ($suffix:literal) => {
++        if cfg!(feature = "dobe") { concat!("dobe-vector://", $suffix) } else { concat!("vectorcraft://", $suffix) }
++    };
++}
++
+ mod backend;
+ mod headless;
+ mod intake;
+diff --git a/crates/mcp/src/prompts.rs b/crates/mcp/src/prompts.rs
+index 7741d92..8ec5e66 100644
+--- a/crates/mcp/src/prompts.rs
++++ b/crates/mcp/src/prompts.rs
+@@ -705,7 +705,7 @@ mod tests {
+         for params in [
+             json!({"ref": {"type": "ref/prompt", "name": "nope"}, "argument": {"name": "x", "value": ""}}),
+             json!({"ref": {"type": "ref/prompt", "name": "poster"}, "argument": {"name": "nope", "value": ""}}),
+-            json!({"ref": {"type": "ref/resource", "uri": "vectorcraft://nope/{id}"}, "argument": {"name": "id", "value": ""}}),
++            json!({"ref": {"type": "ref/resource", "uri": resource_uri!("nope/{id}")}, "argument": {"name": "id", "value": ""}}),
+             json!({"ref": {"type": "ref/other"}, "argument": {"name": "x", "value": ""}}),
+             json!({}),
+         ] {
+diff --git a/crates/mcp/src/resources.rs b/crates/mcp/src/resources.rs
+index 9f2f3b9..1245094 100644
+--- a/crates/mcp/src/resources.rs
++++ b/crates/mcp/src/resources.rs
+@@ -12,14 +12,14 @@ use crate::backend::Backend;
+ use crate::prompts::Live;
+ 
+ /// The active document's summary: artboards, layer tree, selection, history.
+-pub const DOC_URI: &str = "vectorcraft://document";
++pub const DOC_URI: &str = resource_uri!("document");
+ /// The whole document model as JSON.
+-pub const DOC_JSON_URI: &str = "vectorcraft://document/json";
++pub const DOC_JSON_URI: &str = resource_uri!("document/json");
+ 
+ /// The live command catalog, including enabled state.
+-pub const COMMANDS_URI: &str = "vectorcraft://commands";
++pub const COMMANDS_URI: &str = resource_uri!("commands");
+ /// The command API reference in Markdown (`engine.apiReference`).
+-pub const REFERENCE_URI: &str = "vectorcraft://commands/reference";
++pub const REFERENCE_URI: &str = resource_uri!("commands/reference");
+ 
+ /// The media type of the JSON resources.
+ pub const JSON: &str = "application/json";
+@@ -58,7 +58,7 @@ pub struct Template {
+ /// Every template, in `resources/templates/list` order.
+ pub static TEMPLATES: &[Template] = &[
+     Template {
+-        uri: "vectorcraft://object/{id}",
++        uri: resource_uri!("object/{id}"),
+         name: "object",
+         title: "One layer or object",
+         description: "The layer or object with this id, with its children, bounds and paint (document.node {summary: true}; `opacity` is a 0–1 fraction, `opacityPct` the 0–100 % the drawing tools take). Large containers can be sliced with run_command document.node {id, summary, depth, childLimit}: truncated levels report childCount",
+@@ -66,7 +66,7 @@ pub static TEMPLATES: &[Template] = &[
+         live: Live::Objects,
+     },
+     Template {
+-        uri: "vectorcraft://command/{id}",
++        uri: resource_uri!("command/{id}"),
+         name: "command",
+         title: "One command",
+         description: "The command with this id: label, menu path, shortcut, parameter description and whether it is enabled now (engine.commands)",
+@@ -74,7 +74,7 @@ pub static TEMPLATES: &[Template] = &[
+         live: Live::Commands,
+     },
+     Template {
+-        uri: "vectorcraft://effect/{id}",
++        uri: resource_uri!("effect/{id}"),
+         name: "effect",
+         title: "One live effect",
+         description: "The live effect with this id and its parameters with their defaults (effect.list)",
+@@ -82,7 +82,7 @@ pub static TEMPLATES: &[Template] = &[
+         live: Live::Effects,
+     },
+     Template {
+-        uri: "vectorcraft://swatch/{name}",
++        uri: resource_uri!("swatch/{name}"),
+         name: "swatch",
+         title: "One swatch",
+         description: "The swatch or gradient/pattern swatch with this name (swatch.list)",
+@@ -257,19 +257,19 @@ mod tests {
+ 
+     #[test]
+     fn variables_are_split_out_and_decoded() {
+-        assert_eq!(variable("vectorcraft://object/42", "vectorcraft://object/{id}"), "42");
+-        assert_eq!(variable("vectorcraft://swatch/Brand%2040%25", "vectorcraft://swatch/{name}"), "Brand 40%");
+-        assert_eq!(variable("vectorcraft://swatch/a%zzb", "vectorcraft://swatch/{name}"), "a%zzb");
+-        assert_eq!(variable("vectorcraft://other", "vectorcraft://object/{id}"), "");
+-        assert_eq!(variable_name("vectorcraft://swatch/{name}"), "name");
++        assert_eq!(variable(resource_uri!("object/42"), resource_uri!("object/{id}")), "42");
++        assert_eq!(variable(resource_uri!("swatch/Brand%2040%25"), resource_uri!("swatch/{name}")), "Brand 40%");
++        assert_eq!(variable(resource_uri!("swatch/a%zzb"), resource_uri!("swatch/{name}")), "a%zzb");
++        assert_eq!(variable(resource_uri!("other"), resource_uri!("object/{id}")), "");
++        assert_eq!(variable_name(resource_uri!("swatch/{name}")), "name");
+         assert_eq!(variable_name("no template"), "");
+     }
+ 
+     #[test]
+     fn templates_are_addressable() {
+-        assert_eq!(template_source("vectorcraft://object/7"), ("vectorcraft://object/{id}", Some(Live::Objects)));
+-        assert_eq!(template_source("vectorcraft://command/paint.setFill").1, Some(Live::Commands));
+-        assert_eq!(template_source("vectorcraft://document").1, None);
++        assert_eq!(template_source(resource_uri!("object/7")), (resource_uri!("object/{id}"), Some(Live::Objects)));
++        assert_eq!(template_source(resource_uri!("command/paint.setFill")).1, Some(Live::Commands));
++        assert_eq!(template_source(resource_uri!("document")).1, None);
+     }
+ 
+     #[test]
+@@ -319,7 +319,7 @@ mod tests {
+         let commands = read_contents(b.as_mut(), COMMANDS_URI).unwrap();
+         assert_eq!(commands.mime, JSON);
+         assert!(serde_json::from_str::<Value>(&commands.text).unwrap().is_array());
+-        assert!(matches!(read_contents(b.as_mut(), "vectorcraft://commands/nope"), Err(ReadError::NotFound(_))));
++        assert!(matches!(read_contents(b.as_mut(), resource_uri!("commands/nope")), Err(ReadError::NotFound(_))));
+     }
+ 
+     /// A reply without the Markdown text, and an app that cannot be reached, are backend errors.
+@@ -334,16 +334,16 @@ mod tests {
+     #[test]
+     fn missing_and_unknown_uris_are_errors() {
+         let mut b = Box::new(crate::Headless::with_document());
+-        assert!(read(b.as_mut(), "vectorcraft://nope").is_err());
+-        assert!(read(b.as_mut(), "vectorcraft://object/").is_err());
+-        assert!(read(b.as_mut(), "vectorcraft://object/99999").is_err());
++        assert!(read(b.as_mut(), resource_uri!("nope")).is_err());
++        assert!(read(b.as_mut(), resource_uri!("object/")).is_err());
++        assert!(read(b.as_mut(), resource_uri!("object/99999")).is_err());
+         assert!(read(b.as_mut(), DOC_URI).is_ok());
+         // An id that names nothing is a bad value; without a document the backend says why.
+-        for uri in ["vectorcraft://object/99999", "vectorcraft://object/abc"] {
++        for uri in [resource_uri!("object/99999"), resource_uri!("object/abc")] {
+             assert!(matches!(read(b.as_mut(), uri), Err(ReadError::Invalid(_))), "{uri}");
+         }
+         let mut empty = Box::new(crate::Headless::new());
+-        assert!(matches!(read(empty.as_mut(), "vectorcraft://object/1"), Err(ReadError::Backend(_))));
++        assert!(matches!(read(empty.as_mut(), resource_uri!("object/1")), Err(ReadError::Backend(_))));
+     }
+ 
+     #[test]
+@@ -351,10 +351,10 @@ mod tests {
+         let mut b = Box::new(crate::Headless::with_document());
+         let made = b.call("engine.execute", json!({"command": "shape.rectangle", "params": {"x": 10, "y": 10, "width": 50, "height": 40}})).unwrap();
+         let id = made["id"].as_i64().expect("shape.rectangle returns an integer id");
+-        for uri in [format!("vectorcraft://object/+{id}"), format!("vectorcraft://object/-{id}")] {
++        for uri in [format!("{}object/+{id}", resource_uri!("")), format!("{}object/-{id}", resource_uri!(""))] {
+             assert!(matches!(read(b.as_mut(), &uri), Err(ReadError::Invalid(_))), "{uri}");
+         }
+-        assert!(read(b.as_mut(), &format!("vectorcraft://object/{id}")).is_ok());
++        assert!(read(b.as_mut(), &format!("{}object/{id}", resource_uri!(""))).is_ok());
+     }
+ 
+     #[test]
+@@ -362,14 +362,14 @@ mod tests {
+         let mut b = Box::new(crate::Headless::with_document());
+         let made = b.call("engine.execute", json!({"command": "shape.rectangle", "params": {"x": 10, "y": 10, "width": 50, "height": 40}})).unwrap();
+         let id = made["id"].as_i64().unwrap_or_default().to_string();
+-        let v = read(b.as_mut(), &format!("vectorcraft://object/{id}")).unwrap();
++        let v = read(b.as_mut(), &format!("{}object/{id}", resource_uri!(""))).unwrap();
+         assert_eq!(v["id"].to_string(), id);
+         assert!(v["bounds"].is_object(), "{v}");
+         // Layers resolve too, not just drawn objects.
+         let inspect = b.call("document.inspect", json!({})).unwrap();
+         let layer = inspect["layers"].as_array().and_then(|l| l.first()).expect("a layer");
+         let lid = layer["id"].to_string();
+-        let v = read(b.as_mut(), &format!("vectorcraft://object/{lid}")).unwrap();
++        let v = read(b.as_mut(), &format!("{}object/{lid}", resource_uri!(""))).unwrap();
+         assert_eq!(v["id"].to_string(), lid);
+     }
+ }
+diff --git a/crates/mcp/src/server.rs b/crates/mcp/src/server.rs
+index a445c71..918e0a0 100644
+--- a/crates/mcp/src/server.rs
++++ b/crates/mcp/src/server.rs
+@@ -78,6 +78,17 @@ fn progress_sink(out: SyncSender<String>, msg: &Value) -> Option<cancel::Progres
+     }))
+ }
+ 
++#[cfg(feature = "dobe")]
++const SERVER_NAME: &str = "dobe-vector";
++#[cfg(not(feature = "dobe"))]
++const SERVER_NAME: &str = "vectorcraft";
++#[cfg(feature = "dobe")]
++const PRODUCT_NAME: &str = "Dobe Vector";
++#[cfg(not(feature = "dobe"))]
++const PRODUCT_NAME: &str = "VectorCraft";
++#[cfg(feature = "dobe")]
++const INSTRUCTIONS: &str = "Dobe Vector is a native headless vector production engine. Coordinates are points in document space, y down. Discover reusable workflows with prompts/list and prompts/get. Discover commands with command_list and run command_run or command_batch. Inspect editable objects with doc_inspect and render_preview. Use dobe-vector://document and dobe-vector://object/{id} for bounded inspection. New objects become the selection. Native .vectorcraft files remain editable. The supported product MCP endpoint is `dobe mcp`, which manages durable jobs and portable deliverables.";
++#[cfg(not(feature = "dobe"))]
+ const INSTRUCTIONS: &str = "VectorCraft is a professional vector illustration app. Coordinates are \
+ points in document space (y down, origin at the first artboard's top-left; a new document is 612×792). \
+ Draw with draw_shape / draw_path, change colours with set_paint, look with render_preview and doc_inspect. \
+@@ -426,7 +437,7 @@ impl Server {
+                         "completions": {},
+                         "logging": {},
+                     },
+-                    "serverInfo": {"name": "vectorcraft", "title": "VectorCraft", "version": env!("CARGO_PKG_VERSION")},
++                    "serverInfo": {"name": SERVER_NAME, "title": PRODUCT_NAME, "version": env!("CARGO_PKG_VERSION")},
+                     "instructions": format!("{INSTRUCTIONS} Backend: {}.", self.backend.describe()),
+                 }))
+             }
+diff --git a/crates/mcp/src/tests.rs b/crates/mcp/src/tests.rs
+index d7de8dd..e522af7 100644
+--- a/crates/mcp/src/tests.rs
++++ b/crates/mcp/src/tests.rs
+@@ -153,7 +153,7 @@ fn serve_loop_writes_one_line_per_request() {
+     let lines: Vec<Value> = String::from_utf8(out).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+     assert_eq!(lines.len(), 2);
+     assert_eq!(lines[0]["result"]["protocolVersion"], PROTOCOL_VERSION);
+-    assert_eq!(lines[0]["result"]["serverInfo"]["name"], "vectorcraft");
++    assert_eq!(lines[0]["result"]["serverInfo"]["name"], if cfg!(feature = "dobe") { "dobe-vector" } else { "vectorcraft" });
+     assert!(lines[0]["result"]["capabilities"]["tools"].is_object());
+     assert!(lines[0]["result"]["capabilities"]["resources"].is_object());
+     assert!(lines[1]["result"]["tools"].as_array().unwrap().len() >= 19);
+@@ -373,12 +373,12 @@ fn headless_end_to_end() {
+     // Resources.
+     let v = rpc(&mut s, 10, "resources/list", json!({}));
+     assert_eq!(v["result"]["resources"].as_array().unwrap().len(), 4);
+-    let v = rpc(&mut s, 11, "resources/read", json!({"uri": "vectorcraft://document"}));
++    let v = rpc(&mut s, 11, "resources/read", json!({"uri": resource_uri!("document")}));
+     let text = v["result"]["contents"][0]["text"].as_str().unwrap();
+     assert!(serde_json::from_str::<Value>(text).unwrap()["layers"].is_array());
+-    let v = rpc(&mut s, 12, "resources/read", json!({"uri": "vectorcraft://document/json"}));
++    let v = rpc(&mut s, 12, "resources/read", json!({"uri": resource_uri!("document/json")}));
+     assert!(v["result"]["contents"][0]["text"].as_str().unwrap().len() > 10);
+-    let v = rpc(&mut s, 13, "resources/read", json!({"uri": "vectorcraft://nope"}));
++    let v = rpc(&mut s, 13, "resources/read", json!({"uri": resource_uri!("nope")}));
+     assert_eq!(v["error"]["code"], -32002);
+ }
+ 
+diff --git a/crates/mcp/src/tests/conventions.rs b/crates/mcp/src/tests/conventions.rs
+index 0b7352b..a627df2 100644
+--- a/crates/mcp/src/tests/conventions.rs
++++ b/crates/mcp/src/tests/conventions.rs
+@@ -351,8 +351,8 @@ fn conventions_resources_and_versioned_results() {
+         ("resources/list", json!({}), 600_000),
+         ("resources/templates/list", json!({}), 600_000),
+         ("prompts/list", json!({}), 600_000),
+-        ("resources/read", json!({"uri":"vectorcraft://document"}), 0),
+-        ("resources/read", json!({"uri":"vectorcraft://commands"}), 0),
++        ("resources/read", json!({"uri":resource_uri!("document")}), 0),
++        ("resources/read", json!({"uri":resource_uri!("commands")}), 0),
+     ] {
+         let legacy = rpc(&mut s, method, extra.clone());
+         assert!(legacy["result"].is_object(), "{legacy}");
+@@ -371,8 +371,8 @@ fn conventions_resources_and_versioned_results() {
+         assert!(rpc(&mut s, method, extra)["result"].get("resultType").is_none());
+     }
+     let r = rpc(&mut s, "resources/list", json!({}));
+-    assert!(r["result"]["resources"].as_array().unwrap().iter().any(|r| r["uri"] == "vectorcraft://commands"));
+-    let commands = rpc(&mut s, "resources/read", json!({"uri":"vectorcraft://commands"}));
++    assert!(r["result"]["resources"].as_array().unwrap().iter().any(|r| r["uri"] == resource_uri!("commands")));
++    let commands = rpc(&mut s, "resources/read", json!({"uri":resource_uri!("commands")}));
+     let commands: Value = serde_json::from_str(commands["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+     assert_eq!(commands, payload(&call(&mut s, "command_list", json!({}))));
+     assert_eq!(rpc(&mut s, "initialize", json!({"protocolVersion":"2026-07-28"}))["result"]["protocolVersion"], "2026-07-28");
+diff --git a/crates/mcp/src/tests/drawopts.rs b/crates/mcp/src/tests/drawopts.rs
+index 2229fbe..9ce8edd 100644
+--- a/crates/mcp/src/tests/drawopts.rs
++++ b/crates/mcp/src/tests/drawopts.rs
+@@ -203,7 +203,7 @@ fn inspect_reports_opacity_in_the_percent_scale_the_drawing_tools_take() {
+     let tree: Value = serde_json::from_str(r.content[0]["text"].as_str().unwrap()).unwrap();
+     let in_tree = tree["layers"][0]["children"].as_array().unwrap().iter().find(|c| c["id"] == id.0).expect("the path in its layer");
+     assert_eq!(in_tree["opacityPct"], json!(55.0), "{in_tree}");
+-    let res = crate::resources::read(&mut h, &format!("vectorcraft://object/{}", id.0)).unwrap();
++    let res = crate::resources::read(&mut h, &format!("{}object/{}", resource_uri!(""), id.0)).unwrap();
+     assert_eq!((res["opacityPct"].clone(), res["opacity"].as_f64().map(|o| (o * 100.0).round())), (json!(55.0), Some(55.0)), "{res}");
+     // Writing `opacityPct` back, as the descriptions say, keeps the object as it was.
+     let r = call_tool(&mut h, "run_command", &json!({"command": "object.setProps", "params": {"id": id.0, "opacity": n["opacityPct"]}}));
+diff --git a/crates/mcp/src/tests/protocol.rs b/crates/mcp/src/tests/protocol.rs
+index a3c79aa..fbb5d14 100644
+--- a/crates/mcp/src/tests/protocol.rs
++++ b/crates/mcp/src/tests/protocol.rs
+@@ -163,7 +163,7 @@ fn completions_come_from_the_live_catalogues() {
+         &mut s,
+         3,
+         "completion/complete",
+-        json!({"ref": {"type": "ref/resource", "uri": "vectorcraft://object/{id}"}, "argument": {"name": "id", "value": ""}}),
++        json!({"ref": {"type": "ref/resource", "uri": resource_uri!("object/{id}")}, "argument": {"name": "id", "value": ""}}),
+     );
+     let values = v["completion"]["values"].as_array().map_or(0, Vec::len);
+     assert!(values > 0, "{v}");
+@@ -181,26 +181,26 @@ fn templates_are_listed_and_readable() {
+ 
+     let id = rectangle(&mut s, 2);
+ 
+-    let read = result(&mut s, 3, "resources/read", json!({"uri": format!("vectorcraft://object/{id}")}));
++    let read = result(&mut s, 3, "resources/read", json!({"uri": format!("{}object/{id}", resource_uri!(""))}));
+     let body: Value = serde_json::from_str(read["contents"][0]["text"].as_str().unwrap_or("{}")).unwrap_or_default();
+     assert_eq!(body["id"].as_i64(), Some(id), "{body}");
+     assert!(body["bounds"].is_object(), "{body}");
+ 
+     // A command definition is one small read instead of the whole 400-command catalogue.
+-    let read = result(&mut s, 4, "resources/read", json!({"uri": "vectorcraft://command/paint.setFill"}));
++    let read = result(&mut s, 4, "resources/read", json!({"uri": resource_uri!("command/paint.setFill")}));
+     let body: Value = serde_json::from_str(read["contents"][0]["text"].as_str().unwrap_or("{}")).unwrap_or_default();
+     assert_eq!(body["id"], "paint.setFill", "{body}");
+     assert!(body["params"].as_str().is_some_and(|p| !p.is_empty()), "{body}");
+ 
+     // An effect's parameters and defaults.
+-    let read = result(&mut s, 5, "resources/read", json!({"uri": "vectorcraft://effect/stylize.dropShadow"}));
++    let read = result(&mut s, 5, "resources/read", json!({"uri": resource_uri!("effect/stylize.dropShadow")}));
+     let body: Value = serde_json::from_str(read["contents"][0]["text"].as_str().unwrap_or("{}")).unwrap_or_default();
+     assert_eq!(body["id"], "stylize.dropShadow", "{body}");
+ 
+     // Missing values and unknown resources are distinguishable.
+-    assert_eq!(err_code(&mut s, 6, "resources/read", json!({"uri": "vectorcraft://object/"})), -32602);
+-    assert_eq!(err_code(&mut s, 7, "resources/read", json!({"uri": "vectorcraft://command/nope"})), -32602);
+-    assert_eq!(err_code(&mut s, 8, "resources/read", json!({"uri": "vectorcraft://nope"})), -32002);
++    assert_eq!(err_code(&mut s, 6, "resources/read", json!({"uri": resource_uri!("object/")})), -32602);
++    assert_eq!(err_code(&mut s, 7, "resources/read", json!({"uri": resource_uri!("command/nope")})), -32602);
++    assert_eq!(err_code(&mut s, 8, "resources/read", json!({"uri": resource_uri!("nope")})), -32002);
+ }
+ 
+ // ---------- logging ----------

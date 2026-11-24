@@ -1,0 +1,36 @@
+{
+  "cargo_lock_sha256": "f68bca3cd775c423cb1ea7e4bb4b7f4580f0a3695514319c5b7ca0cf3ebcbc3d",
+  "engine_version": "0.18.1",
+  "fonts": {
+    "revision": "37827adc41fd165f9a9234ac40f94dbad353aa69",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "slides.patch",
+    "sha256": "6fcc4d1d5fb6150aad6378c4ab0bad66283efd1ae8e52d8851a1687da18c2e2f"
+  },
+  "patched_files": {
+    "apps/deckcraft-cli/Cargo.toml": "f1c07a4fd6092743bbd6758ef0ae91026ecb291ba714c5a503b3cd0d16cd0b79",
+    "apps/deckcraft-cli/src/dobe_diagnostics.rs": "a2233bde544869324cb670378a0e895cf5d645d6c29b81c68f665c7c6d48fced",
+    "apps/deckcraft-cli/src/dobe_main.rs": "4e3fe89406feb7401d9106615bee15d96ae9fc56859c3a1bfd511b524359c271",
+    "crates/engine/Cargo.toml": "b4fdbab590832b12ba7ae4e4ee127ea6282ca92e263a1d25e5e1d6ac2266c3d5",
+    "crates/fonts/Cargo.toml": "04c1e4a88babfd0e413ef685a44e21c58210069cd01e99b537e9ac7a039bc1fb",
+    "crates/fonts/src/fontdb.rs": "3d6cc0b4f56db8e5e056dbbadebb684d149169fcc8c18044ae7b2c2286604239",
+    "crates/format/Cargo.toml": "87f5e7c66c941c9d0cf370fd929c2bdab319835b2ec4202386089950fd267fec",
+    "crates/format/src/lib.rs": "3558ee71f465d3bc4def595bfaf42f9520fe9842e100d90997fd4e50a50bf879",
+    "crates/pptx/Cargo.toml": "faf88eac0880bb6892d33f5ab238963b422579e037b97ed3105b633ecaaac666",
+    "crates/pptx/src/read/dml.rs": "8cbe46df57b70ae68f137ba1f1262dffe2c438aeba8310c77f6c7f611b0dc5bd",
+    "crates/render/Cargo.toml": "8faf87c1c0a677b69b4636ae582deb92a3075834244b67d35aa255973b1928c0",
+    "crates/render/src/images.rs": "b96300ff2d15aa04d8fe8f246d71003973acaaa1090efd9681ce6f5dc9d08e43",
+    "crates/render/src/lib.rs": "270cb9b43583b95159996bb91215db1f93702c7b8e8423c25e66e67b97ea7e48",
+    "crates/render/src/placed.rs": "0ad6737e398f356d97eebb0b164d1fbcfe0dc6ed429f7a107b4f7acdba796bd3"
+  },
+  "product": "dobe-slides",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+    "url": "https://github.com/storytold/deckcraft"
+  },
+  "source_date_epoch": 1794440426
+}

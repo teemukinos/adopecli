@@ -1,0 +1,27 @@
+{
+  "cargo_lock_sha256": "6e667fecf8b8d778b5c75d5f819c8c727838f343e563faa6ed6a88c2519d6c4f",
+  "engine_version": "0.19.1",
+  "fonts": {
+    "revision": "37827adc41fd165f9a9234ac40f94dbad353aa69",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "sheets.patch",
+    "sha256": "b87d4b9fa36f84c887f72150eb9795c1491e482963cd336f6b78945cb0801cb0"
+  },
+  "patched_files": {
+    "apps/gridcraft-cli/Cargo.toml": "7a6525eefd7d4cc58ff067049687c7d1445a0271a2606c225d6cf241db1df842",
+    "apps/gridcraft-cli/src/dobe_main.rs": "d1f575d877d9685157a3b6a2f7c258cf03ef6187286236aeddb32c21a74cd967",
+    "apps/gridcraft-cli/src/dobe_profile.rs": "3b976493035193086f06f14c682038ad6e47e6bae9bd2b0d8366e3bcccc570a9",
+    "crates/ui-egui/tests/it/ref_edit.rs": "f7a35a602910a44aa2a74b2b603864bf292cf1cef774077bebda992b71b06432",
+    "docs/dobe-private-transport.md": "7d341045383502bf5388bfc547e2c0cbb3d695a79dc20e199402591db45eb0b2"
+  },
+  "product": "dobe-sheets",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+    "url": "https://github.com/storytold/gridcraft"
+  },
+  "source_date_epoch": 1794428759
+}

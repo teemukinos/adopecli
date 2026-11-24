@@ -1,0 +1,512 @@
+diff --git a/apps/wordcraft-cli/Cargo.toml b/apps/wordcraft-cli/Cargo.toml
+index da51fba..9787a11 100644
+--- a/apps/wordcraft-cli/Cargo.toml
++++ b/apps/wordcraft-cli/Cargo.toml
+@@ -26,3 +26,11 @@ sys-locale = "0.3"
+ wordcraft-fonts = { workspace = true }
+ image = { workspace = true }
+ zip = { workspace = true }
++
++[features]
++dobe = ["wordcraft-engine/dobe"]
++
++[[bin]]
++name = "dobe-write"
++path = "src/dobe_main.rs"
++required-features = ["dobe"]
+diff --git a/apps/wordcraft-cli/src/dobe_help.txt b/apps/wordcraft-cli/src/dobe_help.txt
+new file mode 100644
+index 0000000..54d013b
+--- /dev/null
++++ b/apps/wordcraft-cli/src/dobe_help.txt
+@@ -0,0 +1,20 @@
++dobe-write: private headless document engine
++
++Commands: convert, info, text, inspect, snapshot, picture, glyphs, render, run, commands, parity.
++Editable formats include DOCX and the full native JSON document model.
++PDF and PNG exports support --strict to refuse missing glyphs or pictures.
++Default paper uses en-GB/A4; explicit document page settings remain authoritative.
++Font discovery uses the pinned embedded fonts, never ambient system font directories.
++No editor bridge, standalone MCP, Zotero connection or automatic language-pack store.
++Use the Dobe CLI or product MCP for durable customer operations when qualified.
++This private component is not an untrusted-document sandbox or a release-qualified application.
++snapshot FILE emits every serialized native document field without saving or laying it out.
++The snapshot also reports missing pictures and retained-markup presence; JSON does not preserve that read-time state. Retain the source document.
++Cached DATE/TIME fields change only after an explicit field update. Proofing and hyphenation are not qualified.
++picture FILE fully decodes one bounded raster without opening a document or loading fonts.
++Its stdout is DOBEPIC1, a little-endian u32 JSON-header length, that JSON header, then exact RGBA8 pixels.
++This diagnostic packet is private; resource admission still requires an independent decoder comparison.
++glyphs FILE traces actual PNG-display glyph IDs, text ranges, geometry and exact font bytes.
++Its stdout is DOBEGLY1, a little-endian u32 JSON-header length, that header, then owned font bytes.
++This opens and lays out the document: prior admission is mandatory. Watermarks and outline-only text are refused.
++Glyph traces are diagnostics, not independent shaping proof or permission to embed a font.
+diff --git a/apps/wordcraft-cli/src/dobe_main.rs b/apps/wordcraft-cli/src/dobe_main.rs
+new file mode 100644
+index 0000000..2b17f51
+--- /dev/null
++++ b/apps/wordcraft-cli/src/dobe_main.rs
+@@ -0,0 +1,17 @@
++//! Private headless engine. Public operations belong to the durable Dobe runtime.
++#![forbid(unsafe_code)]
++#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
++#[path = "main.rs"]
++mod cli;
++fn main() -> std::process::ExitCode {
++    let args: Vec<_> = std::env::args_os().skip(1).collect();
++    if args.first().is_some_and(|arg| matches!(arg.to_str(), Some("mcp" | "zotero" | "serve")))
++        || args
++            .iter()
++            .any(|arg| arg.to_str().is_some_and(|arg| matches!(arg.split('=').next(), Some("--connect" | "--port" | "--token" | "--bridge"))))
++    {
++        eprintln!("dobe-write: private engine has no editor connection or network server; use the product MCP");
++        return std::process::ExitCode::from(2);
++    }
++    cli::main()
++}
+diff --git a/apps/wordcraft-cli/src/main.rs b/apps/wordcraft-cli/src/main.rs
+index a7c38c6..3431de3 100644
+--- a/apps/wordcraft-cli/src/main.rs
++++ b/apps/wordcraft-cli/src/main.rs
+@@ -13,6 +13,9 @@ use std::process::ExitCode;
+ use serde_json::{Value, json};
+ use wordcraft_engine::{CmdError, Session};
+ 
++#[cfg(feature = "dobe")]
++const USAGE: &str = include_str!("dobe_help.txt");
++#[cfg(not(feature = "dobe"))]
+ const USAGE: &str = "\
+ wordcraft-cli — WordCraft from the command line
+ 
+@@ -81,7 +84,8 @@ same output on every machine.
+ const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "run", "commands", "parity", "mcp", "zotero"];
+ 
+ fn wants_help(cmd: &str, rest: &[String]) -> bool {
+-    SUBCOMMANDS.contains(&cmd) && rest.iter().any(|a| a == "--help" || a == "-h")
++    (SUBCOMMANDS.contains(&cmd) || (cfg!(feature = "dobe") && matches!(cmd, "snapshot" | "picture" | "glyphs")))
++        && rest.iter().any(|a| a == "--help" || a == "-h")
+ }
+ 
+ /// A failure whose message may carry text from a file or from the engine's reading of one (a
+@@ -162,7 +166,14 @@ fn password_from(args: &[String]) -> Result<Option<String>, String> {
+         let raw = std::fs::read_to_string(&path).map_err(|e| format!("--password-file {path}: {e}"))?;
+         return Ok(Some(raw.trim_end_matches(['\r', '\n']).to_string()));
+     }
+-    Ok(std::env::var("WORDCRAFT_PASSWORD").ok().filter(|p| !p.is_empty()))
++    #[cfg(not(feature = "dobe"))]
++    {
++        Ok(std::env::var("WORDCRAFT_PASSWORD").ok().filter(|p| !p.is_empty()))
++    }
++    #[cfg(feature = "dobe")]
++    {
++        Ok(None)
++    }
+ }
+ 
+ /// The positional arguments, skipping every option's value so an option value is never read as a
+@@ -195,12 +206,23 @@ fn positional_indices(args: &[String], specs: &[OptionSpec]) -> Vec<usize> {
+ fn session(doc: wordcraft_doc::Document) -> Session {
+     let mut s = Session::new(doc);
+     s.system_region = system_region();
++    #[cfg(feature = "dobe")]
++    {
++        s.author = "Dobe User".into();
++    }
+     s
+ }
+ 
+ /// The system region, read as the app reads it (locale variables, else the platform's locale).
+ fn system_region() -> wordcraft_engine::Region {
+-    wordcraft_engine::Region::from_locale_vars(|name| std::env::var(name).ok(), sys_locale::get_locale)
++    #[cfg(not(feature = "dobe"))]
++    {
++        wordcraft_engine::Region::from_locale_vars(|name| std::env::var(name).ok(), sys_locale::get_locale)
++    }
++    #[cfg(feature = "dobe")]
++    {
++        wordcraft_engine::Region::from_tag("en-GB")
++    }
+ }
+ 
+ /// The body text for `text`: the plain-text export, so list items keep their bullet or number label.
+@@ -569,6 +591,65 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
+             let text = listed_text(&s.doc)?;
+             write_stdout(|o| writeln!(o, "{text}"))
+         }
++        #[cfg(feature = "dobe")]
++        "picture" => {
++            validate_options("picture", &rest, &[])?;
++            let paths = positionals(&rest, &[]);
++            if paths.len() != 1 {
++                return Err("picture requires exactly one input path".into());
++            }
++            let bytes = wordcraft_engine::io::read_file_capped(paths[0], 32 << 20, "picture").map_err(engine_error)?;
++            let (info, pixels) = wordcraft_engine::io::dobe_picture(&bytes).map_err(engine_error)?;
++            let header = serde_json::to_vec(&info).map_err(engine_error)?;
++            let size = u32::try_from(header.len()).map_err(engine_error)?;
++            write_stdout(|o| {
++                o.write_all(b"DOBEPIC1")?;
++                o.write_all(&size.to_le_bytes())?;
++                o.write_all(&header)?;
++                o.write_all(&pixels)
++            })
++        }
++        #[cfg(feature = "dobe")]
++        "glyphs" => {
++            validate_options("glyphs", &rest, PASSWORD_OPTIONS)?;
++            let paths = positionals(&rest, PASSWORD_OPTIONS);
++            if paths.len() != 1 {
++                return Err("glyphs requires exactly one input path".into());
++            }
++            let password = password_from(&rest)?;
++            let mut s = open(paths[0], password.as_deref())?;
++            let (header, fonts) = wordcraft_engine::io::dobe_glyphs::inspect(&mut s).map_err(engine_error)?;
++            let size = u32::try_from(header.len()).map_err(engine_error)?;
++            write_stdout(|o| {
++                o.write_all(b"DOBEGLY1")?;
++                o.write_all(&size.to_le_bytes())?;
++                o.write_all(&header)?;
++                o.write_all(&fonts)
++            })
++        }
++        #[cfg(feature = "dobe")]
++        "snapshot" => {
++            validate_options("snapshot", &rest, PASSWORD_OPTIONS)?;
++            let paths = positionals(&rest, PASSWORD_OPTIONS);
++            if paths.len() != 1 {
++                return Err("snapshot requires exactly one input path".into());
++            }
++            let password = password_from(&rest)?;
++            let s = open(paths.first().ok_or_else(missing_argument)?, password.as_deref())?;
++            // Unlike document.inspect, this includes every serialized document field.
++            // No layout, save command or metadata mutation is needed to observe it.
++            let document = serde_json::to_string(&s.doc).map_err(engine_error)?;
++            // Native JSON omits these read-time states. Report them explicitly;
++            // the caller must retain source bytes rather than infer lossless conversion.
++            let source_state = json!({
++                "keptMarkup": s.doc.kept.get().map(|kept| json!({"format": kept.format, "bytes": kept.bytes})),
++                "missingPictures": {"total": s.doc.missing_pictures.total,
++                    "truncated": s.doc.missing_pictures.truncated, "pictures": s.doc.missing_pictures.list}
++            });
++            write_stdout(|o| {
++                writeln!(o, "{{\"schemaVersion\":1,\"encrypted\":{},\"sourceState\":{source_state},\"document\":{document}}}", s.password.is_some())
++            })
++        }
+         "inspect" => {
+             validate_options("inspect", &rest, PASSWORD_OPTIONS)?;
+             let paths = positionals(&rest, PASSWORD_OPTIONS);
+@@ -810,7 +891,12 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
+             }
+             Ok(())
+         }
++        #[cfg(not(feature = "dobe"))]
+         "--version" | "-V" => write_stdout(|o| writeln!(o, "wordcraft-cli {}", env!("CARGO_PKG_VERSION"))),
++        #[cfg(feature = "dobe")]
++        "--version" | "-V" => {
++            write_stdout(|o| writeln!(o, "dobe-write {} ({})", env!("CARGO_PKG_VERSION"), option_env!("WORDCRAFT_BUILD_SHA").unwrap_or("unknown")))
++        }
+         "" | "help" | "--help" | "-h" => write_stdout(|o| write!(o, "{USAGE}")),
+         other => Err(format!("unknown command `{other}`\n\n{USAGE}").into()),
+     }
+@@ -911,10 +997,11 @@ fn parity_markdown(p: &Value) -> String {
+     s
+ }
+ 
+-fn main() -> ExitCode {
++pub(crate) fn main() -> ExitCode {
+     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
+     // Language packs installed in the suite's font store are used; `proof.installPack` installs
+     // only while the person has turned downloading on in the app.
++    #[cfg(not(feature = "dobe"))]
+     wordcraft_engine::packs::use_font_store(false);
+     if let Some(source) = wordcraft_engine::packs::index_override() {
+         eprintln!("wordcraft-cli: Language packs come from a test source: {source}");
+@@ -922,7 +1009,10 @@ fn main() -> ExitCode {
+     match run(&args) {
+         Ok(()) | Err(Failure::StdoutClosed) => ExitCode::SUCCESS,
+         Err(Failure::Error(e)) => {
++            #[cfg(not(feature = "dobe"))]
+             eprintln!("wordcraft-cli: {e}");
++            #[cfg(feature = "dobe")]
++            eprintln!("dobe-write: {e}");
+             ExitCode::FAILURE
+         }
+         Err(Failure::Strict(report)) => {
+diff --git a/crates/doc/Cargo.toml b/crates/doc/Cargo.toml
+index e6c7f41..ad6e09e 100644
+--- a/crates/doc/Cargo.toml
++++ b/crates/doc/Cargo.toml
+@@ -9,6 +9,7 @@ description = "WordCraft document model: stories, paragraphs, runs, tables, sect
+ workspace = true
+ 
+ [features]
++dobe = []
+ # Test inputs other crates' tests share (`cfb_guard::repeating_difat_sample`,
+ # `zip_guard::zip64_entry_count_sample`) and the step count of
+ # `work::count`; turned on only as a dev-dependency, so never built into
+diff --git a/crates/doc/src/styles.rs b/crates/doc/src/styles.rs
+index 090df9a..c715230 100644
+--- a/crates/doc/src/styles.rs
++++ b/crates/doc/src/styles.rs
+@@ -583,6 +583,20 @@ impl StyleSheet {
+                 quick: n <= 3,
+                 ..p_style()
+             });
++            // A managed document must own the character style named by its
++            // linked heading. Otherwise applying that link silently falls back.
++            #[cfg(feature = "dobe")]
++            add(Style {
++                id: format!("Heading{n}Char"),
++                name: format!("Heading {n} Char"),
++                kind: StyleKind::Character,
++                based_on: Some("DefaultParagraphFont".into()),
++                linked: Some(format!("Heading{n}")),
++                chr: CharProps { font: Some(font.into()), size: Some(size), italic, color: color(c), ..chr() },
++                priority: Some(9 + n as u32),
++                builtin: true,
++                ..Default::default()
++            });
+         }
+         add(Style {
+             id: "Title".into(),
+diff --git a/crates/engine/Cargo.toml b/crates/engine/Cargo.toml
+index 1c8b53d..b0a2c9d 100644
+--- a/crates/engine/Cargo.toml
++++ b/crates/engine/Cargo.toml
+@@ -9,6 +9,7 @@ description = "WordCraft engine: session, selection, undo, the command registry
+ workspace = true
+ 
+ [features]
++dobe = ["wordcraft-fonts/dobe", "wordcraft-doc/dobe"]
+ # Front-end producer tests need to simulate a globally exhausted IME revision allocator. It only
+ # ever makes receipt classification fail closed. Never enable this for a production build; the
+ # UI's dev-dependencies enable it for its tests.
+diff --git a/crates/engine/src/io.rs b/crates/engine/src/io.rs
+index 6f196c7..f6a1a13 100644
+--- a/crates/engine/src/io.rs
++++ b/crates/engine/src/io.rs
+@@ -2,6 +2,34 @@
+ 
+ use wordcraft_doc::Document;
+ 
++#[cfg(feature = "dobe")]
++pub mod dobe_glyphs;
++
++/// Decode one managed raster with the same decoder used by document rendering.
++/// The caller compares the returned pixels with an independent decoder before
++/// admitting a resource. This does not open a document or load embedded fonts.
++#[cfg(feature = "dobe")]
++pub fn dobe_picture(bytes: &[u8]) -> Result<(serde_json::Value, Vec<u8>), String> {
++    if bytes.is_empty() || bytes.len() > 32 << 20 {
++        return Err("picture bytes exceed the managed budget".into());
++    }
++    let probe = wordcraft_geom::picture::probe(bytes).map_err(|e| e.to_string())?;
++    let pixels = u64::from(probe.width) * u64::from(probe.height);
++    if probe.width > 8192 || probe.height > 8192 || pixels == 0 || pixels > 16_777_216 {
++        return Err("picture dimensions exceed the managed budget".into());
++    }
++    let decoded = probe.decode(128 << 20).map_err(|e| e.to_string())?;
++    let sample_type = format!("{:?}", decoded.color());
++    let rgba = decoded.to_rgba8().into_raw();
++    let info = serde_json::json!({
++        "schemaVersion": 1, "format": format!("{:?}", probe.format),
++        "width": probe.width, "height": probe.height, "sourceBytes": bytes.len(),
++        "nativePeakBytes": probe.peak_bytes(), "sampleType": sample_type,
++        "pixelFormat": "RGBA8", "pixelBytes": rgba.len()
++    });
++    Ok((info, rgba))
++}
++
+ #[cfg(not(target_arch = "wasm32"))]
+ mod safe_save;
+ 
+@@ -162,6 +190,8 @@ fn open_encrypted_odt(bytes: &[u8], password: Option<&str>, page: &wordcraft_doc
+ /// [`crate::cmd::references::refresh_date_fields`]).
+ fn opened(doc: &mut Document) {
+     doc.ensure_nonempty();
++    // Managed reads retain cached field values. Updating fields is an explicit edit.
++    #[cfg(not(feature = "dobe"))]
+     crate::cmd::references::refresh_date_fields(doc);
+ }
+ 
+diff --git a/crates/engine/src/io/dobe_glyphs.rs b/crates/engine/src/io/dobe_glyphs.rs
+new file mode 100644
+index 0000000..4bc2b14
+--- /dev/null
++++ b/crates/engine/src/io/dobe_glyphs.rs
+@@ -0,0 +1,127 @@
++//! Private diagnostic of the actual page-display glyphs and their exact font bytes.
++//! The caller must admit documents before opening them. This is not a sandbox.
++use std::collections::{BTreeSet, HashMap};
++
++use serde_json::{Value, json};
++use wordcraft_layout::display::{Draw, page_display};
++
++use crate::Session;
++
++#[derive(Default)]
++struct Trace {
++    faces: Vec<Value>,
++    face_ids: HashMap<u32, usize>,
++    bytes: Vec<u8>,
++    runs: Vec<Value>,
++    draws: usize,
++    glyphs: usize,
++    text_bytes: usize,
++}
++
++impl Trace {
++    fn visit(&mut self, items: &[Draw], page: usize, path: &mut Vec<usize>, frames: &mut Vec<Value>) -> Result<(), String> {
++        if path.len() > 16 {
++            return Err("glyph trace nesting exceeds budget".into());
++        }
++        for (index, item) in items.iter().enumerate() {
++            self.draws += 1;
++            if self.draws > 200_000 {
++                return Err("glyph trace draws exceed budget".into());
++            }
++            path.push(index);
++            match item {
++                Draw::Glyphs { face, size, glyphs, synth_bold, synth_italic, text, ranges, x_scale, .. } => {
++                    self.glyphs += glyphs.len();
++                    self.text_bytes += text.len();
++                    if self.glyphs > 200_000 || self.text_bytes > 4 << 20 || self.runs.len() >= 50_000 {
++                        return Err("glyph trace content exceeds budget".into());
++                    }
++                    if (!ranges.is_empty() && ranges.len() != glyphs.len())
++                        || ranges.iter().any(|r| r.start > r.end || !text.is_char_boundary(r.start) || !text.is_char_boundary(r.end))
++                    {
++                        return Err("glyph trace has invalid text ranges".into());
++                    }
++                    if !size.is_finite() || !x_scale.is_finite() || glyphs.iter().any(|(id, x, y)| *id == 0 || !x.is_finite() || !y.is_finite()) {
++                        return Err("glyph trace has missing glyphs or nonfinite geometry".into());
++                    }
++                    let font = if let Some(&id) = self.face_ids.get(&face.id()) {
++                        id
++                    } else {
++                        let data = face.data();
++                        if self.faces.len() >= 64 || data.is_empty() || data.len() > 32 << 20 || self.bytes.len() + data.len() > 64 << 20 {
++                            return Err("glyph trace font bytes exceed budget".into());
++                        }
++                        let id = self.faces.len();
++                        self.faces.push(json!({"family": face.family, "style": face.style, "index": face.index(),
++                            "weight": face.weight, "italic": face.italic, "unitsPerEm": face.upem,
++                            "coordinates": face.coords, "offset": self.bytes.len(), "bytes": data.len()}));
++                        self.bytes.extend_from_slice(data);
++                        self.face_ids.insert(face.id(), id);
++                        id
++                    };
++                    self.runs.push(json!({"page": page, "path": path, "frames": frames, "font": font,
++                        "size": size, "xScale": x_scale, "syntheticBold": synth_bold, "syntheticItalic": synth_italic,
++                        "text": text, "rangesKnown": ranges.len() == glyphs.len(),
++                        "ranges": ranges.iter().map(|r| [r.start, r.end]).collect::<Vec<_>>(), "glyphs": glyphs}));
++                }
++                Draw::Figure { draws, .. } => self.visit(draws, page, path, frames)?,
++                Draw::Turned { x, y, turn, items } => {
++                    frames.push(json!({"kind": "transform", "matrix": Draw::turn_matrix(*turn, *x, *y)}));
++                    self.visit(items, page, path, frames)?;
++                    frames.pop();
++                }
++                Draw::Rotated { cx, cy, spin, items } => {
++                    frames.push(json!({"kind": "transform", "matrix": spin.matrix(*cx, *cy)}));
++                    self.visit(items, page, path, frames)?;
++                    frames.pop();
++                }
++                Draw::Clip { rect, items } => {
++                    frames.push(json!({"kind": "clip", "rect": [rect.x, rect.y, rect.w, rect.h]}));
++                    self.visit(items, page, path, frames)?;
++                    frames.pop();
++                }
++                Draw::Art { .. } | Draw::Mark { .. } | Draw::MarkText { .. } => {
++                    return Err("glyph trace cannot identify outline-only or UI text".into());
++                }
++                Draw::Fill { .. } | Draw::Line { .. } | Draw::Image { .. } | Draw::Shape { .. } | Draw::Ink { .. } | Draw::Path { .. } => {}
++            }
++            path.pop();
++        }
++        Ok(())
++    }
++}
++
++pub fn inspect(s: &mut Session) -> Result<(Vec<u8>, Vec<u8>), String> {
++    if s.doc.settings.watermark.is_some() {
++        return Err("glyph trace watermark identity is not qualified".into());
++    }
++    // Match file.exportPng, including print view, output fields and markup choice.
++    // The interactive session layout can omit or dim a different set of content.
++    let layout = s.export_layout_with(false);
++    if layout.pages.is_empty() || layout.pages.len() > 256 {
++        return Err("glyph trace page count exceeds budget".into());
++    }
++    let display = crate::strict::png_display();
++    let report = crate::strict::strict_report(&s.doc, &layout, &display, None, wordcraft_layout::StrictOutput::Png);
++    if !report.passed() {
++        return Err(report.refusal());
++    }
++    let mut trace = Trace::default();
++    for (index, page) in layout.pages.iter().enumerate() {
++        trace.visit(&page_display(&s.doc, page, &display), index, &mut Vec::new(), &mut Vec::new())?;
++    }
++    let substitutions: BTreeSet<(String, String)> =
++        layout.substituted_fonts().into_iter().map(|(requested, face)| (requested, face.get().family.clone())).collect();
++    if substitutions.len() > 256 {
++        return Err("glyph trace font substitutions exceed budget".into());
++    }
++    let substitutions: Vec<Value> = substitutions.into_iter().map(|(requested, actual)| json!({"requested": requested, "actual": actual})).collect();
++    let header = serde_json::to_vec(&json!({"schemaVersion": 2, "display": "png", "faces": trace.faces, "substitutions": substitutions,
++        "runs": trace.runs, "glyphCount": trace.glyphs, "drawCount": trace.draws, "fontBytes": trace.bytes.len(),
++        "pages": layout.pages.iter().map(|p| [p.w, p.h]).collect::<Vec<_>>()}))
++    .map_err(|e| e.to_string())?;
++    if header.len() > 16 << 20 {
++        return Err("glyph trace header exceeds budget".into());
++    }
++    Ok((header, trace.bytes))
++}
+diff --git a/crates/engine/src/session/run.rs b/crates/engine/src/session/run.rs
+index 3339e18..d78161d 100644
+--- a/crates/engine/src/session/run.rs
++++ b/crates/engine/src/session/run.rs
+@@ -53,6 +53,12 @@ impl Session {
+     /// control channel). Mutating commands are undoable; a failed command leaves the document as
+     /// it was; a panic inside a command becomes an error.
+     pub fn run(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
++        // Managed jobs cannot print or alter the person's global language store.
++        #[cfg(feature = "dobe")]
++        if matches!(id, "file.print" | "proof.packs" | "proof.installPack" | "proof.removePack") {
++            return Err(CmdError::Disabled("Dobe Write requires an explicit managed external-service handoff".into()));
++        }
++
+         // The document the command starts in, and the first id a document it opens can have.
+         let home = self.document_id;
+         let mark = document_id_mark();
+diff --git a/crates/fonts/Cargo.toml b/crates/fonts/Cargo.toml
+index eef1b75..f5b157c 100644
+--- a/crates/fonts/Cargo.toml
++++ b/crates/fonts/Cargo.toml
+@@ -9,6 +9,7 @@ description = "WordCraft fonts: font database (bundled OFL + system), metrics, g
+ workspace = true
+ 
+ [features]
++dobe = []
+ # Opt-in test harness support; enabling this alone never changes the application database.
+ test-support = []
+ 
+diff --git a/crates/fonts/src/fontdb.rs b/crates/fonts/src/fontdb.rs
+index 6ae53ac..c9a3561 100644
+--- a/crates/fonts/src/fontdb.rs
++++ b/crates/fonts/src/fontdb.rs
+@@ -158,7 +158,14 @@ impl FontDb {
+     /// first time a lookup by family name needs them (or ahead of time by
+     /// [`FontDb::scan_in_background`]).
+     pub fn global() -> &'static FontDb {
+-        GLOBAL.get_or_init(|| FontDb::with_font_dirs(system_font_dirs()))
++        #[cfg(not(feature = "dobe"))]
++        {
++            GLOBAL.get_or_init(|| FontDb::with_font_dirs(system_font_dirs()))
++        }
++        #[cfg(feature = "dobe")]
++        {
++            GLOBAL.get_or_init(|| FontDb::with_font_dirs(Vec::new()))
++        }
+     }
+ 
+     /// Initialize a test process with only the repository's pinned bundled fonts: no optional

@@ -1,0 +1,244 @@
+diff --git a/apps/soundcraft-cli/Cargo.toml b/apps/soundcraft-cli/Cargo.toml
+index 6119ff2..b6fd57a 100644
+--- a/apps/soundcraft-cli/Cargo.toml
++++ b/apps/soundcraft-cli/Cargo.toml
+@@ -14,6 +14,14 @@ path = "src/lib.rs"
+ name = "soundcraft-cli"
+ path = "src/main.rs"
+ 
++[[bin]]
++name = "dobe-audio"
++path = "src/main.rs"
++required-features = ["dobe"]
++
++[features]
++dobe = ["soundcraft-automation/dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/apps/soundcraft-cli/src/args.rs b/apps/soundcraft-cli/src/args.rs
+index 07d453b..f8b8ac5 100644
+--- a/apps/soundcraft-cli/src/args.rs
++++ b/apps/soundcraft-cli/src/args.rs
+@@ -39,7 +39,8 @@ fn write_help() -> &'static str {
+ 
+ /// soundcraft-cli: SoundCraft without a window
+ #[derive(Parser)]
+-#[command(name = "soundcraft-cli", version = long_version(), arg_required_else_help = true)]
++#[command(name = crate::CLI_NAME, version = long_version(), arg_required_else_help = true)]
++#[cfg_attr(feature = "dobe", command(about = "Dobe Audio headless production engine"))]
+ pub(crate) struct Cli {
+     #[command(subcommand)]
+     pub(crate) command: Command,
+@@ -443,13 +444,13 @@ fn cmd_spec(s: &str) -> Result<CmdSpec, ValueError> {
+ /// ([`Command::check_outputs`]), so nothing has run when it is reported.
+ pub(crate) fn parse(args: &[OsString]) -> Result<Cli, clap::Error> {
+     let mut cmd = Cli::command().mut_subcommands(|sub| sub.mut_args(blank_env_is_unset));
+-    let argv = std::iter::once(OsString::from("soundcraft-cli")).chain(args.iter().cloned());
++    let argv = std::iter::once(OsString::from(crate::CLI_NAME)).chain(args.iter().cloned());
+     let matches = match cmd.try_get_matches_from_mut(argv) {
+         Err(e) if e.kind() != ErrorKind::DisplayHelp => {
+             let Some(flag) = args.iter().take_while(|a| *a != "--").find(|a| *a == "--help" || *a == "-h") else {
+                 return Err(name_env_vars(e, &cmd, args));
+             };
+-            let help = [OsString::from("soundcraft-cli"), args.first().cloned().unwrap_or_default(), flag.clone()];
++            let help = [OsString::from(crate::CLI_NAME), args.first().cloned().unwrap_or_default(), flag.clone()];
+             return Err(cmd.try_get_matches_from_mut(help).err().unwrap_or(e));
+         }
+         matches => matches?,
+diff --git a/apps/soundcraft-cli/src/error.rs b/apps/soundcraft-cli/src/error.rs
+index 36e3ed5..65a6c88 100644
+--- a/apps/soundcraft-cli/src/error.rs
++++ b/apps/soundcraft-cli/src/error.rs
+@@ -8,6 +8,8 @@ use soundcraft_engine::file_access::RootError;
+ /// Why a subcommand failed: printed as `error: {e}`, exit 1.
+ #[derive(Debug, thiserror::Error)]
+ pub(crate) enum CliError {
++    #[error("Dobe Audio is headless; editor connections are unavailable")]
++    EditorUnavailable,
+     #[error(transparent)]
+     Convert(#[from] ConvertError),
+     #[error(transparent)]
+diff --git a/apps/soundcraft-cli/src/lib.rs b/apps/soundcraft-cli/src/lib.rs
+index f72c42a..e72d9c2 100644
+--- a/apps/soundcraft-cli/src/lib.rs
++++ b/apps/soundcraft-cli/src/lib.rs
+@@ -29,6 +29,8 @@ use info::info;
+ use mcp::mcp;
+ use session::{run_cmds, script};
+ 
++pub const CLI_NAME: &str = if cfg!(feature = "dobe") { "dobe-audio" } else { "soundcraft-cli" };
++
+ /// The command line's clap definition.
+ pub fn command() -> clap::Command {
+     Cli::command()
+@@ -63,6 +65,10 @@ where
+ }
+ 
+ fn dispatch(command: Command, out: &mut dyn Write, err: &mut dyn Write) -> Result<(), CliError> {
++    // The packaged engine never attaches to a desktop editor or control socket.
++    if cfg!(feature = "dobe") && (matches!(&command, Command::App(_)) || matches!(&command, Command::Mcp(args) if args.connect.is_some())) {
++        return Err(CliError::EditorUnavailable);
++    }
+     match command {
+         Command::Info(a) => info(&a, out, err)?,
+         Command::Convert(a) => convert(&a, out)?,
+@@ -81,3 +87,30 @@ fn dispatch(command: Command, out: &mut dyn Write, err: &mut dyn Write) -> Resul
+     }
+     Ok(())
+ }
++
++#[cfg(all(test, feature = "dobe"))]
++mod dobe_tests {
++    #[test]
++    fn editor_routes_are_refused_before_connecting() {
++        for args in [vec!["app", "session.inspect"], vec!["mcp", "--connect", "127.0.0.1:1"], vec!["mcp", "--connect=127.0.0.1:1"]] {
++            let mut out = Vec::new();
++            let mut err = Vec::new();
++            assert_eq!(super::run(args, &mut out, &mut err), 1);
++            assert!(out.is_empty());
++            assert!(String::from_utf8(err).unwrap().contains("editor connections are unavailable"));
++        }
++    }
++
++    #[test]
++    fn product_help_and_version_use_dobe_identity() {
++        for arg in ["--help", "--version"] {
++            let mut out = Vec::new();
++            let mut err = Vec::new();
++            assert_eq!(super::run([arg], &mut out, &mut err), 0);
++            let output = String::from_utf8(out).unwrap();
++            assert!(output.contains("dobe-audio"));
++            assert!(!output.contains("SoundCraft"));
++            assert!(err.is_empty());
++        }
++    }
++}
+diff --git a/apps/soundcraft-cli/src/mcp.rs b/apps/soundcraft-cli/src/mcp.rs
+index 874c85e..02287af 100644
+--- a/apps/soundcraft-cli/src/mcp.rs
++++ b/apps/soundcraft-cli/src/mcp.rs
+@@ -36,7 +36,7 @@ pub(crate) fn mcp(args: &McpArgs, err: &mut dyn Write) -> Result<(), CliError> {
+         if let Some(roots) = roots {
+             // Every thread of this process, not only the server's: nothing reaches past the roots.
+             file_access::confine_process(roots.clone());
+-            outln!(err, "soundcraft-cli: files confined: {}", roots.describe());
++            outln!(err, "{}: files confined: {}", crate::CLI_NAME, roots.describe());
+             h = h.with_automation_roots(Some(roots));
+         }
+         let mut s = Server::new(h);
+diff --git a/crates/automation/Cargo.toml b/crates/automation/Cargo.toml
+index 7af6a67..e444fd4 100644
+--- a/crates/automation/Cargo.toml
++++ b/crates/automation/Cargo.toml
+@@ -7,6 +7,9 @@ license.workspace = true
+ rust-version.workspace = true
+ repository.workspace = true
+ 
++[features]
++dobe = []
++
+ [dependencies]
+ soundcraft-engine.workspace = true
+ craft-audio.workspace = true
+diff --git a/crates/automation/src/mcp.rs b/crates/automation/src/mcp.rs
+index f1b203a..2579d5e 100644
+--- a/crates/automation/src/mcp.rs
++++ b/crates/automation/src/mcp.rs
+@@ -8,12 +8,23 @@ pub const PROTOCOL_VERSION: &str = "2025-06-18";
+ const SUPPORTED: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
+ const MAX_BATCH_CALLS: usize = 1000;
+ 
++#[cfg(not(feature = "dobe"))]
+ const INSTRUCTIONS: &str = "SoundCraft is a digital audio workstation (Pro Tools-class). Everything a user can do is a \
+ command: call `list_commands` to discover ids and their params, then `execute` (or `batch`). Positions are samples \
+ (integers), `{\"seconds\": x}`, or time strings like \"bars_beats:5|1|000\" / \"0:12.500\". Tracks are referenced by id \
+ or name. Verify your work with `inspect_session` (tracks, clips, mixer, automation, markers, selection). Programmatic \
+ calls never open dialogs. Tools marked APP_ONLY need the desktop app (`soundcraft --control 0` + `soundcraft-cli mcp --connect PORT`).";
+ 
++#[cfg(feature = "dobe")]
++const INSTRUCTIONS: &str = "Dobe Audio is a headless audio production engine. Use list_commands to discover native commands, \
++execute or batch to edit, and inspect_session to verify tracks, clips and mixer state. Positions use integer samples, \
++seconds objects or time strings. Save an editable .scraft session with its audio files, then bounce the mix. \
++Desktop tools and editor connections are unavailable. Automation read/write roots confine production files.";
++
++const SERVER_NAME: &str = if cfg!(feature = "dobe") { "dobe-audio" } else { "soundcraft" };
++const SESSION_URI: &str = if cfg!(feature = "dobe") { "dobe-audio://session" } else { "soundcraft://session" };
++const COMMANDS_URI: &str = if cfg!(feature = "dobe") { "dobe-audio://commands" } else { "soundcraft://commands" };
++
+ pub struct Server<B: Backend> {
+     pub backend: B,
+ }
+@@ -26,7 +37,7 @@ pub fn tool_definitions() -> Vec<Value> {
+     vec![
+         tool(
+             "list_commands",
+-            "List SoundCraft commands (id, label, menu path, shortcut, params doc, enabled).",
++            "List native audio commands (id, label, menu path, shortcut, params doc, enabled).",
+             json!({"filter": {"type": "string", "description": "substring of id or label"}}),
+             &[],
+         ),
+@@ -102,6 +113,9 @@ pub fn tool_definitions() -> Vec<Value> {
+             &["key"],
+         ),
+     ]
++    .into_iter()
++    .filter(|tool| !cfg!(feature = "dobe") || !tool["description"].as_str().is_some_and(|description| description.starts_with("APP_ONLY")))
++    .collect()
+ }
+ 
+ fn text_result(v: &Value) -> Value {
+@@ -212,7 +226,7 @@ impl<B: Backend> Server<B> {
+                 Ok(json!({
+                     "protocolVersion": ver,
+                     "capabilities": {"tools": {}, "resources": {}},
+-                    "serverInfo": {"name": "soundcraft", "version": env!("CARGO_PKG_VERSION")},
++                    "serverInfo": {"name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION")},
+                     "instructions": format!("{INSTRUCTIONS}\nBackend: {}.", self.backend.describe()),
+                 }))
+             }
+@@ -224,15 +238,15 @@ impl<B: Backend> Server<B> {
+                 Ok(self.call_tool(name, &args))
+             }
+             "resources/list" => Ok(json!({"resources": [
+-                {"uri": "soundcraft://session", "name": "Session", "mimeType": "application/json", "description": "The open session as JSON"},
+-                {"uri": "soundcraft://commands", "name": "Commands", "mimeType": "application/json", "description": "All commands"},
++                {"uri": SESSION_URI, "name": "Session", "mimeType": "application/json", "description": "The open session as JSON"},
++                {"uri": COMMANDS_URI, "name": "Commands", "mimeType": "application/json", "description": "All commands"},
+             ]})),
+             "resources/templates/list" => Ok(json!({"resourceTemplates": []})),
+             "resources/read" => {
+                 let uri = params.get("uri").and_then(Value::as_str).unwrap_or("");
+                 let r = match uri {
+-                    "soundcraft://session" => self.backend.call("session.inspect", json!({"detail": "full"})),
+-                    "soundcraft://commands" => self.backend.call("engine.commands", json!({})),
++                    SESSION_URI => self.backend.call("session.inspect", json!({"detail": "full"})),
++                    COMMANDS_URI => self.backend.call("engine.commands", json!({})),
+                     _ => Err(format!("unknown resource {uri}")),
+                 };
+                 match r {
+@@ -310,4 +324,23 @@ mod tests {
+         let v: Value = serde_json::from_str(reply(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#).trim()).unwrap();
+         assert_eq!(v["id"], 1);
+     }
++
++    #[cfg(feature = "dobe")]
++    #[test]
++    fn dobe_identity_resources_and_headless_tools() {
++        let mut server = Server::new(Headless::new(Engine::default()));
++        let init = server.handle(&json!({"id": 1, "method": "initialize"})).unwrap();
++        assert_eq!(init["result"]["serverInfo"]["name"], "dobe-audio");
++        assert!(init["result"]["instructions"].as_str().unwrap().contains("headless"));
++        for uri in ["dobe-audio://session", "dobe-audio://commands"] {
++            let response = server.handle(&json!({"id": 2, "method": "resources/read", "params": {"uri": uri}})).unwrap();
++            assert_eq!(response["result"]["contents"][0]["uri"], uri);
++        }
++        let names: Vec<Value> = tool_definitions().into_iter().map(|tool| tool["name"].clone()).collect();
++        assert!(names.contains(&json!("execute")));
++        for name in ["screenshot", "ui_inspect", "ui_set", "menu_invoke", "click", "drag", "key"] {
++            assert!(!names.contains(&json!(name)));
++            assert_eq!(server.call_tool(name, &json!({}))["isError"], true);
++        }
++    }
+ }

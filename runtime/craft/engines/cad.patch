@@ -1,0 +1,784 @@
+diff --git a/apps/cadcraft-cli/Cargo.toml b/apps/cadcraft-cli/Cargo.toml
+index cac076c..7228463 100644
+--- a/apps/cadcraft-cli/Cargo.toml
++++ b/apps/cadcraft-cli/Cargo.toml
+@@ -6,6 +6,11 @@ edition.workspace = true
+ license.workspace = true
+ publish = false
+ 
++[features]
++default = ["upstream"]
++upstream = ["dep:cadcraft-mcp"]
++dobe = ["cadcraft-engine/dobe", "cadcraft-io/dobe"]
++
+ [lib]
+ name = "cadcraft_cli"
+ path = "src/lib.rs"
+@@ -13,6 +18,12 @@ path = "src/lib.rs"
+ [[bin]]
+ name = "cadcraft-cli"
+ path = "src/main.rs"
++required-features = ["upstream"]
++
++[[bin]]
++name = "dobe-cad"
++path = "src/dobe_main.rs"
++required-features = ["dobe"]
+ 
+ [lints]
+ workspace = true
+@@ -20,7 +31,7 @@ workspace = true
+ [dependencies]
+ cadcraft-engine = { workspace = true }
+ cadcraft-io = { workspace = true }
+-cadcraft-mcp = { workspace = true }
++cadcraft-mcp = { workspace = true, optional = true }
+ cadcraft-render = { workspace = true }
+ clap = { workspace = true }
+ same-file = { workspace = true }
+diff --git a/apps/cadcraft-cli/src/dobe_main.rs b/apps/cadcraft-cli/src/dobe_main.rs
+new file mode 100644
+index 0000000..5fceee9
+--- /dev/null
++++ b/apps/cadcraft-cli/src/dobe_main.rs
+@@ -0,0 +1,106 @@
++//! Private, file-oriented CAD transport. No editor, MCP server, startup scripts,
++//! path-resolving OPEN command or ambient font discovery is dispatched here.
++#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
++#![forbid(unsafe_code)]
++use cadcraft_engine::doc::{Drawing, Space};
++use std::io::{Read, Write};
++use std::path::Path;
++
++type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
++const MAX_BYTES: usize = 128 * 1024 * 1024;
++
++mod dobe_solid;
++mod dobe_solve;
++
++fn read(path: &str) -> Result<Vec<u8>> {
++    let file = std::fs::File::open(path)?;
++    if !file.metadata()?.is_file() {
++        return Err("private input must be a regular file".into());
++    }
++    let mut bytes = Vec::new();
++    file.take(MAX_BYTES as u64 + 1).read_to_end(&mut bytes)?;
++    if bytes.len() > MAX_BYTES {
++        return Err("private input exceeds 128 MiB".into());
++    }
++    Ok(bytes)
++}
++fn write(path: &str, bytes: &[u8]) -> Result<()> {
++    if bytes.len() > MAX_BYTES {
++        return Err("private output exceeds 128 MiB".into());
++    }
++    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
++    file.write_all(bytes)?;
++    file.sync_all()?;
++    Ok(())
++}
++fn validate(d: &Drawing) -> Result<()> {
++    let count = std::iter::once(&d.model)
++        .chain(d.layouts.iter().map(|l| &l.entities))
++        .chain(d.blocks.values().map(|b| &b.entities))
++        .try_fold(0usize, |n, store| n.checked_add(store.len()));
++    if count.is_none_or(|n| n > 100_000) {
++        return Err("drawing exceeds private entity budget".into());
++    }
++    d.rasters.dobe_validate().map_err(std::io::Error::other)?;
++    Ok(())
++}
++fn model(path: &str) -> Result<Drawing> {
++    let raw: serde_json::Value = serde_json::from_slice(&read(path)?)?;
++    let d: Drawing = serde_json::from_value(raw.clone())?;
++    validate(&d)?;
++    // Unknown fields, omitted state and implicit defaults must never disappear
++    // silently. The private protocol takes the complete model emitted by snapshot.
++    if serde_json::to_value(&d)? != raw {
++        return Err("JSON is not the complete native drawing model".into());
++    }
++    Ok(d)
++}
++fn snapshot(d: &Drawing, path: &str) -> Result<()> {
++    validate(d)?;
++    let bytes = serde_json::to_vec(d)?;
++    let cold: Drawing = serde_json::from_slice(&bytes)?;
++    if &cold != d || serde_json::to_vec(&cold)? != bytes {
++        return Err("native model serialization changed drawing state".into());
++    }
++    write(path, &bytes)
++}
++fn run() -> Result<()> {
++    let args: Vec<String> =
++        std::env::args_os().skip(1).map(|a| a.into_string().map_err(|_| "arguments must be Unicode")).collect::<std::result::Result<_, _>>()?;
++    match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
++        ["--version"] => { println!("dobe-cad {}", env!("CARGO_PKG_VERSION")); Ok(()) }
++        ["new", "metric", output] => snapshot(&Drawing::new_metric(), output),
++        ["new", "imperial", output] => snapshot(&Drawing::new_imperial(), output),
++        ["snapshot", "dxf", input, output] => {
++            let bytes = read(input)?;
++            // Do not let content sniffing dispatch the DWG subprocess bridge.
++            if bytes.starts_with(b"AC10") { return Err("DWG input is not a DXF source".into()); }
++            let d = cadcraft_io::read_dxf(&bytes)?;
++            snapshot(&d, output)
++        }
++        ["encode", input, output] => snapshot(&model(input)?, output),
++        ["solve", input, output] => dobe_solve::run(input, output),
++        ["panel-solid", input, request, output] => dobe_solid::run(input, request, output),
++        ["panel-obj", input, handle, output] => dobe_solid::export(input, handle, output),
++        ["convert", format, input, output] if matches!(*format, "dxf" | "svg" | "pdf") => {
++            let d = model(input)?;
++            let bytes = cadcraft_io::write(&d, Path::new(&format!("output.{format}")))?;
++            write(output, &bytes)
++        }
++        ["render", input, output, width, height] => {
++            let (w, h) = (width.parse::<u32>()?, height.parse::<u32>()?);
++            if w == 0 || h == 0 || w > 8192 || h > 8192 || u64::from(w)*u64::from(h) > 16_777_216 {
++                return Err("raster dimensions exceed private pixel budget".into());
++            }
++            let d = model(input)?;
++            write(output, &cadcraft_io::png(&d, &Space::Model, w, h)?)
++        }
++        _ => Err("usage: dobe-cad --version | new metric|imperial OUTPUT | snapshot dxf INPUT OUTPUT | encode INPUT OUTPUT | solve INPUT OUTPUT | panel-solid INPUT REQUEST OUTPUT | panel-obj INPUT HANDLE OUTPUT | convert dxf|svg|pdf INPUT OUTPUT | render INPUT OUTPUT WIDTH HEIGHT".into()),
++    }
++}
++fn main() {
++    if let Err(error) = run() {
++        eprintln!("dobe-cad: {error}");
++        std::process::exit(2);
++    }
++}
+diff --git a/apps/cadcraft-cli/src/dobe_solid.rs b/apps/cadcraft-cli/src/dobe_solid.rs
+new file mode 100644
+index 0000000..76b76b8
+--- /dev/null
++++ b/apps/cadcraft-cli/src/dobe_solid.rs
+@@ -0,0 +1,180 @@
++//! Bounded native panel extrusion and geometry-only OBJ delivery.
++//! This produces a closed polyface solid, not an ACIS/B-rep or manufacturing claim.
++use cadcraft_engine::{
++    dobe_constraints as cs,
++    doc::{Drawing, Entity, EntityKind, HVal, Handle, Parameter, PolyfaceMesh, geom::Vec3},
++};
++use serde_json::{Value, json};
++use std::collections::BTreeSet;
++use std::fmt::Write as _;
++
++use super::Result;
++
++const FACES: [[i32; 4]; 6] = [[1, 4, 3, 2], [5, 6, 7, 8], [1, 2, 6, 5], [2, 3, 7, 6], [3, 4, 8, 7], [4, 1, 5, 8]];
++const TOLERANCE: f64 = 1e-6;
++
++fn dimension(value: f64) -> Result<f64> {
++    if !value.is_finite() || !(0.1..=10_000.0).contains(&value) {
++        return Err("panel dimensions require 0.1..10000 finite millimetres".into());
++    }
++    Ok(value)
++}
++fn vertices(w: f64, h: f64, d: f64) -> Vec<Vec3> {
++    [(0., 0., 0.), (w, 0., 0.), (w, h, 0.), (0., h, 0.), (0., 0., d), (w, 0., d), (w, h, d), (0., h, d)]
++        .into_iter()
++        .map(|(x, y, z)| Vec3::new(x, y, z))
++        .collect()
++}
++fn near(a: Vec3, b: Vec3) -> bool {
++    [a.x - b.x, a.y - b.y, a.z - b.z].into_iter().all(|v| v.is_finite() && v.abs() <= TOLERANCE)
++}
++fn handles(d: &Drawing) -> Result<BTreeSet<Handle>> {
++    let mut handles = BTreeSet::new();
++    for store in std::iter::once(&d.model).chain(d.layouts.iter().map(|l| &l.entities)).chain(d.blocks.values().map(|b| &b.entities)) {
++        for entity in store.iter() {
++            if entity.handle.0 == 0 || entity.handle.0 >= d.handseed || !handles.insert(entity.handle) {
++                return Err("panel source has duplicate handles or an invalid next handle".into());
++            }
++        }
++    }
++    Ok(handles)
++}
++
++pub fn run(input: &str, request_path: &str, output: &str) -> Result<()> {
++    let before = super::model(input)?;
++    let request_bytes = super::read(request_path)?;
++    if request_bytes.len() > 4096 {
++        return Err("panel request exceeds byte budget".into());
++    }
++    let request: Value = serde_json::from_slice(&request_bytes)?;
++    let object = request.as_object().ok_or("panel request must be an object")?;
++    let expected: BTreeSet<&str> = ["width", "height", "depth", "sketch_handles", "mesh_handle"].into_iter().collect();
++    if object.keys().map(String::as_str).collect::<BTreeSet<_>>() != expected {
++        return Err("panel request fields differ".into());
++    }
++    let number = |name: &str| -> Result<f64> { dimension(request.get(name).and_then(Value::as_f64).ok_or("panel dimension must be numeric")?) };
++    let (w, h, depth) = (number("width")?, number("height")?, number("depth")?);
++    let selected = request.get("sketch_handles").and_then(Value::as_array).ok_or("panel needs four sketch handles")?;
++    if selected.len() != 4 {
++        return Err("panel needs four sketch handles".into());
++    }
++    let selected: Vec<Handle> =
++        selected.iter().map(|v| v.as_u64().filter(|h| *h > 0).map(Handle).ok_or("invalid sketch handle")).collect::<std::result::Result<_, _>>()?;
++    if selected.iter().copied().collect::<BTreeSet<_>>().len() != 4 {
++        return Err("panel sketch handles must be distinct".into());
++    }
++    let old_mesh = match request.get("mesh_handle") {
++        Some(Value::Null) => None,
++        Some(value) => Some(Handle(value.as_u64().filter(|h| *h > 0).ok_or("invalid mesh handle")?)),
++        None => return Err("mesh selector is missing".into()),
++    };
++    if !matches!(before.header.get("INSUNITS"), Some(HVal::Int(4))) {
++        return Err("panel source must use millimetres".into());
++    }
++    handles(&before)?;
++    super::dobe_solve::preflight(&before)?;
++    let rows = cs::parameter_table(&before);
++    for (name, target) in [("width", w), ("height", h)] {
++        let matching: Vec<_> = rows.iter().filter(|r| r.kind == "user" && r.name == name).collect();
++        if matching.len() != 1 || matching.first().and_then(|r| r.value).is_none_or(|v| (v - target).abs() > TOLERANCE) {
++            return Err("panel dimensions differ from source parameters".into());
++        }
++    }
++    if cs::residuals(&before).iter().any(|(_, value)| value.is_none_or(|v| !v.is_finite() || v.abs() > TOLERANCE)) {
++        return Err("panel sketch must be solved before extrusion".into());
++    }
++    let corners = vertices(w, h, 0.0);
++    for (index, handle) in selected.iter().enumerate() {
++        let entity = before.model.get(*handle).ok_or("sketch handle must name a model-space line")?;
++        let EntityKind::Line(line) = &entity.kind else {
++            return Err("panel sketch must contain lines".into());
++        };
++        let a = *corners.get(index).ok_or("missing panel corner")?;
++        let b = *corners.get((index + 1) % 4).ok_or("missing panel corner")?;
++        if !near(line.a, a) || !near(line.b, b) {
++            return Err("panel sketch geometry differs from requested closed rectangle".into());
++        }
++    }
++    let mut drawing = before.clone();
++    let depth_parameters: Vec<_> = drawing.parametric.parameters.iter().enumerate().filter(|(_, p)| p.name == "depth").map(|(i, _)| i).collect();
++    let (handle, common) = if let Some(handle) = old_mesh {
++        if selected.contains(&handle) || depth_parameters.len() != 1 {
++            return Err("panel revision needs one depth parameter and a separate mesh".into());
++        }
++        let entity = drawing.model.get(handle).ok_or("panel mesh handle is absent")?;
++        let EntityKind::PolyfaceMesh(mesh) = &entity.kind else {
++            return Err("panel revision target is not a polyface mesh".into());
++        };
++        panel_dimensions(mesh)?;
++        (handle, entity.common.clone())
++    } else {
++        if cs::name_in_use(&drawing, "depth") {
++            return Err("panel creation cannot overwrite an existing depth parameter".into());
++        }
++        let handle = Handle(drawing.handseed);
++        if handle.0 == 0 {
++            return Err("panel next handle is invalid".into());
++        }
++        drawing.handseed = drawing.handseed.checked_add(1).ok_or("panel handle range exhausted")?;
++        let first = selected.first().and_then(|h| drawing.model.get(*h)).ok_or("panel sketch is missing")?;
++        (handle, first.common.clone())
++    };
++    if let Some(index) = depth_parameters.first() {
++        drawing.parametric.parameters.get_mut(*index).ok_or("depth parameter disappeared")?.expr = depth.to_string();
++    } else {
++        drawing.parametric.parameters.push(Parameter {
++            name: "depth".into(),
++            expr: depth.to_string(),
++            description: "Panel depth in millimetres".into(),
++        });
++    }
++    let mesh = PolyfaceMesh { vertices: vertices(w, h, depth), faces: FACES.to_vec() };
++    drawing.model.push(Entity { handle, common, kind: EntityKind::PolyfaceMesh(mesh) });
++    super::validate(&drawing)?;
++    let document = serde_json::to_value(&drawing)?;
++    let cold: Drawing = serde_json::from_value(document.clone())?;
++    if cold != drawing || serde_json::to_value(&cold)? != document {
++        return Err("native solid changed during cold serialization".into());
++    }
++    let report = json!({"schema_version":1,"document":document,"mesh_handle":handle,
++        "dimensions_mm":[w,h,depth],"volume_mm3":w*h*depth,"surface_area_mm2":2.0*(w*h+w*depth+h*depth),
++        "vertices":8,"faces":6,"representation":"closed-polyface-panel","complete_native_cold_equal":true,
++        "brep_qualified":false,"general_manufacturing_qualified":false});
++    super::write(output, &serde_json::to_vec(&report)?)
++}
++
++fn panel_dimensions(mesh: &PolyfaceMesh) -> Result<[f64; 3]> {
++    if mesh.vertices.len() != 8 || mesh.faces != FACES {
++        return Err("mesh is not the closed panel topology".into());
++    }
++    let corner = mesh.vertices.get(6).ok_or("panel opposite corner missing")?;
++    let [w, h, d] = [dimension(corner.x)?, dimension(corner.y)?, dimension(corner.z)?];
++    // Geometry must match the exact authored panel; do not silently normalize it.
++    if mesh.vertices != vertices(w, h, d) {
++        return Err("panel mesh coordinates differ from its closed rectangular geometry".into());
++    }
++    Ok([w, h, d])
++}
++
++pub fn export(input: &str, selector: &str, output: &str) -> Result<()> {
++    let drawing = super::model(input)?;
++    if !matches!(drawing.header.get("INSUNITS"), Some(HVal::Int(4))) {
++        return Err("panel mesh export requires millimetres".into());
++    }
++    handles(&drawing)?;
++    let handle = Handle(selector.parse::<u64>()?);
++    let entity = drawing.model.get(handle).ok_or("mesh export handle is absent")?;
++    let EntityKind::PolyfaceMesh(mesh) = &entity.kind else {
++        return Err("mesh export requires a polyface panel".into());
++    };
++    panel_dimensions(mesh)?;
++    let mut text = format!("# Dobe panel mesh; coordinates in millimetres\no panel_{}\n", handle.0);
++    for vertex in &mesh.vertices {
++        writeln!(text, "v {} {} {}", vertex.x, vertex.y, vertex.z)?;
++    }
++    for face in &mesh.faces {
++        let [a, b, c, d] = face;
++        writeln!(text, "f {a} {b} {c} {d}")?;
++    }
++    super::write(output, text.as_bytes())
++}
+diff --git a/apps/cadcraft-cli/src/dobe_solve.rs b/apps/cadcraft-cli/src/dobe_solve.rs
+new file mode 100644
+index 0000000..9083c39
+--- /dev/null
++++ b/apps/cadcraft-cli/src/dobe_solve.rs
+@@ -0,0 +1,101 @@
++//! Fixed private solver entrypoint. Expressions and geometry stay in the native
++//! CAD engine; no command interpreter, scripts or filesystem resolver is called.
++use cadcraft_engine::{dobe_constraints as cs, doc::Drawing};
++use serde_json::{Value, json};
++use std::collections::BTreeSet;
++
++use super::Result;
++
++const MAX_CONSTRAINTS: usize = 256;
++const MAX_PARAMETERS: usize = 256;
++const RESIDUAL_LIMIT: f64 = 1e-6;
++
++pub(super) fn preflight(d: &Drawing) -> Result<()> {
++    if d.constraints.is_empty() || d.constraints.len() > MAX_CONSTRAINTS || d.parametric.parameters.len() > MAX_PARAMETERS {
++        return Err("private solve requires 1..256 constraints and at most 256 user parameters".into());
++    }
++    let mut ids = BTreeSet::new();
++    let mut names = BTreeSet::new();
++    for p in &d.parametric.parameters {
++        if !cs::expr::valid_name(&p.name) || !names.insert(p.name.clone()) || p.expr.len() > cs::expr::MAX_LEN {
++            return Err("invalid, duplicate or oversized user parameter".into());
++        }
++    }
++    for c in &d.constraints {
++        if !ids.insert(c.id) || c.refs.is_empty() || c.refs.len() > 3 {
++            return Err("invalid or duplicate constraint identity/references".into());
++        }
++        if c.kind.is_dimensional() {
++            if !cs::expr::valid_name(&c.name) || !names.insert(c.name.clone()) || c.expr.len() > cs::expr::MAX_LEN {
++                return Err("invalid, duplicate or oversized dimensional parameter".into());
++            }
++        } else if !c.name.is_empty() || !c.expr.is_empty() {
++            return Err("geometric constraint carries unused parameter data".into());
++        }
++        cs::validate(d, c).map_err(std::io::Error::other)?;
++    }
++    // Validate every expression, including user parameters not referenced by a
++    // constraint. The native environment must not silently replace duplicates.
++    checked_parameters(d)?;
++    Ok(())
++}
++
++fn checked_parameters(d: &Drawing) -> Result<Value> {
++    let rows = cs::parameter_table(d);
++    if rows.iter().any(|row| row.error.is_some() || row.value.is_none_or(|v| !v.is_finite())) {
++        return Err("parameter expression failed or produced a non-finite value".into());
++    }
++    Ok(serde_json::to_value(rows)?)
++}
++
++pub fn run(input: &str, output: &str) -> Result<()> {
++    let before = super::model(input)?;
++    preflight(&before)?;
++    let mut drawing = before.clone();
++    let solved = cs::solve(&mut drawing, &cs::SolveOptions::default())?;
++    if !solved.skipped.is_empty() {
++        return Err("native solver skipped requested constraints".into());
++    }
++    let mut fixed = drawing.clone();
++    if cs::restore_fixed(&mut fixed, &before) {
++        return Err("native solve moved fixed geometry".into());
++    }
++    let residuals = cs::residuals(&drawing);
++    if residuals.len() != drawing.constraints.len()
++        || residuals.iter().any(|(_, value)| value.is_none_or(|v| !v.is_finite() || v.abs() > RESIDUAL_LIMIT))
++    {
++        return Err("native constraint residual exceeds private solve tolerance".into());
++    }
++    let mut env = cs::env(&drawing);
++    let mut dimensions = Vec::new();
++    for c in &drawing.constraints {
++        if c.kind.is_dimensional() {
++            let target = cs::constraint_value(&mut env, c)?;
++            let measured = cs::measure(&drawing, c.kind, &c.refs).map_err(std::io::Error::other)?;
++            if !target.is_finite() || !measured.is_finite() || (measured - target).abs() > RESIDUAL_LIMIT {
++                return Err("native dimension differs from its requested value".into());
++            }
++            dimensions.push(json!({"id":c.id,"name":c.name,"target":target,"measured":measured}));
++        }
++    }
++    super::validate(&drawing)?;
++    let document = serde_json::to_value(&drawing)?;
++    let cold: Drawing = serde_json::from_value(document.clone())?;
++    if cold != drawing || serde_json::to_value(&cold)? != document {
++        return Err("solved native drawing changed during serialization".into());
++    }
++    let report = json!({
++        "schema_version":1,
++        "document":document,
++        "parameters":checked_parameters(&drawing)?,
++        "dimensions":dimensions,
++        "residuals":residuals,
++        "residual_limit":RESIDUAL_LIMIT,
++        "moved":solved.moved,
++        "skipped":solved.skipped,
++        "fixed_geometry_unchanged":true,
++        "complete_native_cold_equal":true,
++        "general_manufacturing_qualified":false
++    });
++    super::write(output, &serde_json::to_vec(&report)?)
++}
+diff --git a/apps/cadcraft-cli/src/lib.rs b/apps/cadcraft-cli/src/lib.rs
+index 46f8cf6..870c5a0 100644
+--- a/apps/cadcraft-cli/src/lib.rs
++++ b/apps/cadcraft-cli/src/lib.rs
+@@ -1,3 +1,4 @@
++#![cfg(feature = "upstream")]
+ //! `cadcraft-cli`: headless CADCraft. The subcommands and their options are the clap types in
+ //! `args.rs`; `cadcraft-cli --help` lists them.
+ #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+diff --git a/crates/doc/Cargo.toml b/crates/doc/Cargo.toml
+index 7046fd4..b580eb4 100644
+--- a/crates/doc/Cargo.toml
++++ b/crates/doc/Cargo.toml
+@@ -14,3 +14,6 @@ cadcraft-color = { workspace = true }
+ serde = { workspace = true }
+ serde_json = { workspace = true }
+ thiserror = { workspace = true }
++
++[features]
++dobe = []
+diff --git a/crates/doc/src/array.rs b/crates/doc/src/array.rs
+index e71b287..d2d9200 100644
+--- a/crates/doc/src/array.rs
++++ b/crates/doc/src/array.rs
+@@ -39,12 +39,13 @@ pub struct ArrayParams {
+     pub replaced: Vec<ReplacedItem>,
+     /// The source objects are out for editing (ARRAYEDIT Source, until ARRAYCLOSE). Not saved:
+     /// a drawing saved meanwhile keeps the objects as separate objects.
+-    #[serde(skip)]
++    #[cfg_attr(not(feature = "dobe"), serde(skip))]
+     pub editing: Option<SourceEdit>,
+ }
+ 
+ /// ARRAYEDIT Source in progress: the array's source objects placed in the drawing for editing.
+ #[derive(Clone, Debug, Default, PartialEq)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct SourceEdit {
+     /// The array (block reference) being edited.
+     pub array: crate::Handle,
+diff --git a/crates/doc/src/foreign.rs b/crates/doc/src/foreign.rs
+index 8116cd4..8195fab 100644
+--- a/crates/doc/src/foreign.rs
++++ b/crates/doc/src/foreign.rs
+@@ -18,6 +18,7 @@ pub type ForeignKey = (String, String);
+ 
+ /// A non-graphical object of a type or role CADCraft does not model.
+ #[derive(Clone, Debug, Default, PartialEq)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct ForeignObject {
+     /// Its handle in the file it came from (kept on save).
+     pub handle: Handle,
+@@ -29,6 +30,7 @@ pub struct ForeignObject {
+ 
+ /// What an entity, table record or block carries beyond what CADCraft models.
+ #[derive(Clone, Debug, Default, PartialEq)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct ForeignExtra {
+     /// Its extension dictionary (one of [`Foreign::objects`]).
+     pub xdict: Option<Handle>,
+@@ -52,6 +54,7 @@ impl ForeignExtra {
+ 
+ /// Everything of a file CADCraft keeps without modelling it.
+ #[derive(Clone, Debug, Default, PartialEq)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct Foreign {
+     /// CLASS records (groups after `0 CLASS`) of the kept objects' and entities' types.
+     pub classes: Vec<Vec<RawTag>>,
+@@ -65,6 +68,7 @@ pub struct Foreign {
+     pub entities: BTreeMap<Handle, ForeignExtra>,
+     /// Extras of table records (`("LAYER", "WALLS")`), tables (`("TABLE", "LAYER")`) and blocks
+     /// (`("BLOCK", "DOOR")`), by [`ForeignKey`].
++    #[cfg_attr(feature = "dobe", serde(with = "dobe_records"))]
+     pub records: BTreeMap<ForeignKey, ForeignExtra>,
+     /// The roles of the file handles the kept data refers to, for objects CADCraft rewrites.
+     pub targets: BTreeMap<Handle, ForeignKey>,
+@@ -294,3 +298,24 @@ pub fn class_number<S: AsRef<str>>(groups: impl IntoIterator<Item = (i32, S)> +
+ pub fn class_index(number: Option<i64>) -> Option<usize> {
+     usize::try_from(number?.checked_sub(500)?).ok()
+ }
++
++// JSON object keys cannot hold the compound source record identity. Keep ordered
++// key/value pairs and reject duplicates instead of losing records on collection.
++#[cfg(feature = "dobe")]
++mod dobe_records {
++    use super::{BTreeMap, ForeignExtra, ForeignKey};
++    use serde::{Deserialize, Serialize};
++    pub fn serialize<S: serde::Serializer>(value: &BTreeMap<ForeignKey, ForeignExtra>, serializer: S) -> Result<S::Ok, S::Error> {
++        value.iter().collect::<Vec<_>>().serialize(serializer)
++    }
++    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<BTreeMap<ForeignKey, ForeignExtra>, D::Error> {
++        let entries = Vec::<(ForeignKey, ForeignExtra)>::deserialize(deserializer)?;
++        let mut result = BTreeMap::new();
++        for (key, value) in entries {
++            if result.insert(key, value).is_some() {
++                return Err(serde::de::Error::custom("duplicate foreign record identity"));
++            }
++        }
++        Ok(result)
++    }
++}
+diff --git a/crates/doc/src/lib.rs b/crates/doc/src/lib.rs
+index 873e83b..1eccc1b 100644
+--- a/crates/doc/src/lib.rs
++++ b/crates/doc/src/lib.rs
+@@ -92,6 +92,7 @@ impl Space {
+ }
+ 
+ #[derive(Clone, Debug, PartialEq)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct Drawing {
+     pub header: Header,
+     /// File data CADCraft does not model, written back on save.
+diff --git a/crates/doc/src/raster.rs b/crates/doc/src/raster.rs
+index 1eb7219..ebd9c40 100644
+--- a/crates/doc/src/raster.rs
++++ b/crates/doc/src/raster.rs
+@@ -6,6 +6,7 @@ use std::sync::Arc;
+ 
+ /// The pixels of a raster image: 8-bit RGBA, not premultiplied, rows from the top.
+ #[derive(Clone, PartialEq)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct Raster {
+     width: u32,
+     height: u32,
+@@ -58,6 +59,7 @@ impl std::fmt::Debug for Raster {
+ /// Session data: two drawings are equal whatever images they have loaded, and copying a drawing
+ /// (undo) shares the pixels.
+ #[derive(Clone, Default)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct Rasters(Arc<BTreeMap<String, Arc<Raster>>>);
+ 
+ impl Rasters {
+@@ -91,3 +93,25 @@ impl std::fmt::Debug for Rasters {
+         write!(f, "Rasters({})", self.0.len())
+     }
+ }
++
++#[cfg(feature = "dobe")]
++impl Rasters {
++    /// Validate decoded private transport data before any renderer indexes it.
++    pub fn dobe_validate(&self) -> Result<(), String> {
++        let mut total = 0usize;
++        for raster in self.0.values() {
++            let expected = u64::from(raster.width).checked_mul(u64::from(raster.height)).and_then(|n| n.checked_mul(4));
++            if raster.width == 0 || raster.height == 0 || expected != Some(raster.rgba.len() as u64) {
++                return Err("invalid native raster geometry".into());
++            }
++            total = total.checked_add(raster.rgba.len()).ok_or("native raster byte overflow")?;
++            if total > 64 * 1024 * 1024 {
++                return Err("native rasters exceed 64 MiB".into());
++            }
++            if raster.opaque != raster.rgba.as_chunks::<4>().0.iter().all(|[_, _, _, alpha]| *alpha == u8::MAX) {
++                return Err("native raster opacity disagrees with pixels".into());
++            }
++        }
++        Ok(())
++    }
++}
+diff --git a/crates/doc/src/refedit.rs b/crates/doc/src/refedit.rs
+index eb09273..9c8c2dc 100644
+--- a/crates/doc/src/refedit.rs
++++ b/crates/doc/src/refedit.rs
+@@ -15,6 +15,7 @@ use crate::{Drawing, Entity, Handle, Space};
+ 
+ /// One object of the working set.
+ #[derive(Clone, Debug, PartialEq)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct WorkItem {
+     /// The object in the drawing (a copy of the block object, or a drawing object added to the set).
+     pub copy: Handle,
+@@ -24,6 +25,7 @@ pub struct WorkItem {
+ 
+ /// An active in-place edit of a block reference. Never written to a file.
+ #[derive(Clone, Debug, PartialEq)]
++#[cfg_attr(feature = "dobe", derive(serde::Serialize, serde::Deserialize))]
+ pub struct RefEdit {
+     /// The block being edited.
+     pub block: String,
+diff --git a/crates/doc/src/store.rs b/crates/doc/src/store.rs
+index 00b0497..d287203 100644
+--- a/crates/doc/src/store.rs
++++ b/crates/doc/src/store.rs
+@@ -400,3 +400,29 @@ mod tests {
+         assert_eq!(one.neighbours(Handle(7)), Some((None, None)));
+     }
+ }
++
++// Preserve draw order and stable handles without serializing implementation
++// caches. Reconstruct the index, refusing duplicate handles rather than replacing.
++#[cfg(feature = "dobe")]
++impl serde::Serialize for EntityStore {
++    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
++        serializer.collect_seq(self.iter())
++    }
++}
++#[cfg(feature = "dobe")]
++impl<'de> serde::Deserialize<'de> for EntityStore {
++    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
++        let entities = <Vec<Entity> as serde::Deserialize>::deserialize(deserializer)?;
++        if entities.len() > 100_000 {
++            return Err(serde::de::Error::custom("entity store exceeds private transport limit"));
++        }
++        let mut store = Self::new();
++        for entity in entities {
++            if store.contains(entity.handle) {
++                return Err(serde::de::Error::custom("duplicate entity handle"));
++            }
++            store.push(entity);
++        }
++        Ok(store)
++    }
++}
+diff --git a/crates/doc/src/tables.rs b/crates/doc/src/tables.rs
+index 5707e0c..073ad98 100644
+--- a/crates/doc/src/tables.rs
++++ b/crates/doc/src/tables.rs
+@@ -702,7 +702,7 @@ pub struct Block {
+     #[serde(default)]
+     pub annotative: bool,
+     pub base: Vec3,
+-    #[serde(skip)]
++    #[cfg_attr(not(feature = "dobe"), serde(skip))]
+     pub entities: EntityStore,
+     #[serde(default)]
+     pub description: String,
+@@ -812,7 +812,7 @@ pub struct PageSetup {
+     /// `landscape`, so each program's convention for media defined wider than tall survives a
+     /// round trip: AutoCAD stores a portrait size and a quarter turn, ZWCAD the media's own size
+     /// and no turn (#1463). `None` for page setups made in CADCraft.
+-    #[serde(skip)]
++    #[cfg_attr(not(feature = "dobe"), serde(skip))]
+     pub file_paper: Option<(f64, f64, i64)>,
+     /// The paper image origin (DXF groups 148/149, in plot paper units) as the file had it, so a
+     /// save keeps where the sheet sits; `None` for a page CADCraft made, written as 0,0 (#2109).
+@@ -851,7 +851,7 @@ pub struct Layout {
+     pub name: String,
+     pub tab_order: u32,
+     pub page: PageSetup,
+-    #[serde(skip)]
++    #[cfg_attr(not(feature = "dobe"), serde(skip))]
+     pub entities: EntityStore,
+     /// Saved paper-space view (centre, height).
+     #[serde(default)]
+diff --git a/crates/engine/Cargo.toml b/crates/engine/Cargo.toml
+index 8be55a2..69f594a 100644
+--- a/crates/engine/Cargo.toml
++++ b/crates/engine/Cargo.toml
+@@ -30,3 +30,6 @@ libc = "0.2"
+ [dev-dependencies]
+ # Real DXF files for the external reference tests (io is a lower layer).
+ cadcraft-io = { workspace = true }
++
++[features]
++dobe = ["cadcraft-doc/dobe", "cadcraft-fonts/dobe"]
+diff --git a/crates/engine/src/lib.rs b/crates/engine/src/lib.rs
+index 2e02831..7d3841f 100644
+--- a/crates/engine/src/lib.rs
++++ b/crates/engine/src/lib.rs
+@@ -44,6 +44,8 @@ use cadcraft_geom::{Bounds2, Vec2};
+ use serde::{Deserialize, Serialize};
+ use serde_json::Value;
+ 
++#[cfg(feature = "dobe")]
++pub use cadcraft_constraints as dobe_constraints;
+ pub use cadcraft_doc as doc;
+ pub use cadcraft_fonts as fonts;
+ pub use cadcraft_geom as geom;
+diff --git a/crates/fonts/Cargo.toml b/crates/fonts/Cargo.toml
+index 1492b07..d7dc386 100644
+--- a/crates/fonts/Cargo.toml
++++ b/crates/fonts/Cargo.toml
+@@ -16,3 +16,6 @@ harfrust = { workspace = true }
+ unicode-bidi = { workspace = true }
+ icu_segmenter = { workspace = true }
+ encoding_rs = { workspace = true }
++
++[features]
++dobe = []
+diff --git a/crates/fonts/src/shx/table.rs b/crates/fonts/src/shx/table.rs
+index efcca16..879eb83 100644
+--- a/crates/fonts/src/shx/table.rs
++++ b/crates/fonts/src/shx/table.rs
+@@ -56,11 +56,11 @@ impl Table {
+ fn table() -> MutexGuard<'static, Table> {
+     static T: OnceLock<Mutex<Table>> = OnceLock::new();
+     T.get_or_init(|| {
+-        #[cfg(not(target_arch = "wasm32"))]
++        #[cfg(all(not(target_arch = "wasm32"), not(feature = "dobe")))]
+         let search_path = std::env::var_os("CADCRAFT_SHXPATH")
+             .map(|p| std::env::split_paths(&p).filter(|d| !d.as_os_str().is_empty()).take(MAX_DIRS).collect())
+             .unwrap_or_default();
+-        #[cfg(target_arch = "wasm32")]
++        #[cfg(any(target_arch = "wasm32", feature = "dobe"))]
+         let search_path = Vec::new();
+         Mutex::new(Table { search_path, ..Table::default() })
+     })
+@@ -269,6 +269,9 @@ pub fn installed() -> Vec<String> {
+ /// on a case-sensitive file system).
+ #[cfg(not(target_arch = "wasm32"))]
+ fn read_from(dirs: &[PathBuf], name: &str) -> Option<Vec<u8>> {
++    if cfg!(feature = "dobe") {
++        return None;
++    }
+     use std::io::Read as _;
+     let read = |file: &Path| -> Option<Vec<u8>> {
+         let meta = std::fs::metadata(file).ok()?;
+diff --git a/crates/fonts/src/ttf.rs b/crates/fonts/src/ttf.rs
+index 2edefe7..a963a00 100644
+--- a/crates/fonts/src/ttf.rs
++++ b/crates/fonts/src/ttf.rs
+@@ -325,6 +325,9 @@ fn lock() -> MutexGuard<'static, Db> {
+ /// The platform's system font directories, in search order.
+ #[cfg(not(target_arch = "wasm32"))]
+ fn system_font_dirs() -> Vec<PathBuf> {
++    if cfg!(feature = "dobe") {
++        return Vec::new();
++    }
+     let mut dirs: Vec<PathBuf> = Vec::new();
+     if cfg!(target_os = "macos") {
+         dirs.extend(["/System/Library/Fonts", "/System/Library/Fonts/Supplemental", "/Library/Fonts"].map(Into::into));
+@@ -361,6 +364,9 @@ fn scan() -> HashMap<String, PathBuf> {
+ /// (`in_order`: a folder listed earlier wins over a later one).
+ #[cfg(not(target_arch = "wasm32"))]
+ fn scan_dirs(dirs: &[PathBuf], in_order: bool) -> HashMap<String, PathBuf> {
++    if cfg!(feature = "dobe") {
++        return HashMap::new();
++    }
+     let mut out = HashMap::new();
+     let mut stack: Vec<PathBuf> = if in_order { dirs.iter().rev().cloned().collect() } else { dirs.to_vec() };
+     let mut seen = 0usize;
+diff --git a/crates/io/Cargo.toml b/crates/io/Cargo.toml
+index f39a630..90a1841 100644
+--- a/crates/io/Cargo.toml
++++ b/crates/io/Cargo.toml
+@@ -33,3 +33,6 @@ craft-pdf = { workspace = true, features = ["read"] }
+ # dev-dependency also builds acadrust during --all-targets, breaking FreeBSD aarch64 (#2526).
+ [target.'cfg(not(any(target_arch = "wasm32", all(target_os = "freebsd", target_arch = "aarch64"))))'.dev-dependencies]
+ acadrust = "0.6.6"
++
++[features]
++dobe = ["cadcraft-doc/dobe", "cadcraft-fonts/dobe"]

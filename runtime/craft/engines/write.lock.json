@@ -1,0 +1,34 @@
+{
+  "cargo_lock_sha256": "2d90aab982aeafb4c1c1dac6e26bf4a5ad50e26c833b4ad17b24d2869bcf6c82",
+  "engine_version": "0.18.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "write.patch",
+    "sha256": "85926c3601cce82c186c2ef50f515b5dd48c05a1d9b16fb41ba29aa3219332d6"
+  },
+  "patched_files": {
+    "apps/wordcraft-cli/Cargo.toml": "766fd87362595301fb6471ec2c9780e92c27e8f3b76f3df3393696bc92479f5f",
+    "apps/wordcraft-cli/src/dobe_help.txt": "a51bd518be467dcfe9ddc171a4503a520f1c3d95cde2135fe82dc341c93a3f78",
+    "apps/wordcraft-cli/src/dobe_main.rs": "052fbc39d0ca4cd0b1009c027049ed04091aa319ea82c85ea19f1d432b4ad948",
+    "apps/wordcraft-cli/src/main.rs": "914b2b1dcab0eabbbe34c3e27201cf347a3d1b493c6e5bb4ea79a55d6c7da5b8",
+    "crates/doc/Cargo.toml": "02c26f518e5b3d4fd4bf19b1cfe950ddd0ab2d6ef79c70123ad844cc2f0eae52",
+    "crates/doc/src/styles.rs": "d08f3194800be9b787303c874f5ff9f6bba2c670579fffb91e6c46653cad9ba3",
+    "crates/engine/Cargo.toml": "59c50095c4c3f529df297397f6a214d3be459182962d33cb7a4e49dec55d5009",
+    "crates/engine/src/io.rs": "43ec63dc40f01a2d9e49d3d35f980ab74cb036d41fe7109c3655f73937e12202",
+    "crates/engine/src/io/dobe_glyphs.rs": "d029db4a50a2ecab060c9d05950a6b5aefb20f6d890ff803c6b7e91e025c8faf",
+    "crates/engine/src/session/run.rs": "9a6a5b908f7405cb61d69afe9b38b2e4201619db95c39cfbfb2154e1e1449c3b",
+    "crates/fonts/Cargo.toml": "912a45f1defcc8747122ee0dbcf9d9dc979a3d4a8d1d6c48569d2b9af94ca528",
+    "crates/fonts/src/fontdb.rs": "bd9a736f1862a57c6d7f3be41a5d18b9731b0dbcfc97b9bed3bc0b90e9e0db90"
+  },
+  "product": "dobe-write",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "079f478bd85df7bcc567e3bafa7d7219096f9c3c",
+    "url": "https://github.com/storytold/wordcraft"
+  },
+  "source_date_epoch": 1794440289
+}

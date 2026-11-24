@@ -1,0 +1,9 @@
+{
+  "width": 320,
+  "height": 200,
+  "background": "#182133",
+  "layers": [
+    {"type": "solid", "name": "panel", "color": "#334466", "opacity": 0.5, "mask": {"rect": [16, 16, 288, 168]}},
+    {"type": "text", "name": "caption", "x": 28, "y": 110, "text": "Made to be revised.", "font": "Inter", "size": 20, "color": "#ffffff"}
+  ]
+}

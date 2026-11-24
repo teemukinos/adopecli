@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "scope": "Exact supporting binary pins; discover installed tools without developer-specific paths",
+  "engines": {
+    "blender": {
+      "sha256": "61016ab3408affac7427b28b5057842e5c562a3ab4e37a1eae4adbf023f91f5f",
+      "executable": "blender"
+    },
+    "rive": {
+      "sha256": "5b4242183da71242ca94a673756b9d71e9fa07c9e96f5b8ebb985beffd29b525",
+      "executable": "rive"
+    },
+    "ffmpeg": {
+      "sha256": "9f5ddd4f8b36eb07b0c5d60ab6ea1e618bedd70bc45feab82b4dc23be1596ad1",
+      "executable": "ffmpeg"
+    },
+    "ffprobe": {
+      "sha256": "0ecd5e1affb1466b129b4f65bee261e9ab625c4d4a2e7c3e9089f63d44808605",
+      "executable": "ffprobe"
+    }
+  },
+  "web_runtime": {
+    "version": "2.48.0",
+    "license": "MIT as declared by retained package.json",
+    "files": {
+      "rive.js": {
+        "path": "web/rive.js",
+        "sha256": "b4f46a418fd0ea17dd87f7b54cffc08d8157c4c7cad1a484acb4806f60b0cf2a"
+      },
+      "rive.wasm": {
+        "path": "web/rive.wasm",
+        "sha256": "2a1c303b1540edc449d066b940217047a596d0515477dbf3f762a34273704369"
+      },
+      "package.json": {
+        "path": "web/package.json",
+        "sha256": "9f1029dd3d2f2333e073c094662ea107ab34d7904f209d924fb63b295b2948dc"
+      }
+    }
+  }
+}

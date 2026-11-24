@@ -1,0 +1,31 @@
+{
+  "cargo_lock_sha256": "1e92be15976720f95b8b321ce64c2a27d4b79c30aa2ee0b46b97660c8b62af6a",
+  "engine_version": "0.24.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "motion.patch",
+    "sha256": "834eedf835cc81f43aeda14852a8957a430dd5bce4bd6829fc1733784d80db15"
+  },
+  "patched_files": {
+    "apps/effectcraft-cli/Cargo.toml": "351dbcf345c9c22fe148a6c34f8e7cfebbb15b4731bc3aa4c5fd4af3fb0b0031",
+    "apps/effectcraft-cli/src/main.rs": "13845bbaf697d834ef95a9d2b33a521059617020c0710f8ec05b5d0ac4ec5a29",
+    "crates/automation/Cargo.toml": "97aa1e3481fd6ef2da60b922249bb70e20c16fa9bec1f1a04cdc88354ce4c9bc",
+    "crates/automation/src/server.rs": "16ea89b34950abbba1d485373f923010b5b0ddc4b388bfc66375e4bbacb03443",
+    "crates/automation/src/tests.rs": "359796356800ccd2fa27710473b87759211aa370a95c6863b6bc6d52b00bda03",
+    "crates/engine/src/cmd/text_edit.rs": "91516542d314b5a2e5b6b21fd3248733afa82ac6acc9dd59b0c7edd6391aaf73",
+    "crates/engine/src/tests/text.rs": "2704e5424a65d566847b75a184e88809fca18137d230f0aba4311b6f87d77336",
+    "crates/ui-egui/Cargo.toml": "b008e86bde33a330fb1c41af7471cf18f9e473738d42c0a019bc15007368731e",
+    "crates/ui-egui/src/header.rs": "ea600e63468b26572c90cb17518975f9a0cc72e9354de7ad6a51ae0b9537c5db"
+  },
+  "product": "dobe-motion",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "582344dd4ef462362c02e56e3094de7af01847ab",
+    "url": "https://github.com/storytold/effectcraft"
+  },
+  "source_date_epoch": 1794440253
+}

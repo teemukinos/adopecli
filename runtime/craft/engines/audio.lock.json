@@ -1,0 +1,29 @@
+{
+  "cargo_lock_sha256": "103eb7258882db567bb6ec33bca1c88301543a0d67e2c5aa1e78aded416ae114",
+  "engine_version": "0.20.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "audio.patch",
+    "sha256": "8edd3ed67176948e05daeee5fcc266a84554210fb69b3066b11142ce6c6450ad"
+  },
+  "patched_files": {
+    "apps/soundcraft-cli/Cargo.toml": "4895594f87564689a215bef449db8775dd7d4b4a778c578270ab6a5add96d466",
+    "apps/soundcraft-cli/src/args.rs": "cef9752d4e349344ebab5b29f17599b40042602c0311f00045e422d5f72ce4ab",
+    "apps/soundcraft-cli/src/error.rs": "0dc61f38db3d47ada4c27525b24ca155457bbb584b0555895bed9ba1c143446f",
+    "apps/soundcraft-cli/src/lib.rs": "c8a8bfdaed06c5bc93262b392852bd81d0e9c06618f0de553974add96f1d2803",
+    "apps/soundcraft-cli/src/mcp.rs": "4e75bf7c193368a7065beaf4648a8dbb84fc9937b64474e2d7edbdb98b4cd1b1",
+    "crates/automation/Cargo.toml": "2786a03c5c17487fe4a7d36794f141a68c64970c2889954e60fa0c3b651cd861",
+    "crates/automation/src/mcp.rs": "42ec01fdbde4028398c366526e348d1c12482dd1407b2439249fc14bb2ed90b5"
+  },
+  "product": "dobe-audio",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "a52bbdccbe15342f44e0de1906bf71a621e7a68f",
+    "url": "https://github.com/storytold/soundcraft"
+  },
+  "source_date_epoch": 1794443942
+}

@@ -1,0 +1,43 @@
+{
+  "cargo_lock_sha256": "f34e2a320e59f5ebd1b51c3b7527f3226a271c8a4266d53748c9d3b99ff56eae",
+  "engine_version": "0.21.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "pdf.patch",
+    "sha256": "0df46cff4977f1fc21e876f8c22abd235a60d4220c3337e995259f93e4098589"
+  },
+  "patched_files": {
+    "apps/pdfcraft-cli/Cargo.toml": "55673dbfcb807099ba996f4b92923c36fd27bf1ac65b93e7e20b23458b953295",
+    "apps/pdfcraft-cli/src/main.rs": "037c1a9441f830a63c5b174bff02a2b2c5870275c64aed6b48966488348ee5ae",
+    "apps/pdfcraft-cli/src/options.rs": "2edf8464919af1957a6324ddf28332c8f0300f1ff8fafd27dcb477de0c0bff14",
+    "crates/automation/Cargo.toml": "b6b07aa221b84da8abd267f079ebfa9f6225bab7fcbd4023f22f5427bac46f4e",
+    "crates/automation/src/comments.rs": "ffeb8de56bf33d210494310dad4bbb2cf84fff58ec1c8c9ed77321bb736f67b6",
+    "crates/automation/src/content.rs": "5d8c62e3e61adc62eaf90909b0d7b141b9860cddc04828105f089e70c462d7f8",
+    "crates/automation/src/dispatch.rs": "26312235fffb2657de9bff279475172392f34b526a486113e01ad7fa039e9d8b",
+    "crates/automation/src/dobe_inspect.rs": "02b4679fa1f06b7febc676aca65f51839a5a0d3ad950036c2039183be5b2a478",
+    "crates/automation/src/lib.rs": "7422f907db2892523c8abdbb4173fe8d55a1e5471cfa4552a203a6cd70b996ff",
+    "crates/automation/src/mcp.rs": "d9ef72aa9d031b71c0d63e951ab10dd4923e1c18f93bfc3b3b4f952df0ff7d80",
+    "crates/automation/src/tools.rs": "84cf4977bcf4b8cb972c4fa693d0a6a94c816705d8d9d363a05d2699ff1af40e",
+    "crates/automation/tests/it/automation.rs": "7b803b36a434eb33f11d2e65cf7c509c2e2b811c8f2093efc35f55a5bd0189c9",
+    "crates/automation/tests/it/automation_roots.rs": "6f2e80e5e3273d1943044e22e2f2dd2b3d4479169ff81f36f2dfbdbeb2264430",
+    "crates/edit/src/lib.rs": "1c62e5b51bd3df66190cafb1b5c008c687307536f9f6349c5622b04a9eb3fa48",
+    "crates/edit/src/text.rs": "9479215f0753fd59c2169ea7a715e1d39fb598c26e1792484a8c4aeab59a9b83",
+    "crates/engine/Cargo.toml": "9da2aa589924c5cf434766ac61ebea063d5425a46b1186288187b02231d4b40c",
+    "crates/engine/src/find_replace.rs": "f3f16cffab2a37657747603b1ef5bcddceb44d4fe0deb9c44294c0a55bfb9c73",
+    "crates/engine/src/find_replace/owned.rs": "64cd9c7d9fe56eaedbc7558a9b219c84e0e808c3c607471233968f6f2a8fe0e2",
+    "crates/engine/src/find_replace/tests.rs": "d5a1147c6959c656bbb6eb423e4cd7f2b6adf7c8f92d9337c8ebc85d404b3749",
+    "crates/ocr/Cargo.toml": "ccad7577445da28940545244dfec7dbd59021987960f65bca31e5eb0c21c4736",
+    "crates/ocr/src/ocrs.rs": "0ce501e37266753f05c13df58f1c131ad6143bc81d593cb3cae4019d32663ccd"
+  },
+  "product": "dobe-pdf",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "b503b2e62dfeec5598f344e4e287d9c9cbdb34fa",
+    "url": "https://github.com/storytold/pdfcraft"
+  },
+  "source_date_epoch": 1794447629
+}

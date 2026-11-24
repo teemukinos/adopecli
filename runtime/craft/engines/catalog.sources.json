@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "scope": "Source inputs for the complete seventeen-application catalog. A source pin is not a build, supported operation, or release qualification.",
+  "applications": [
+    {
+      "application": "image",
+      "product": "Dobe Image",
+      "upstream_url": "https://github.com/storytold/photocraft",
+      "source_revision": "45066c48292e92229ada3459a83453439514c83d",
+      "source_tag": "v0.23.1",
+      "maintained_lock": "image.lock.json"
+    },
+    {
+      "application": "vector",
+      "product": "Dobe Vector",
+      "upstream_url": "https://github.com/storytold/vectorcraft",
+      "source_revision": "f4922aa7ac99a4f6d56fc68a83a44945207ec610",
+      "source_tag": "v0.24.1",
+      "maintained_lock": "vector.lock.json"
+    },
+    {
+      "application": "video",
+      "product": "Dobe Video",
+      "upstream_url": "https://github.com/storytold/filmcraft",
+      "source_revision": "cedf0c9bd060eb06a977d532402be2097c9ebe42",
+      "source_tag": "v0.20.1",
+      "maintained_lock": "video.lock.json"
+    },
+    {
+      "application": "motion",
+      "product": "Dobe Motion",
+      "upstream_url": "https://github.com/storytold/effectcraft",
+      "source_revision": "582344dd4ef462362c02e56e3094de7af01847ab",
+      "source_tag": "v0.24.1",
+      "maintained_lock": "motion.lock.json"
+    },
+    {
+      "application": "audio",
+      "product": "Dobe Audio",
+      "upstream_url": "https://github.com/storytold/soundcraft",
+      "source_revision": "a52bbdccbe15342f44e0de1906bf71a621e7a68f",
+      "source_tag": "v0.20.1",
+      "maintained_lock": "audio.lock.json"
+    },
+    {
+      "application": "photo",
+      "product": "Dobe Photo",
+      "upstream_url": "https://github.com/storytold/lightcraft",
+      "source_revision": "361e3bc0c838ffe5e5cea515b1fe5b71951989c6",
+      "source_tag": "v0.21.1",
+      "maintained_lock": "photo.lock.json"
+    },
+    {
+      "application": "pdf",
+      "product": "Dobe PDF",
+      "upstream_url": "https://github.com/storytold/pdfcraft",
+      "source_revision": "b503b2e62dfeec5598f344e4e287d9c9cbdb34fa",
+      "source_tag": "v0.21.1",
+      "maintained_lock": "pdf.lock.json"
+    },
+    {
+      "application": "layout",
+      "product": "Dobe Layout",
+      "upstream_url": "https://github.com/storytold/designcraft",
+      "source_revision": "33a467872268c98536231491865b4011b0275b17",
+      "source_tag": "v0.20.1",
+      "maintained_lock": "layout.lock.json"
+    },
+    {
+      "application": "interface",
+      "product": "Dobe Interface",
+      "upstream_url": "https://github.com/storytold/figcraft",
+      "source_revision": "4acc293c2ec941ac1400837ee7e3ab51780399f8",
+      "source_tag": "v0.18.1",
+      "maintained_lock": "interface.lock.json"
+    },
+    {
+      "application": "animate",
+      "product": "Dobe Animate",
+      "upstream_url": "https://github.com/storytold/anicraft",
+      "source_revision": "d0beaf253274948b55ee9e1107749f9491bff880",
+      "source_tag": "v0.2.1",
+      "maintained_lock": "animate.lock.json"
+    },
+    {
+      "application": "texture",
+      "product": "Dobe Texture",
+      "upstream_url": "https://github.com/storytold/texturecraft",
+      "source_revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+      "source_tag": "v0.6.1",
+      "maintained_lock": "texture.lock.json"
+    },
+    {
+      "application": "material",
+      "product": "Dobe Material",
+      "upstream_url": "https://github.com/storytold/materialcraft",
+      "source_revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+      "source_tag": "v0.4.1",
+      "maintained_lock": "material.lock.json"
+    },
+    {
+      "application": "write",
+      "product": "Dobe Write",
+      "upstream_url": "https://github.com/storytold/wordcraft",
+      "source_revision": "079f478bd85df7bcc567e3bafa7d7219096f9c3c",
+      "source_tag": "v0.18.1",
+      "maintained_lock": "write.lock.json"
+    },
+    {
+      "application": "slides",
+      "product": "Dobe Slides",
+      "upstream_url": "https://github.com/storytold/deckcraft",
+      "source_revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+      "source_tag": "v0.18.1",
+      "maintained_lock": "slides.lock.json"
+    },
+    {
+      "application": "cad",
+      "product": "Dobe CAD",
+      "upstream_url": "https://github.com/storytold/cadcraft",
+      "source_revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+      "source_tag": "v0.20.1",
+      "maintained_lock": "cad.lock.json"
+    },
+    {
+      "application": "sheets",
+      "product": "Dobe Sheets",
+      "upstream_url": "https://github.com/storytold/gridcraft",
+      "source_revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+      "source_tag": "v0.19.1",
+      "maintained_lock": "sheets.lock.json"
+    },
+    {
+      "application": "inspect",
+      "product": "Dobe Inspect",
+      "upstream_url": "https://github.com/storytold/craft-anything",
+      "source_revision": "48a9c5a60ff83ff620f98661339be6281a7debc6",
+      "source_tag": "v0.6.1",
+      "maintained_lock": "inspect.lock.json"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "media_generation": "disabled",
+    "network": "offline"
+  },
+  "components": [
+    {
+      "id": "poster",
+      "engine": "image",
+      "parameters": {
+        "width": 640,
+        "height": 360,
+        "background": "#090B0E",
+        "layers": [
+          {
+            "name": "accent",
+            "type": "solid",
+            "color": "#FF6A2B",
+            "opacity": 0.3,
+            "mask": {
+              "rect": [
+                40,
+                40,
+                600,
+                320
+              ],
+              "density": 100,
+              "feather": 8
+            }
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "x": 100,
+            "y": 135,
+            "text": "A dobe cli",
+            "font": "Inter",
+            "size": 48,
+            "color": "#F4F3EA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit",
+      "engine": "video",
+      "inputs": {
+        "00000000000000000000000000000000": {
+          "component": "poster",
+          "artifact": "exports/document.png"
+        }
+      },
+      "parameters": {
+        "width": 640,
+        "height": 360,
+        "fps": 24,
+        "clips": [
+          {
+            "name": "poster",
+            "start": 0,
+            "frames": 48,
+            "asset": "00000000000000000000000000000000"
+          },
+          {
+            "name": "ending",
+            "start": 48,
+            "frames": 24,
+            "color": "#090B0E"
+          }
+        ],
+        "titles": [
+          {
+            "name": "caption",
+            "text": "Built from native layers",
+            "start": 48,
+            "frames": 24,
+            "x": 60,
+            "y": 160,
+            "size": 28,
+            "color": "#F4F3EA"
+          }
+        ]
+      }
+    }
+  ]
+}

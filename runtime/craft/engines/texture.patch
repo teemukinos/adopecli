@@ -1,0 +1,352 @@
+diff --git a/apps/texturecraft-cli/Cargo.toml b/apps/texturecraft-cli/Cargo.toml
+index d458a8d..2e4ab94 100644
+--- a/apps/texturecraft-cli/Cargo.toml
++++ b/apps/texturecraft-cli/Cargo.toml
+@@ -6,6 +6,15 @@ edition.workspace = true
+ license.workspace = true
+ build = "build.rs"
+ 
++[features]
++default = []
++dobe = ["texturecraft-automation/dobe"]
++
++[[bin]]
++name = "dobe-texture"
++path = "src/dobe_main.rs"
++required-features = ["dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/apps/texturecraft-cli/src/dobe_help.txt b/apps/texturecraft-cli/src/dobe_help.txt
+new file mode 100644
+index 0000000..a033cf8
+--- /dev/null
++++ b/apps/texturecraft-cli/src/dobe_help.txt
+@@ -0,0 +1,20 @@
++dobe-texture: private headless Dobe Texture engine
++
++Customer entry: dobe mcp or dobe CLI. This binary is an internal component.
++
++  dobe-texture --version
++  dobe-texture info <project.tcraft | mesh | builtin:id>
++  dobe-texture commands [--filter <text>]
++  dobe-texture run <input> <command-id> [params-json] [-o <out.tcraft>]
++  dobe-texture batch <script.json>
++  dobe-texture new <mesh | builtin:id> <out.tcraft> [--resolution <px>] [--sample]
++  dobe-texture bake <input> -o <out.tcraft> [--resolution <px>] [--maps <ids>]
++  dobe-texture export <input> <dir> [--preset <name>] [--format <ext>] [--size <px>]
++  dobe-texture render <input> <out.png> --samples <n> --cpu [--size <WxH>]
++  dobe-texture mcp [--read-root <dir>] [--write-root <dir>]
++
++Native projects retain editable texture sets, layers, masks and resources.
++MCP file access uses the supplied workspace roots. No editor or TCP serving.
++CPU path tracing requires --samples and --cpu. CPU baking is used by this build.
++The runtime admits bounded typed operations; the native command list is not a
++customer API or a promise that every upstream operation has been qualified.
+diff --git a/apps/texturecraft-cli/src/dobe_main.rs b/apps/texturecraft-cli/src/dobe_main.rs
+new file mode 100644
+index 0000000..3ce1125
+--- /dev/null
++++ b/apps/texturecraft-cli/src/dobe_main.rs
+@@ -0,0 +1,17 @@
++//! Private headless entry. The durable Dobe runtime owns customer MCP access.
++#![forbid(unsafe_code)]
++#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
++
++#[path = "main.rs"]
++mod cli;
++
++fn main() {
++    // Refuse before argument parsing, token lookup or any connection attempt.
++    // The embedded engine never attaches to an editor or starts a TCP server.
++    let args: Vec<String> = std::env::args().skip(1).collect();
++    if args.first().is_some_and(|arg| arg == "serve") || args.iter().any(|arg| matches!(arg.split('=').next(), Some("--bridge" | "--port" | "--token"))) {
++        eprintln!("dobe-texture: editor connections and network serving are disabled");
++        std::process::exit(2);
++    }
++    cli::main();
++}
+diff --git a/apps/texturecraft-cli/src/main.rs b/apps/texturecraft-cli/src/main.rs
+index faa29af..c59324d 100644
+--- a/apps/texturecraft-cli/src/main.rs
++++ b/apps/texturecraft-cli/src/main.rs
+@@ -12,6 +12,7 @@ use texturecraft_automation::{AuthorizedWorkspace, BridgeClient, Filesystem, Hea
+ use texturecraft_engine::core::PROJECT_EXT;
+ use texturecraft_engine::formats::{MeshReport, import_mesh, import_mesh_bytes, mesh_report};
+ 
++#[cfg(not(feature = "dobe"))]
+ const USAGE: &str = "\
+ texturecraft-cli: headless TextureCraft
+ 
+@@ -50,6 +51,13 @@ or builtin:<id> (material_ball, sphere, cube, rounded_cube, cylinder, torus, pla
+ See docs/control-protocol.md.
+ ";
+ 
++#[cfg(feature = "dobe")]
++const USAGE: &str = include_str!("dobe_help.txt");
++#[cfg(feature = "dobe")]
++const CLI_NAME: &str = "dobe-texture";
++#[cfg(not(feature = "dobe"))]
++const CLI_NAME: &str = "texturecraft-cli";
++
+ /// (name, flags taking a value, bare flags)
+ const SUBCOMMANDS: &[(&str, &[&str], &[&str])] = &[
+     ("info", &[], &[]),
+@@ -110,6 +118,9 @@ fn parse(values: &[&str], bare: &[&str], args: &[String]) -> Result<Args, String
+ }
+ 
+ fn version() -> String {
++    if cfg!(feature = "dobe") {
++        return format!("dobe-texture {}", texturecraft_engine::VERSION);
++    }
+     let sha = env!("TEXTURECRAFT_BUILD_SHA");
+     let short = sha.get(..7).unwrap_or(sha);
+     let date = env!("TEXTURECRAFT_BUILD_DATE");
+@@ -120,7 +131,7 @@ fn version() -> String {
+     }
+ }
+ 
+-fn main() {
++pub(crate) fn main() {
+     let args: Vec<String> = std::env::args().skip(1).collect();
+     let code = match args.first().map(String::as_str) {
+         None => {
+@@ -137,7 +148,7 @@ fn main() {
+         }
+         Some(cmd) => match SUBCOMMANDS.iter().find(|(n, _, _)| *n == cmd) {
+             None => {
+-                eprintln!("texturecraft-cli: unknown command `{cmd}`\n\n{USAGE}");
++                eprintln!("{CLI_NAME}: unknown command `{cmd}`\n\n{USAGE}");
+                 2
+             }
+             Some(_) if args.iter().any(|a| a == "--help" || a == "-h") => {
+@@ -146,13 +157,13 @@ fn main() {
+             }
+             Some((name, values, bare)) => match parse(values, bare, args.get(1..).unwrap_or_default()) {
+                 Err(e) => {
+-                    eprintln!("texturecraft-cli {name}: {e}\n\n{USAGE}");
++                    eprintln!("{CLI_NAME} {name}: {e}\n\n{USAGE}");
+                     2
+                 }
+                 Ok(a) => match dispatch(name, &a) {
+                     Ok(()) => 0,
+                     Err(e) => {
+-                        eprintln!("texturecraft-cli {name}: error: {e}");
++                        eprintln!("{CLI_NAME} {name}: error: {e}");
+                         1
+                     }
+                 },
+@@ -415,8 +426,8 @@ fn serve(a: &Args) -> R {
+             let addr = listener.local_addr().map_err(s)?;
+             let (token, file) = server_token(addr.port()).map_err(s)?;
+             match file {
+-                Some(f) => eprintln!("texturecraft-cli: serving on {addr}; token in {}", f.display()),
+-                None => eprintln!("texturecraft-cli: serving on {addr}; token from TEXTURECRAFT_CONTROL_TOKEN"),
++                Some(f) => eprintln!("{CLI_NAME}: serving on {addr}; token in {}", f.display()),
++                None => eprintln!("{CLI_NAME}: serving on {addr}; token from TEXTURECRAFT_CONTROL_TOKEN"),
+             }
+             rpc::serve_listener(listener, h, token).map_err(s)
+         }
+diff --git a/crates/automation/Cargo.toml b/crates/automation/Cargo.toml
+index a0c3c0a..3747523 100644
+--- a/crates/automation/Cargo.toml
++++ b/crates/automation/Cargo.toml
+@@ -5,6 +5,10 @@ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
++[features]
++default = []
++dobe = ["texturecraft-engine/dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/automation/src/headless.rs b/crates/automation/src/headless.rs
+index 0af8274..561d305 100644
+--- a/crates/automation/src/headless.rs
++++ b/crates/automation/src/headless.rs
+@@ -72,6 +72,7 @@ fn join(dir: &str, name: &str) -> String {
+ impl Headless {
+     pub fn new(session: Session, fs: Filesystem) -> Headless {
+         // Bakes run here (CLI, MCP) cast their rays on the GPU when there is one.
++        #[cfg(not(feature = "dobe"))]
+         texturecraft_engine::bake::install_gpu_tracer(std::sync::Arc::new(texturecraft_render::gpu_bake::GpuBaker::new()));
+         Headless { session, fs, gpu: None }
+     }
+@@ -285,6 +286,12 @@ impl Headless {
+     /// Render the session to PNG. The viewport needs a GPU adapter; path tracing (`samples`)
+     /// runs on the GPU when it has compute shaders and falls back to the CPU.
+     pub fn render_png(&mut self, o: &RenderOptions) -> Result<Rendered, AutomationError> {
++        // Explicit CPU selection keeps the private engine independent of a display
++        // or GPU adapter. Do not silently reinterpret a requested viewport render.
++        #[cfg(feature = "dobe")]
++        if !o.cpu || o.samples.is_none() {
++            return Err(bad("Dobe Texture renders require CPU path tracing with explicit samples"));
++        }
+         let s = &self.session;
+         let kind = match o.view.as_deref().unwrap_or("3d") {
+             "3d" => ViewKind::Scene,
+diff --git a/crates/automation/src/server.rs b/crates/automation/src/server.rs
+index 0bd6f4d..4054c11 100644
+--- a/crates/automation/src/server.rs
++++ b/crates/automation/src/server.rs
+@@ -348,6 +348,8 @@ impl TexturecraftMcp {
+     async fn bridge_only(&self, method: &str, p: Value) -> Result<Value, AutomationError> {
+         if self.is_bridge() {
+             self.call(method, p).await
++        } else if cfg!(feature = "dobe") {
++            Err(bad("Dobe Texture does not connect to an editor"))
+         } else {
+             Err(bad(format!(
+                 "`{method}` needs the running app: start `texturecraft --control <port>` and run `texturecraft-cli mcp --bridge <port>` (headless renders: viewport_render)"
+@@ -529,6 +531,7 @@ impl TexturecraftMcp {
+     }
+ }
+ 
++#[cfg(not(feature = "dobe"))]
+ #[tool_handler(
+     router = self.tool_router,
+     name = "texturecraft",
+@@ -540,6 +543,17 @@ impl TexturecraftMcp {
+ )]
+ impl ServerHandler for TexturecraftMcp {}
+ 
++#[cfg(feature = "dobe")]
++#[tool_handler(
++    router = self.tool_router,
++    name = "dobe-texture",
++    instructions = "Private Dobe Texture engine. Customer access uses the durable Dobe runtime. \
++        Native .tcraft projects retain editable texture sets, layers, masks and resources. \
++        File access is confined to the supplied workspace roots. Rendering requires explicit \
++        CPU path tracing. Editor connections and network serving are disabled."
++)]
++impl ServerHandler for TexturecraftMcp {}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+diff --git a/crates/engine/Cargo.toml b/crates/engine/Cargo.toml
+index 2500d9e..3226580 100644
+--- a/crates/engine/Cargo.toml
++++ b/crates/engine/Cargo.toml
+@@ -5,6 +5,10 @@ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
++[features]
++default = []
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/engine/src/file_cmds.rs b/crates/engine/src/file_cmds.rs
+index a728fd6..c0dbba9 100644
+--- a/crates/engine/src/file_cmds.rs
++++ b/crates/engine/src/file_cmds.rs
+@@ -181,6 +181,10 @@ impl Session {
+         let mut s =
+             Session::new(Document { bake_paint: Default::default(), project: pf.project, pixels: pf.pixels, baked: pf.baked, resources }, mesh, source)?;
+ 
++        #[cfg(feature = "dobe")]
++        {
++            s.dobe_source_thumbnail = pf.thumbnail;
++        }
+         s.sync_images();
+         s.load_bake_meshes(pf.high_poly, pf.cage);
+         s.load_bake_paint(pf.bake_paint);
+@@ -215,6 +219,9 @@ impl Session {
+             high_poly,
+             cage,
+             bake_paint: self.saved_bake_paint(),
++            #[cfg(feature = "dobe")]
++            thumbnail: self.dobe_source_thumbnail.clone(),
++            #[cfg(not(feature = "dobe"))]
+             thumbnail: None,
+             resources: self.doc.resources.iter().map(|(k, v)| (k.clone(), v.as_ref().clone())).collect(),
+             warnings: Vec::new(),
+@@ -635,6 +642,29 @@ fn close(s: &mut Session, _: &Value) -> Result<Value> {
+ mod tests {
+     use super::*;
+ 
++    #[cfg(feature = "dobe")]
++    #[test]
++    fn dobe_retains_imported_thumbnail_without_leaking_it_to_new_projects() {
++        let session = Session::new_project("Imported", primitives::plane(2.0, 1), "builtin:plane", None, 128).unwrap();
++        let thumbnail = texturecraft_formats::coverage_png(2, 1, &[0, 255], [255, 0, 0]).unwrap();
++        let mut file = session.project_file();
++        file.thumbnail = Some(thumbnail.clone());
++        let original = texturecraft_formats::save_project_bytes(&file).unwrap();
++        let mut reopened = Session::from_project_bytes(&original).unwrap();
++        let saved = reopened.to_project_bytes().unwrap();
++        assert_eq!(texturecraft_formats::load_project_bytes(&saved).unwrap().thumbnail, Some(thumbnail.clone()));
++        let cold = Session::from_project_bytes(&saved).unwrap();
++        assert_eq!(cold.project_file().thumbnail, Some(thumbnail.clone()));
++        // An edit retains the imported preview as source data. A managed job
++        // explicitly regenerates/replaces the preview; this is not an implicit
++        // render or a claim that the imported image depicts the edited document.
++        crate::execute(&mut reopened, "layer.add.fill", &json!({"name": "Revision", "color": "#ff0000"})).unwrap();
++        assert_eq!(reopened.project_file().thumbnail, Some(thumbnail));
++        let next = Session::new_project("New", primitives::plane(2.0, 1), "builtin:plane", None, 128).unwrap();
++        reopened.switch_to(next);
++        assert_eq!(reopened.project_file().thumbnail, None);
++    }
++
+     /// Reimport mesh reads the mesh file again from where it was imported, so a change saved to
+     /// the file since shows up (it used to re-read the project's own copy and change nothing).
+     #[test]
+diff --git a/crates/engine/src/link_cmds.rs b/crates/engine/src/link_cmds.rs
+index 36daf9a..1686906 100644
+--- a/crates/engine/src/link_cmds.rs
++++ b/crates/engine/src/link_cmds.rs
+@@ -230,6 +230,11 @@ fn quiet(program: &std::path::Path) -> std::process::Command {
+ /// program, or on `PATH`).
+ #[cfg(not(target_arch = "wasm32"))]
+ pub fn open_in_materialcraft(package: &std::path::Path) -> Result<()> {
++    // Dobe owns cross-application jobs; no environment variable or PATH entry
++    // may turn a native project into an editor or an untracked subprocess.
++    if cfg!(feature = "dobe") {
++        return Err(EngineError::Other("Dobe Texture does not open a material editor".into()));
++    }
+     let app = materialcraft_tool("materialcraft", "MATERIALCRAFT");
+     quiet(&app).arg(package).spawn().map(drop).map_err(|e| {
+         EngineError::Other(format!("MaterialCraft ({}) did not start: {e}. Install MaterialCraft next to TextureCraft or set MATERIALCRAFT", app.display()))
+@@ -241,6 +246,11 @@ impl LinkJob {
+     /// `PATH`); returns `.mcmat` bytes. Blocks for the cook (about a second at 2K).
+     #[cfg(not(target_arch = "wasm32"))]
+     pub fn run(&self) -> Result<Vec<u8>> {
++        // The durable runtime must explicitly authorize and track a maintained
++        // Material engine. Do not execute upstream tools found in the host.
++        if cfg!(feature = "dobe") {
++            return Err(EngineError::Other("Dobe Texture linked-material cooking requires a managed runtime job".into()));
++        }
+         let other = |e: String| EngineError::Other(e);
+         let n = NEXT_JOB.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+         let dir = std::env::temp_dir().join(format!("texturecraft-link-{}-{n}", std::process::id()));
+diff --git a/crates/engine/src/session.rs b/crates/engine/src/session.rs
+index 41bfacb..782f263 100644
+--- a/crates/engine/src/session.rs
++++ b/crates/engine/src/session.rs
+@@ -326,6 +326,11 @@ pub struct Session {
+     pub bvh: Arc<Bvh>,
+     /// Original mesh file (saved inside the project); None for built-in meshes.
+     pub mesh_source: Option<(String, Vec<u8>)>,
++    /// Imported preview bytes retained for lossless Dobe CLI/MCP round trips.
++    /// This is source provenance, not a freshly rendered preview after edits.
++    /// The managed runtime must explicitly replace it when regenerating a preview.
++    #[cfg(feature = "dobe")]
++    pub(crate) dobe_source_thumbnail: Option<Vec<u8>>,
+     /// High-definition meshes and cage for baking (saved inside the project).
+     pub bake_meshes: crate::BakeMeshes,
+     pub caches: Vec<SetCache>,
+@@ -397,6 +402,8 @@ impl Session {
+             mesh,
+             bvh: Arc::new(bvh),
+             mesh_source,
++            #[cfg(feature = "dobe")]
++            dobe_source_thumbnail: None,
+             bake_meshes: Default::default(),
+             caches,
+             undo: Vec::new(),

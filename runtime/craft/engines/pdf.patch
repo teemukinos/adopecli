@@ -1,0 +1,1633 @@
+diff --git a/apps/pdfcraft-cli/Cargo.toml b/apps/pdfcraft-cli/Cargo.toml
+index 3d9d87a..db45f7b 100644
+--- a/apps/pdfcraft-cli/Cargo.toml
++++ b/apps/pdfcraft-cli/Cargo.toml
+@@ -9,6 +9,11 @@ license.workspace = true
+ name = "pdfcraft-cli"
+ path = "src/main.rs"
+ 
++[[bin]]
++name = "dobe-pdf"
++path = "src/main.rs"
++required-features = ["dobe"]
++
+ [lints]
+ workspace = true
+ 
+@@ -40,3 +45,6 @@ winresource = "0.1"
+ default = ["mcp"]
+ # The opt-in MCP server (`pdfcraft-cli mcp`). Build with --no-default-features to leave it out.
+ mcp = ["pdfcraft-automation/mcp"]
++
++# Maintained headless Dobe entry point; native PDF formats remain unchanged.
++dobe = ["mcp", "pdfcraft-automation/dobe", "pdfcraft-engine/dobe"]
+diff --git a/apps/pdfcraft-cli/src/main.rs b/apps/pdfcraft-cli/src/main.rs
+index 0c7fa9b..a550f6f 100644
+--- a/apps/pdfcraft-cli/src/main.rs
++++ b/apps/pdfcraft-cli/src/main.rs
+@@ -57,6 +57,7 @@ mod check;
+ mod commands;
+ mod options;
+ mod run;
++#[cfg(not(feature = "dobe"))]
+ mod ui;
+ 
+ use check::{audit, check, check_one};
+@@ -65,8 +66,11 @@ use options::{OptionSpec, flag, validate_options};
+ #[cfg(feature = "mcp")]
+ use run::mcp;
+ use run::{automation, print_output, run, tools};
++#[cfg(not(feature = "dobe"))]
+ use ui::ui;
+ 
++const CLI_NAME: &str = if cfg!(feature = "dobe") { "dobe-pdf" } else { "pdfcraft-cli" };
++
+ /// The full usage, printed by `--help` (also after a command, e.g. `render --help`).
+ const USAGE: &str = concat!(
+     "\
+@@ -97,6 +101,20 @@ pdfcraft-cli ui     --control FILE <method> [key=value …] [--out shot.png]
+ help and feedback: https://discord.gg/artcraft"
+ );
+ 
++/// Public help for the selected distribution, without advertising an editor bridge.
++fn usage() -> String {
++    if cfg!(feature = "dobe") {
++        USAGE
++            .lines()
++            .filter(|line| !line.starts_with("pdfcraft-cli ui ") && !line.contains("drive a running app") && !line.starts_with("help and feedback:"))
++            .collect::<Vec<_>>()
++            .join("\n")
++            .replace("pdfcraft-cli", "dobe-pdf")
++    } else {
++        USAGE.to_string()
++    }
++}
++
+ fn main() -> ExitCode {
+     // `std::env::args` panics on an argument that is not UTF-8 ("called `Result::unwrap()` on an
+     // `Err` value"), which a Latin-1 file name is, and it panics while collecting them: even
+@@ -109,7 +127,7 @@ fn main() -> ExitCode {
+             Err(bad) => {
+                 let _ = writeln!(
+                     std::io::stderr().lock(),
+-                    "pdfcraft-cli: `{}` is not valid UTF-8, so it cannot be used as an argument",
++                    "{CLI_NAME}: `{}` is not valid UTF-8, so it cannot be used as an argument",
+                     bad.to_string_lossy()
+                 );
+                 return ExitCode::FAILURE;
+@@ -122,8 +140,8 @@ fn main() -> ExitCode {
+         _ => args.first().map(String::as_str),
+     };
+     let result = match command {
+-        Some("--help" | "-h" | "help") => stdout_line(format_args!("{USAGE}")),
+-        None => Err(format!("usage:\n{USAGE}").into()),
++        Some("--help" | "-h" | "help") => stdout_line(format_args!("{}", usage())),
++        None => Err(format!("usage:\n{}", usage()).into()),
+         Some("info") => info(&args[1..]),
+         Some("render") => render(&args[1..]),
+         Some("text") => text(&args[1..]),
+@@ -137,19 +155,22 @@ fn main() -> ExitCode {
+         Some("tools") => tools(),
+         Some("run") => run(&args[1..]),
+         Some("batch") => batch::run(&args[1..]),
++        #[cfg(not(feature = "dobe"))]
+         Some("ui") => ui(&args[1..]),
++        #[cfg(feature = "dobe")]
++        Some("ui") => Err("Dobe PDF is headless; editor control is unavailable".into()),
+         #[cfg(feature = "mcp")]
+         Some("mcp") => mcp(&args[1..]),
+         #[cfg(not(feature = "mcp"))]
+         Some("mcp") => Err("mcp: this build leaves out the MCP server (built without the `mcp` feature)".into()),
+         Some("--version") => version(),
+-        Some(other) => Err(format!("unknown command '{other}'; see pdfcraft-cli --help").into()),
++        Some(other) => Err(format!("unknown command '{other}'; see {CLI_NAME} --help").into()),
+     };
+     match result {
+         Ok(()) => ExitCode::SUCCESS,
+         Err(CliError::Stdout(e)) if e.kind() == std::io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+         Err(e) => {
+-            let _ = writeln!(std::io::stderr().lock(), "pdfcraft-cli: {e}");
++            let _ = writeln!(std::io::stderr().lock(), "{CLI_NAME}: {e}");
+             ExitCode::FAILURE
+         }
+     }
+@@ -189,9 +210,16 @@ fn stdout_line(line: std::fmt::Arguments<'_>) -> Result<(), CliError> {
+ }
+ 
+ fn version() -> Result<(), CliError> {
+-    stdout_line(format_args!("pdfcraft-cli {}", pdfcraft_engine::build_info::version()))?;
+-    stdout_line(format_args!("Discord: {}  (help and feedback)", pdfcraft_engine::links::DISCORD))?;
+-    stdout_line(format_args!("Web:     {}", pdfcraft_engine::links::APP_PAGE))?;
+-    stdout_line(format_args!("Source:  {}", pdfcraft_engine::links::GITHUB))?;
+-    Ok(())
++    #[cfg(feature = "dobe")]
++    {
++        stdout_line(format_args!("{CLI_NAME} {}", env!("CARGO_PKG_VERSION")))
++    }
++    #[cfg(not(feature = "dobe"))]
++    {
++        stdout_line(format_args!("{CLI_NAME} {}", pdfcraft_engine::build_info::version()))?;
++        stdout_line(format_args!("Discord: {}  (help and feedback)", pdfcraft_engine::links::DISCORD))?;
++        stdout_line(format_args!("Web:     {}", pdfcraft_engine::links::APP_PAGE))?;
++        stdout_line(format_args!("Source:  {}", pdfcraft_engine::links::GITHUB))?;
++        Ok(())
++    }
+ }
+diff --git a/apps/pdfcraft-cli/src/options.rs b/apps/pdfcraft-cli/src/options.rs
+index 1ddbfab..963f1c5 100644
+--- a/apps/pdfcraft-cli/src/options.rs
++++ b/apps/pdfcraft-cli/src/options.rs
+@@ -119,6 +119,7 @@ pub(crate) const RUN_OPTIONS: &[OptionSpec] = &[
+     OptionSpec { name: "--report", takes_value: false },
+ ];
+ 
++#[cfg(not(feature = "dobe"))]
+ pub(crate) const UI_OPTIONS: &[OptionSpec] = &[OptionSpec { name: "--control", takes_value: true }, OptionSpec { name: "--out", takes_value: true }];
+ 
+ #[cfg(feature = "mcp")]
+diff --git a/crates/automation/Cargo.toml b/crates/automation/Cargo.toml
+index a825b1f..bd26102 100644
+--- a/crates/automation/Cargo.toml
++++ b/crates/automation/Cargo.toml
+@@ -26,6 +26,7 @@ base64 = { version = "0.23", optional = true }
+ default = ["mcp"]
+ # The MCP server module. Opt-in at run time either way; disable to leave it out of the build.
+ mcp = ["dep:base64"]
++dobe = ["mcp"]
+ 
+ [dev-dependencies]
+ pdfcraft-fonts = { workspace = true }
+diff --git a/crates/automation/src/comments.rs b/crates/automation/src/comments.rs
+index e4da78a..57fc8d0 100644
+--- a/crates/automation/src/comments.rs
++++ b/crates/automation/src/comments.rs
+@@ -14,7 +14,7 @@ use serde_json::{Value, json};
+ use crate::{Args, Automation, Content, DEFAULT_DPI, MAX_DPI, Result, ToolError, encode_png, failed};
+ 
+ /// Author used when a tool call names none.
+-pub(crate) const DEFAULT_AUTHOR: &str = "PdfCraft";
++pub(crate) const DEFAULT_AUTHOR: &str = if cfg!(feature = "dobe") { "Dobe PDF" } else { "PdfCraft" };
+ /// The largest side of a stamp's box, in points: the largest page PDF allows (ISO 32000-2 Annex C).
+ const MAX_STAMP_SIDE: f64 = 14_400.0;
+ 
+@@ -221,6 +221,13 @@ impl Automation {
+                 && let Some(p) = doc.comment_props(c.page, c.index)
+             {
+                 v["opacity"] = json!(p.opacity);
++                #[cfg(feature = "dobe")]
++                {
++                    v["stroke_width"] = json!(p.width);
++                    v["fill_rgb"] = json!(p.fill);
++                    v["stroke_rgb"] = json!(p.color);
++                    v["restylable"] = json!(p.restylable);
++                }
+                 if let Some(f) = p.fill_opacity {
+                     v["fill_opacity"] = json!(f);
+                 }
+diff --git a/crates/automation/src/content.rs b/crates/automation/src/content.rs
+index 75a4e7f..89f8684 100644
+--- a/crates/automation/src/content.rs
++++ b/crates/automation/src/content.rs
+@@ -139,6 +139,10 @@ impl Automation {
+                 // Unchanged on a page the viewer could not read (#2660), like `crate::view_rect`.
+                 let rect = doc.info.pages.get(it.page).map_or(it.content.rect(), |p| to_view(it.content.rect(), p.height as f64));
+                 let mut v = json!({ "page": it.page + 1, "index": *index + 1, "rect": rect.map(|x| (x * 100.0).round() / 100.0) });
++                #[cfg(feature = "dobe")]
++                {
++                    v["precise_rect"] = json!(rect);
++                }
+                 *index += 1;
+                 match &it.content {
+                     AddedContent::Text(t) => {
+@@ -149,6 +153,13 @@ impl Automation {
+                         v["bold"] = json!(t.bold);
+                         v["italic"] = json!(t.italic);
+                         v["char_spacing"] = json!(t.char_spacing);
++                        #[cfg(feature = "dobe")]
++                        {
++                            v["rgb"] = json!(t.color);
++                            v["align"] = json!(format!("{:?}", t.align).to_ascii_lowercase());
++                            v["paragraph_alignments"] =
++                                json!(t.aligns.iter().map(|a| a.map(|a| format!("{a:?}").to_ascii_lowercase())).collect::<Vec<_>>());
++                        }
+                         // Text painted in a print colour space says so; RGB text has neither.
+                         match t.painted_ink() {
+                             Some(TextInk::Gray(g)) => v["gray"] = json!(g),
+diff --git a/crates/automation/src/dispatch.rs b/crates/automation/src/dispatch.rs
+index 4a91942..a111125 100644
+--- a/crates/automation/src/dispatch.rs
++++ b/crates/automation/src/dispatch.rs
+@@ -54,6 +54,8 @@ impl Automation {
+         let a = Args(args);
+         let out = match name {
+             "doc_bates_multi" => self.doc_bates_multi(&a)?,
++            #[cfg(feature = "dobe")]
++            "dobe_inspect_pdf" => self.dobe_inspect_pdf(&a)?,
+             "doc_open" => self.doc_open(&a)?,
+             "doc_batch" => self.doc_batch(&a)?,
+             "doc_list" => json!({ "documents": self.session.docs().iter().map(summary).collect::<Vec<_>>() }),
+diff --git a/crates/automation/src/dobe_inspect.rs b/crates/automation/src/dobe_inspect.rs
+new file mode 100644
+index 0000000..2cccf63
+--- /dev/null
++++ b/crates/automation/src/dobe_inspect.rs
+@@ -0,0 +1,503 @@
++//! Bounded structural admission for Dobe's typed PDF jobs, before a Session opens the PDF.
++use std::collections::{BTreeMap, BTreeSet, HashSet};
++use std::io::Read;
++use std::sync::Arc;
++
++use pdfcraft_cos::{Dict, Document, ObjRef, Object};
++use serde_json::{Value, json};
++use sha2::{Digest, Sha256};
++
++use crate::{Args, Automation, Result, failed};
++
++const MAX_FILE: usize = 64 << 20;
++const MAX_STREAM: usize = 16 << 20;
++const MAX_OBJECTS: usize = 16_384;
++const MAX_NODES: usize = 250_000;
++const MAX_SERIALIZED: usize = 256 << 20;
++const MAX_PAGES: usize = 256;
++
++impl Automation {
++    /// Inspect bytes through the non-executing COS reader. No document is added to the session.
++    pub(crate) fn dobe_inspect_pdf(&self, args: &Args) -> Result<Value> {
++        let path = self.resolve(args.str("path")?, false)?;
++        let before = std::fs::metadata(&path).map_err(failed)?;
++        if !before.is_file() || before.len() > MAX_FILE as u64 {
++            return Err(failed("PDF inspection requires a regular file of at most 64 MiB"));
++        }
++        let file = std::fs::File::open(&path).map_err(failed)?;
++        let metadata = file.metadata().map_err(failed)?;
++        if !metadata.is_file() || metadata.len() > MAX_FILE as u64 {
++            return Err(failed("PDF inspection requires a regular file of at most 64 MiB"));
++        }
++        let mut bytes = Vec::new();
++        file.take(MAX_FILE as u64 + 1).read_to_end(&mut bytes).map_err(failed)?;
++        inspect_bytes(bytes)
++    }
++}
++
++fn sha256(bytes: &[u8]) -> String {
++    Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
++}
++
++/// Inspect a bounded, immutable buffer without evaluating scripts or rendering pages.
++fn inspect_bytes(bytes: Vec<u8>) -> Result<Value> {
++    if bytes.len() > MAX_FILE || !bytes.starts_with(b"%PDF-") {
++        return Err(failed("PDF inspection requires a PDF header and at most 64 MiB"));
++    }
++    let digest = sha256(&bytes);
++    let bytes = Arc::new(bytes);
++    let doc = Document::open_with_stream_limit(bytes.clone(), None, MAX_STREAM).map_err(failed)?;
++    if doc.security().is_some() || doc.reconstructed() || !doc.repair_log().is_empty() {
++        return Err(failed("encrypted or repaired PDFs are outside the admitted PDF contract"));
++    }
++    let mut graph = Graph { doc: &doc, seen: HashSet::new(), nodes: 0, serialized: 0, image_pixels: 0, objects: BTreeMap::new() };
++    graph.walk(&Object::Dict(doc.trailer().clone()), 0, &mut BTreeSet::new())?;
++    if !doc.unreadable_objects().is_empty() || !doc.repair_log().is_empty() {
++        return Err(failed("PDF inspection encountered unreadable or repaired objects"));
++    }
++    let root = doc.root().ok_or_else(|| failed("PDF has no catalog reference"))?;
++    let catalog = doc.get(root);
++    let pages = catalog.as_dict().and_then(|d| d.get(b"Pages")).ok_or_else(|| failed("PDF has no page tree"))?;
++    let mut page_refs = Vec::new();
++    page_tree(&doc, pages, 0, &mut HashSet::new(), &mut page_refs)?;
++    if page_refs.is_empty() {
++        return Err(failed("PDF has no pages"));
++    }
++    // The structural gate has already rejected actions, external-file surfaces and an
++    // oversized page tree. This inspector reads geometry/metadata, never a Session.
++    let info = pdfcraft_render::inspect(bytes.clone(), None).map_err(failed)?;
++    if info.pages.len() != page_refs.len() || !info.warnings.is_empty() {
++        return Err(failed("PDF geometry inspection differs from its page tree or reports warnings"));
++    }
++    let mut total = 0.0_f64;
++    let mut sizes = Vec::new();
++    for (page, reference) in info.pages.iter().zip(page_refs) {
++        let (w, h) = (f64::from(page.width), f64::from(page.height));
++        total += w.ceil() * h.ceil();
++        if !w.is_finite()
++            || !h.is_finite()
++            || !(1.0..=8192.0).contains(&w)
++            || !(1.0..=8192.0).contains(&h)
++            || w.ceil() * h.ceil() > 64_000_000.0
++            || total > 128_000_000.0
++        {
++            return Err(failed("PDF page geometry exceeds the admitted rendering budget"));
++        }
++        let held = doc.get(reference);
++        let mut direct = BTreeSet::new();
++        if let Some(dict) = held.as_dict() {
++            for (key, value) in dict.iter() {
++                if key.as_slice() != b"Parent" {
++                    direct_references(value, &mut direct);
++                }
++            }
++        }
++        sizes.push(json!({"reference":reference.to_string(),"width":w,"height":h,"rotation":page.rotation,
++            "direct_references":direct.into_iter().map(|r|r.to_string()).collect::<Vec<_>>()}));
++    }
++    let mut info_entries = BTreeMap::new();
++    let info_reference = doc.trailer().get(b"Info").and_then(Object::as_ref).map(|r| r.to_string());
++    if let Some(value) = doc.trailer().get(b"Info") {
++        let held = doc.resolve(value);
++        let dictionary = held.as_dict().ok_or_else(|| failed("PDF Info must be a dictionary"))?;
++        for (key, value) in dictionary.iter() {
++            let mut encoded = Vec::new();
++            pdfcraft_cos::serialize(value, &mut encoded);
++            let mut references = BTreeSet::new();
++            direct_references(value, &mut references);
++            info_entries.insert(
++                key.iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
++                json!({"sha256":sha256(&encoded),"references":references.into_iter().map(|r|r.to_string()).collect::<Vec<_>>()}),
++            );
++        }
++    }
++    let mut metadata = BTreeSet::new();
++    if let Some(value) = doc.trailer().get(b"Info") {
++        direct_references(value, &mut metadata);
++    }
++    if let Some(value) = catalog.as_dict().and_then(|d| d.get(b"Metadata")) {
++        direct_references(value, &mut metadata);
++    }
++    Ok(json!({"schema_version":1,"sha256":digest,"bytes":bytes.len(),"pages":sizes,
++        "info_entries":info_entries,"info_reference":info_reference,"catalog":root.to_string(),"metadata_references":metadata.into_iter().map(|r|r.to_string()).collect::<Vec<_>>(),"objects":graph.objects,"nodes":graph.nodes,"declared_image_pixels":graph.image_pixels,
++        "document_actions_executed":false,"qualification":"bounded-static-pdf-structure; not standards or rendering fidelity"}))
++}
++
++/// Literal edges only; the graph walker has already bounded every nested value.
++fn direct_references(object: &Object, references: &mut BTreeSet<ObjRef>) {
++    match object {
++        Object::Ref(reference) => {
++            references.insert(*reference);
++        }
++        Object::Array(values) => {
++            for value in values {
++                direct_references(value, references);
++            }
++        }
++        Object::Dict(dict) => {
++            for (_, value) in dict.iter() {
++                direct_references(value, references);
++            }
++        }
++        Object::Stream(stream) => {
++            for (_, value) in stream.dict.iter() {
++                direct_references(value, references);
++            }
++        }
++        _ => {}
++    }
++}
++
++/// Count actual leaves before invoking the renderer's page discovery; /Count is untrusted.
++fn page_tree(doc: &Document, object: &Object, depth: usize, seen: &mut HashSet<ObjRef>, pages: &mut Vec<ObjRef>) -> Result<()> {
++    if depth > 32 || seen.len() >= 4096 {
++        return Err(failed("PDF page tree exceeds structural limits"));
++    }
++    let reference = object.as_ref().ok_or_else(|| failed("PDF page nodes must be indirect objects"))?;
++    if !seen.insert(reference) {
++        return Err(failed("PDF page tree contains a cycle or repeated page node"));
++    }
++    let held = doc.get(reference);
++    let dict = held.as_dict().ok_or_else(|| failed("invalid PDF page dictionary"))?;
++    match name(doc, dict, b"Type").as_deref() {
++        Some(b"Page") => {
++            if pages.len() >= MAX_PAGES {
++                return Err(failed("PDF exceeds the 256-page limit"));
++            }
++            pages.push(reference);
++        }
++        Some(b"Pages") => {
++            let kids = dict.get(b"Kids").ok_or_else(|| failed("PDF page branch has no children"))?;
++            let kids = doc.resolve(kids);
++            let kids = kids.as_array().ok_or_else(|| failed("invalid PDF page children"))?;
++            if kids.is_empty() || kids.len() > 4096 {
++                return Err(failed("PDF page branch exceeds structural limits"));
++            }
++            for child in kids {
++                page_tree(doc, child, depth + 1, seen, pages)?;
++            }
++        }
++        _ => return Err(failed("unsupported PDF page node type")),
++    }
++    Ok(())
++}
++
++fn name(doc: &Document, dict: &Dict, key: &[u8]) -> Option<Vec<u8>> {
++    dict.get(key).and_then(|v| doc.resolve(v).as_name().map(<[u8]>::to_vec))
++}
++
++struct Graph<'a> {
++    doc: &'a Document,
++    seen: HashSet<ObjRef>,
++    nodes: usize,
++    serialized: usize,
++    image_pixels: u64,
++    objects: BTreeMap<String, Value>,
++}
++
++impl Graph<'_> {
++    /// Return an upper bound on serialized bytes before allocating a serialization buffer.
++    fn walk(&mut self, object: &Object, depth: usize, edges: &mut BTreeSet<ObjRef>) -> Result<usize> {
++        self.nodes += 1;
++        if depth > 64 || self.nodes > MAX_NODES {
++            return Err(failed("PDF object graph exceeds structural limits"));
++        }
++        let size = match object {
++            Object::Ref(reference) => {
++                edges.insert(*reference);
++                if !self.doc.accepted_generations(reference.num).contains(&reference.generation) {
++                    return Err(failed("PDF contains an unresolved object reference"));
++                }
++                if self.seen.insert(*reference) {
++                    if self.seen.len() > MAX_OBJECTS {
++                        return Err(failed("PDF exceeds the object limit"));
++                    }
++                    let held = self.doc.get(*reference);
++                    let mut alias = held.clone();
++                    let mut chain = HashSet::from([*reference]);
++                    while let Object::Ref(next) = &*alias {
++                        if chain.len() >= 32 || !chain.insert(*next) {
++                            return Err(failed("PDF reference aliases are cyclic or too deep"));
++                        }
++                        if !self.doc.accepted_generations(next.num).contains(&next.generation) {
++                            return Err(failed("PDF contains an unresolved object reference"));
++                        }
++                        alias = self.doc.get(*next);
++                    }
++                    let mut refs = BTreeSet::new();
++                    let bound = self.walk(&held, depth + 1, &mut refs)?;
++                    self.serialized = self.serialized.saturating_add(bound);
++                    if self.serialized > MAX_SERIALIZED {
++                        return Err(failed("PDF object data exceeds the aggregate byte budget"));
++                    }
++                    let mut encoded = Vec::new();
++                    pdfcraft_cos::serialize(&held, &mut encoded);
++                    if encoded.len() > bound {
++                        return Err(failed("PDF object serialization exceeded its inspected bound"));
++                    }
++                    self.objects.insert(
++                        reference.to_string(),
++                        json!({"sha256":sha256(&encoded),
++                        "dictionary_type":held.as_dict().and_then(|d| name(self.doc, d, b"Type")).map(|v|String::from_utf8_lossy(&v).into_owned()),
++                        "references":refs.into_iter().map(|r|r.to_string()).collect::<Vec<_>>()}),
++                    );
++                }
++                32
++            }
++            Object::Real(value) if !value.is_finite() => return Err(failed("PDF contains nonfinite geometry")),
++            Object::String(value) => {
++                if value.bytes.len() > 1 << 20 {
++                    return Err(failed("PDF string exceeds the byte limit"));
++                }
++                value.bytes.len().saturating_mul(4) + 16
++            }
++            Object::Name(value) => {
++                if value.len() > 256 {
++                    return Err(failed("PDF name exceeds the byte limit"));
++                }
++                value.len() * 3 + 8
++            }
++            Object::Array(values) => {
++                if values.len() > 16_384 {
++                    return Err(failed("PDF array exceeds the item limit"));
++                }
++                let mut size = values.len() + 16;
++                for value in values {
++                    size = size.saturating_add(self.walk(value, depth + 1, edges)?);
++                }
++                size
++            }
++            Object::Dict(dict) => self.dictionary(dict, depth, edges)?,
++            Object::Stream(stream) => {
++                if stream.dict.contains(b"F") || stream.dict.contains(b"Ref") {
++                    return Err(failed("PDF external-file streams and reference XObjects are unsupported"));
++                }
++                stream.raw.len().saturating_add(self.dictionary(&stream.dict, depth, edges)?).saturating_add(128)
++            }
++            _ => 64,
++        };
++        if size > MAX_FILE {
++            return Err(failed("PDF object exceeds the serialized byte limit"));
++        }
++        Ok(size)
++    }
++
++    fn dictionary(&mut self, dict: &Dict, depth: usize, edges: &mut BTreeSet<ObjRef>) -> Result<usize> {
++        if dict.len() > 4096 {
++            return Err(failed("PDF dictionary exceeds the key limit"));
++        }
++        for key in [b"AA".as_slice(), b"OpenAction", b"JS", b"XFA", b"RichMediaContent", b"3DD", b"EmbeddedFiles", b"EF", b"AF", b"Perms", b"FS"] {
++            if dict.contains(key) {
++                return Err(failed("PDF contains automatic actions, dynamic content, attached files or signing permissions"));
++            }
++        }
++        let kind = name(self.doc, dict, b"Type");
++        let subtype = name(self.doc, dict, b"Subtype");
++        let action = name(self.doc, dict, b"S");
++        if subtype.as_deref() == Some(b"Image") {
++            let dimension = |key: &[u8]| -> Result<u64> {
++                let value = dict
++                    .get(key)
++                    .and_then(|v| self.doc.resolve(v).as_int())
++                    .filter(|v| (1..=32768).contains(v))
++                    .ok_or_else(|| failed("PDF image dimensions exceed their admitted bounds"))?;
++                u64::try_from(value).map_err(failed)
++            };
++            let pixels = dimension(b"Width")? * dimension(b"Height")?;
++            self.image_pixels = self.image_pixels.saturating_add(pixels);
++            if pixels > 64_000_000 || self.image_pixels > 128_000_000 {
++                return Err(failed("PDF declared image pixels exceed the decoding budget"));
++            }
++        }
++        if matches!(kind.as_deref(), Some(b"Filespec" | b"Sig"))
++            || matches!(subtype.as_deref(), Some(b"3D" | b"RichMedia" | b"Movie" | b"Sound"))
++            || matches!(name(self.doc, dict, b"FT").as_deref(), Some(b"Sig"))
++            || matches!(
++                action.as_deref(),
++                Some(b"JavaScript" | b"Launch" | b"GoToR" | b"GoToE" | b"SubmitForm" | b"ImportData" | b"Rendition" | b"Movie" | b"Sound")
++            )
++            || kind.as_deref() == Some(b"Action") && !matches!(action.as_deref(), Some(b"URI" | b"GoTo"))
++        {
++            return Err(failed("PDF contains an unsupported executable, external, media or signature object"));
++        }
++        let mut size = 16_usize;
++        for (key, value) in dict.iter() {
++            if key.len() > 256 {
++                return Err(failed("PDF dictionary key exceeds the name limit"));
++            }
++            size = size.saturating_add(key.len() * 3 + 8).saturating_add(self.walk(value, depth + 1, edges)?);
++        }
++        Ok(size)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use pdfcraft_cos::{PdfString, SaveOptions, Stream, write_full, write_incremental};
++
++    fn fixture(packed: bool, change: impl FnOnce(&mut Document, ObjRef)) -> Vec<u8> {
++        let bytes = pdfcraft_engine::Session::new().create_blank(200.0, 300.0, 2).unwrap();
++        let mut doc = Document::open(bytes).unwrap();
++        let root = doc.root().unwrap();
++        change(&mut doc, root);
++        if packed { write_full(&doc, &SaveOptions::default()).unwrap() } else { write_incremental(&doc, &SaveOptions::default()).unwrap() }
++    }
++
++    fn attach(doc: &mut Document, root: ObjRef, object: Object) {
++        let reference = doc.add(object);
++        doc.update_dict(root, |d| d.set(b"DobeFixture".to_vec(), reference)).unwrap();
++    }
++
++    #[test]
++    fn static_pdf_is_inspected_without_opening_a_session() {
++        let bytes = fixture(true, |_, _| {});
++        let first = inspect_bytes(bytes.clone()).unwrap();
++        assert_eq!(first, inspect_bytes(bytes.clone()).unwrap());
++        assert_eq!(first["pages"].as_array().unwrap().len(), 2);
++        assert_eq!(first["pages"][0]["width"], 200.0);
++        assert_eq!(first["document_actions_executed"], false);
++        assert!(!first["objects"].as_object().unwrap().is_empty());
++        let root = tempfile::tempdir().unwrap();
++        std::fs::write(root.path().join("owned.pdf"), bytes).unwrap();
++        let mut automation = Automation::new().with_root(root.path()).unwrap();
++        automation.call("dobe_inspect_pdf", &json!({"path":"owned.pdf"})).unwrap();
++        assert!(automation.session().docs().is_empty());
++        assert!(automation.call("dobe_inspect_pdf", &json!({"path":"../outside.pdf"})).is_err());
++    }
++
++    #[test]
++    fn precise_style_and_dependency_evidence_survives_a_cold_reopen() {
++        fn call(a: &mut Automation, tool: &str, args: Value) -> Value {
++            match a.call(tool, &args).unwrap().remove(0) {
++                crate::Content::Json(value) => value,
++                other => panic!("unexpected content: {other:?}"),
++            }
++        }
++        let root = tempfile::tempdir().unwrap();
++        let mut a = Automation::new().with_root(root.path()).unwrap();
++        let doc = call(&mut a, "doc_create", json!({"from":"blank","width":300,"height":400}))["doc"].clone();
++        call(
++            &mut a,
++            "page_add_text",
++            json!({"doc":doc,"page":1,"text":"Precise","rect":[20.125,30.25,280.625,80],"color":"#1659A0","align":"right"}),
++        );
++        call(
++            &mut a,
++            "comment_add",
++            json!({"doc":doc,"page":1,"type":"rectangle","rect":[20,100,200,150],"color":"#C4472D","fill":"#DDEEFF","width":2.5}),
++        );
++        let content = call(&mut a, "content_list", json!({"doc":doc}));
++        let comments = call(&mut a, "comment_list", json!({"doc":doc}));
++        assert_eq!(content["items"][0]["precise_rect"][0], 20.125);
++        assert_eq!(content["items"][0]["align"], "right");
++        assert!((content["items"][0]["rgb"][0].as_f64().unwrap() - 22.0 / 255.0).abs() < 1e-6);
++        assert_eq!(comments["comments"][0]["stroke_width"], 2.5);
++        assert!((comments["comments"][0]["fill_rgb"][0].as_f64().unwrap() - 221.0 / 255.0).abs() < 1e-6);
++        call(&mut a, "doc_set_info", json!({"doc":doc,"key":"Title","value":"Keep metadata"}));
++        call(&mut a, "doc_set_info", json!({"doc":doc,"key":"DobeCustom","value":"Unknown metadata stays"}));
++        call(&mut a, "doc_save", json!({"doc":doc,"path":"precise.pdf"}));
++        let profile = call(&mut a, "dobe_inspect_pdf", json!({"path":"precise.pdf"}));
++        assert!(profile["info_reference"].is_string());
++        for key in [b"Title".as_slice(), b"DobeCustom"] {
++            let key = key.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
++            assert!(profile["info_entries"][&key]["sha256"].is_string());
++        }
++        let catalog = profile["catalog"].as_str().unwrap();
++        assert_eq!(profile["objects"][catalog]["dictionary_type"], "Catalog");
++        for edge in profile["pages"][0]["direct_references"].as_array().unwrap() {
++            assert_ne!(profile["objects"][edge.as_str().unwrap()]["dictionary_type"], "Pages");
++        }
++        let mut b = Automation::new().with_root(root.path()).unwrap();
++        let reopened = call(&mut b, "doc_open", json!({"path":"precise.pdf"}))["doc"].clone();
++        assert_eq!(call(&mut b, "content_list", json!({"doc":reopened})), content);
++        assert_eq!(call(&mut b, "comment_list", json!({"doc":reopened})), comments);
++    }
++
++    #[test]
++    fn compressed_and_indirect_actions_are_refused() {
++        for action in ["JavaScript", "Launch", "GoToR", "SubmitForm", "Rendition"] {
++            let bytes = fixture(true, |doc, root| {
++                let name = doc.add(Object::name(action));
++                let mut dict = Dict::new();
++                dict.set(b"S".to_vec(), name);
++                dict.set(b"Type".to_vec(), Object::name("Action"));
++                attach(doc, root, Object::Dict(dict));
++            });
++            assert!(bytes.windows(7).any(|w| w == b"/ObjStm"), "fixture must use object streams");
++            assert!(inspect_bytes(bytes).is_err(), "{action}");
++        }
++    }
++
++    #[test]
++    fn external_streams_and_dynamic_dictionary_surfaces_are_refused() {
++        let external = fixture(false, |doc, root| {
++            let mut dict = Dict::new();
++            dict.set(b"F".to_vec(), PdfString::text("/outside/private.pdf"));
++            attach(doc, root, Object::Stream(Stream::from_raw(dict, vec![])));
++        });
++        assert!(inspect_bytes(external).is_err());
++        for key in ["AA", "OpenAction", "JS", "XFA", "RichMediaContent", "3DD", "EmbeddedFiles", "EF", "AF", "Perms", "FS"] {
++            let bytes = fixture(true, |doc, root| {
++                let mut dict = Dict::new();
++                dict.set(key.as_bytes().to_vec(), PdfString::text("opaque"));
++                attach(doc, root, Object::Dict(dict));
++            });
++            assert!(inspect_bytes(bytes).is_err(), "{key}");
++        }
++    }
++
++    #[test]
++    fn static_links_are_data_not_network_execution() {
++        let bytes = fixture(true, |doc, root| {
++            let mut dict = Dict::new();
++            dict.set(b"Type".to_vec(), Object::name("Action"));
++            dict.set(b"S".to_vec(), Object::name("URI"));
++            dict.set(b"URI".to_vec(), PdfString::text("https://example.test/owned-link"));
++            attach(doc, root, Object::Dict(dict));
++        });
++        assert!(inspect_bytes(bytes).is_ok());
++    }
++
++    #[test]
++    fn missing_references_and_alias_cycles_are_refused() {
++        let missing = fixture(false, |doc, root| {
++            doc.update_dict(root, |d| d.set(b"DobeFixture".to_vec(), ObjRef::new(999_999, 0))).unwrap();
++        });
++        assert!(inspect_bytes(missing).is_err());
++        let cycle = fixture(false, |doc, root| {
++            let first = doc.add(Object::Null);
++            let second = doc.add(Object::Ref(first));
++            doc.set(first, Object::Ref(second));
++            doc.update_dict(root, |d| d.set(b"DobeFixture".to_vec(), first)).unwrap();
++        });
++        assert!(inspect_bytes(cycle).is_err());
++    }
++
++    #[test]
++    fn structural_and_page_limits_are_enforced() {
++        let many = pdfcraft_engine::Session::new().create_blank(200.0, 300.0, 257).unwrap();
++        assert!(inspect_bytes((*many).clone()).is_err());
++        let large = pdfcraft_engine::Session::new().create_blank(8193.0, 300.0, 1).unwrap();
++        assert!(inspect_bytes((*large).clone()).is_err());
++        let array = fixture(false, |doc, root| attach(doc, root, Object::Array(vec![Object::Null; 16_385])));
++        assert!(inspect_bytes(array).is_err());
++        let depth = fixture(false, |doc, root| {
++            let mut object = Object::Null;
++            for _ in 0..70 {
++                object = Object::Array(vec![object]);
++            }
++            attach(doc, root, object);
++        });
++        assert!(inspect_bytes(depth).is_err());
++        let image = fixture(false, |doc, root| {
++            let mut dict = Dict::new();
++            dict.set(b"Subtype".to_vec(), Object::name("Image"));
++            dict.set(b"Width".to_vec(), 32768_i64);
++            dict.set(b"Height".to_vec(), 32768_i64);
++            attach(doc, root, Object::Stream(Stream::from_raw(dict, vec![])));
++        });
++        assert!(inspect_bytes(image).is_err());
++        assert!(inspect_bytes(b"not a PDF".to_vec()).is_err());
++    }
++}
+diff --git a/crates/automation/src/lib.rs b/crates/automation/src/lib.rs
+index 7fa63d1..2341d3e 100644
+--- a/crates/automation/src/lib.rs
++++ b/crates/automation/src/lib.rs
+@@ -54,6 +54,8 @@ use text_cache::TextCache;
+ mod assemble;
+ mod bookmark_io;
+ mod dispatch;
++#[cfg(feature = "dobe")]
++mod dobe_inspect;
+ mod documents;
+ mod error;
+ mod json;
+diff --git a/crates/automation/src/mcp.rs b/crates/automation/src/mcp.rs
+index b033871..00597c5 100644
+--- a/crates/automation/src/mcp.rs
++++ b/crates/automation/src/mcp.rs
+@@ -30,6 +30,23 @@ const INTERNAL_ERROR: i64 = -32603;
+ /// Longest JSON-RPC request line [`McpServer::serve`] buffers into memory (16 MiB).
+ pub const MAX_LINE_BYTES: usize = 16 * 1024 * 1024;
+ 
++const SERVER_NAME: &str = if cfg!(feature = "dobe") { "dobe-pdf" } else { "pdfcraft" };
++const SERVER_TITLE: &str = if cfg!(feature = "dobe") { "Dobe PDF" } else { "PdfCraft" };
++const RESOURCE_SCHEME: &str = if cfg!(feature = "dobe") { "dobe-pdf://" } else { "pdfcraft://" };
++
++/// Brand only fixed protocol descriptions, never document content or user arguments.
++fn public_text(text: &str) -> String {
++    if cfg!(feature = "dobe") { text.replace("PdfCraft", SERVER_TITLE).replace("pdfcraft://", RESOURCE_SCHEME) } else { text.to_string() }
++}
++
++fn server_info() -> Value {
++    let mut info = json!({"name": SERVER_NAME, "title": SERVER_TITLE, "version": env!("CARGO_PKG_VERSION")});
++    if !cfg!(feature = "dobe") {
++        info["websiteUrl"] = json!(pdfcraft_engine::links::APP_PAGE);
++    }
++    info
++}
++
+ const INSTRUCTIONS: &str = "PdfCraft edits PDFs. Open a file with doc_open to get a document id, then inspect \
+ (doc_info, text_extract, text_find, page_render) or edit it (page_*, doc_set_info). Edits are undoable \
+ (edit_undo) and stay in memory until doc_save. Page numbers are 1-based. Open documents are also \
+@@ -153,8 +170,8 @@ impl McpServer {
+                 Ok(json!({
+                     "protocolVersion": version,
+                     "capabilities": { "tools": { "listChanged": false }, "resources": { "listChanged": false, "subscribe": false } },
+-                    "serverInfo": { "name": "pdfcraft", "title": "PdfCraft", "version": env!("CARGO_PKG_VERSION"), "websiteUrl": pdfcraft_engine::links::APP_PAGE },
+-                    "instructions": if self.compact { format!("{INSTRUCTIONS}{COMPACT_INSTRUCTIONS}") } else { INSTRUCTIONS.to_string() },
++                    "serverInfo": server_info(),
++                    "instructions": public_text(&if self.compact { format!("{INSTRUCTIONS}{COMPACT_INSTRUCTIONS}") } else { INSTRUCTIONS.to_string() }),
+                 }))
+             }
+             "ping" => Ok(json!({})),
+@@ -225,10 +242,10 @@ fn meta_tools() -> [Value; 2] {
+     [
+         json!({
+             "name": TOOL_SEARCH,
+-            "title": "Find PdfCraft tools",
+-            "description": "Search and list all PdfCraft automation tools, including the core tools, with a one-sentence description each. Filter by query \
++            "title": public_text("Find PdfCraft tools"),
++            "description": public_text("Search and list all PdfCraft automation tools, including the core tools, with a one-sentence description each. Filter by query \
+         (words matched against name, title and description) and/or category (the name prefix: doc, page, text, form, …). \
+-        With name, return that one tool in full, including its input_schema. Run a tool with tool_call.",
++        With name, return that one tool in full, including its input_schema. Run a tool with tool_call."),
+             "inputSchema": {
+                 "type": "object",
+                 "properties": {
+@@ -239,13 +256,13 @@ fn meta_tools() -> [Value; 2] {
+                 "required": [],
+                 "additionalProperties": false,
+             },
+-            "annotations": { "title": "Find PdfCraft tools", "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false },
++            "annotations": { "title": public_text("Find PdfCraft tools"), "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false },
+         }),
+         json!({
+             "name": TOOL_CALL,
+-            "title": "Run any PdfCraft tool",
+-            "description": "Run any PdfCraft tool by name with its arguments, exactly as if it were called directly. \
+-        Find names and argument schemas with tool_search. The result is the tool's own result.",
++            "title": public_text("Run any PdfCraft tool"),
++            "description": public_text("Run any PdfCraft tool by name with its arguments, exactly as if it were called directly. \
++        Find names and argument schemas with tool_search. The result is the tool's own result."),
+             "inputSchema": {
+                 "type": "object",
+                 "properties": {
+@@ -255,7 +272,7 @@ fn meta_tools() -> [Value; 2] {
+                 "required": ["name"],
+                 "additionalProperties": false,
+             },
+-            "annotations": { "title": "Run any PdfCraft tool", "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false },
++            "annotations": { "title": public_text("Run any PdfCraft tool"), "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false },
+         }),
+     ]
+ }
+@@ -434,7 +451,7 @@ enum Resource {
+ }
+ 
+ fn parse_uri(uri: &str) -> Option<Resource> {
+-    let rest = uri.strip_prefix("pdfcraft://doc/")?;
++    let rest = uri.strip_prefix(RESOURCE_SCHEME)?.strip_prefix("doc/")?;
+     let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
+     let dpi = query.split('&').find_map(|kv| kv.strip_prefix("dpi=")).and_then(|v| v.parse::<f64>().ok());
+     let parts: Vec<&str> = path.split('/').collect();
+@@ -450,13 +467,13 @@ fn parse_uri(uri: &str) -> Option<Resource> {
+ 
+ fn resource_templates() -> Value {
+     json!([
+-        { "uriTemplate": "pdfcraft://doc/{doc}/info", "name": "Document information", "mimeType": "application/json",
++        { "uriTemplate": public_text("pdfcraft://doc/{doc}/info"), "name": "Document information", "mimeType": "application/json",
+           "description": "Metadata, pages, bookmarks, annotations, fields, links, layers, attachments, fonts and security of an open document (as doc_info)." },
+-        { "uriTemplate": "pdfcraft://doc/{doc}/text", "name": "Document text", "mimeType": "text/plain",
++        { "uriTemplate": public_text("pdfcraft://doc/{doc}/text"), "name": "Document text", "mimeType": "text/plain",
+           "description": "The text of every page in reading order, each page under a \"Page n\" heading." },
+-        { "uriTemplate": "pdfcraft://doc/{doc}/page/{page}/text", "name": "Page text", "mimeType": "text/plain",
++        { "uriTemplate": public_text("pdfcraft://doc/{doc}/page/{page}/text"), "name": "Page text", "mimeType": "text/plain",
+           "description": "The text of one page (1-based) in reading order." },
+-        { "uriTemplate": "pdfcraft://doc/{doc}/page/{page}/image{?dpi}", "name": "Page image", "mimeType": "image/png",
++        { "uriTemplate": public_text("pdfcraft://doc/{doc}/page/{page}/image{?dpi}"), "name": "Page image", "mimeType": "image/png",
+           "description": "One page (1-based) rendered to PNG; dpi 1–600, default 96." },
+     ])
+ }
+@@ -470,29 +487,31 @@ impl McpServer {
+         let mut out = Vec::new();
+         for d in docs.unwrap_or_default() {
+             let (id, name) = (d["doc"].as_u64().unwrap_or(0), d["name"].as_str().unwrap_or("document"));
+-            out.push(json!({ "uri": format!("pdfcraft://doc/{id}/info"), "name": format!("{name} (information)"), "mimeType": "application/json" }));
+-            out.push(json!({ "uri": format!("pdfcraft://doc/{id}/text"), "name": format!("{name} (text)"), "mimeType": "text/plain" }));
++            out.push(
++                json!({ "uri": format!("{RESOURCE_SCHEME}doc/{id}/info"), "name": format!("{name} (information)"), "mimeType": "application/json" }),
++            );
++            out.push(json!({ "uri": format!("{RESOURCE_SCHEME}doc/{id}/text"), "name": format!("{name} (text)"), "mimeType": "text/plain" }));
+             // Pages are listed for short documents; longer ones use the templates.
+             let pages = d["pages"].as_u64().unwrap_or(0);
+             if pages <= 50 {
+                 for p in 1..=pages {
+                     out.push(
+-                        json!({ "uri": format!("pdfcraft://doc/{id}/page/{p}/image"), "name": format!("{name}, page {p}"), "mimeType": "image/png" }),
++                        json!({ "uri": format!("{RESOURCE_SCHEME}doc/{id}/page/{p}/image"), "name": format!("{name}, page {p}"), "mimeType": "image/png" }),
+                     );
+                 }
+             }
+         }
+         out.extend([
+-            json!({"uri":"pdfcraft://document","name":"Open documents","mimeType":"application/json","description":"Session document state, as doc_inspect without arguments."}),
+-            json!({"uri":"pdfcraft://commands","name":"Command catalog","mimeType":"application/json","description":"Commands and mapped tool schemas, as command_list without arguments."}),
++            json!({"uri":format!("{RESOURCE_SCHEME}document"),"name":"Open documents","mimeType":"application/json","description":"Session document state, as doc_inspect without arguments."}),
++            json!({"uri":format!("{RESOURCE_SCHEME}commands"),"name":"Command catalog","mimeType":"application/json","description":"Commands and mapped tool schemas, as command_list without arguments."}),
+         ]);
+         out
+     }
+ 
+     fn read_resource(&mut self, uri: &str) -> Result<Value, (i64, String)> {
+-        if let Some(tool) = match uri {
+-            "pdfcraft://document" => Some("doc_inspect"),
+-            "pdfcraft://commands" => Some("command_list"),
++        if let Some(tool) = match uri.strip_prefix(RESOURCE_SCHEME) {
++            Some("document") => Some("doc_inspect"),
++            Some("commands") => Some("command_list"),
+             _ => None,
+         } {
+             let content = self.automation.call(tool, &json!({})).map_err(|e| (INVALID_PARAMS, e.to_string()))?;
+@@ -591,7 +610,7 @@ mod tests {
+ 
+     use serde_json::{Value, json};
+ 
+-    use super::{McpServer, Resource, first_sentence, parse_uri};
++    use super::{McpServer, Resource, SERVER_NAME, first_sentence, parse_uri, public_text};
+     use crate::Automation;
+ 
+     #[test]
+@@ -653,7 +672,7 @@ mod tests {
+         assert_eq!(replies[0]["error"]["code"], -32700);
+         assert_eq!(replies[1]["error"]["code"], -32600);
+         assert_eq!(replies[2]["id"], 1);
+-        assert_eq!(replies[2]["result"]["serverInfo"]["name"], "pdfcraft");
++        assert_eq!(replies[2]["result"]["serverInfo"]["name"], SERVER_NAME);
+     }
+ 
+     #[test]
+@@ -670,10 +689,10 @@ mod tests {
+ 
+     #[test]
+     fn resource_uris_parse() {
+-        assert_eq!(parse_uri("pdfcraft://doc/3/info"), Some(Resource::Info(3)));
+-        assert_eq!(parse_uri("pdfcraft://doc/3/page/2/image?dpi=36"), Some(Resource::PageImage(3, 2, Some(36.0))));
+-        assert_eq!(parse_uri("pdfcraft://doc/3/page/2/text"), Some(Resource::PageText(3, 2)));
+-        assert_eq!(parse_uri("pdfcraft://doc/x/info"), None);
++        assert_eq!(parse_uri(&public_text("pdfcraft://doc/3/info")), Some(Resource::Info(3)));
++        assert_eq!(parse_uri(&public_text("pdfcraft://doc/3/page/2/image?dpi=36")), Some(Resource::PageImage(3, 2, Some(36.0))));
++        assert_eq!(parse_uri(&public_text("pdfcraft://doc/3/page/2/text")), Some(Resource::PageText(3, 2)));
++        assert_eq!(parse_uri(&public_text("pdfcraft://doc/x/info")), None);
+         assert_eq!(parse_uri("file:///etc/passwd"), None);
+     }
+ }
+diff --git a/crates/automation/src/tools.rs b/crates/automation/src/tools.rs
+index fa29d07..d1ffb4d 100644
+--- a/crates/automation/src/tools.rs
++++ b/crates/automation/src/tools.rs
+@@ -134,7 +134,7 @@ impl T {
+ pub fn tools() -> Vec<ToolDef> {
+     let save_out = json!({ "type": "string", "description": "File to write. Omit to open the result as a new unsaved document instead." });
+     let open = json!({ "type": "boolean", "description": "Also open the result as a new document (default: only when out is omitted)." });
+-    vec![
++    let mut out = vec![
+         t("doc_bates_multi", "Add Bates numbering across files", "Apply one consecutive Bates sequence to an ordered list of PDFs. Each file entry has input and output paths and an optional open or permissions password. The operation first validates every input/output and computes inclusive numeric intervals; dry_run returns that allocation without writing. Existing output files are never replaced. On application, files that cannot be edited or saved are reported individually and later files continue.")
+             .destructive()
+             .with(schema(json!({
+@@ -1812,7 +1812,12 @@ pub fn tools() -> Vec<ToolDef> {
+             .ro().with(schema(json!({"doc":doc()}), &[])),
+         t("render_preview", "Render a preview", "Render a PNG bounded by max_side (default 1024), without changing or saving the document. Page defaults to 1; doc may be omitted when exactly one document is open. Render warnings follow the image as page_render gives them.")
+             .ro().with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1},"max_side":{"type":"integer","minimum":1,"maximum":4096}}), &[])),
+-    ]
++    ];
++    if cfg!(feature = "dobe") {
++        out.push(t("dobe_inspect_pdf", "Inspect a bounded static PDF", "Read a PDF object graph and page geometry before opening an editable session. Refuses active/external content and exceeded bounds; returns object hashes and references. No scripts or document actions run. This is not a standards or rendering-fidelity check.")
++            .ro().with(schema(json!({"path":path_arg()}), &["path"])));
++    }
++    out
+ }
+ 
+ static TOOLS: std::sync::LazyLock<Vec<ToolDef>> = std::sync::LazyLock::new(tools);
+diff --git a/crates/automation/tests/it/automation.rs b/crates/automation/tests/it/automation.rs
+index db13984..7e1e336 100644
+--- a/crates/automation/tests/it/automation.rs
++++ b/crates/automation/tests/it/automation.rs
+@@ -7,6 +7,13 @@ use pdfcraft_automation::mcp::McpServer;
+ use pdfcraft_automation::{Automation, Content, ToolError, tools};
+ use serde_json::{Value, json};
+ 
++#[cfg(feature = "mcp")]
++macro_rules! resource_uri {
++    ($path:literal) => {
++        if cfg!(feature = "dobe") { concat!("dobe-pdf://", $path) } else { concat!("pdfcraft://", $path) }
++    };
++}
++
+ /// A PDF with `n` 200×300 pt pages reading "Page 1", "Page 2", …
+ fn fixture(n: usize) -> Vec<u8> {
+     fixture_with(n, "")
+@@ -1643,7 +1650,7 @@ fn mcp_session_over_stdio() {
+     assert_eq!(replies.len(), 4, "the notification gets no reply");
+ 
+     assert_eq!(replies[0]["result"]["protocolVersion"], "2025-03-26");
+-    assert_eq!(replies[0]["result"]["serverInfo"]["name"], "pdfcraft");
++    assert_eq!(replies[0]["result"]["serverInfo"]["name"], if cfg!(feature = "dobe") { "dobe-pdf" } else { "pdfcraft" });
+     assert_eq!(replies[1]["result"]["tools"].as_array().unwrap().len(), tools().len());
+     assert_eq!(replies[2]["result"]["structuredContent"]["pages"], 3);
+     assert_eq!(replies[2]["result"]["isError"], false);
+@@ -1661,7 +1668,7 @@ fn mcp_errors() {
+     assert_eq!(rpc(&mut s, 1, "initialize", json!({ "protocolVersion": "1999-01-01" }))["result"]["protocolVersion"], "2025-06-18");
+     assert_eq!(rpc(&mut s, 2, "ping", json!({}))["result"], json!({}));
+     assert_eq!(rpc(&mut s, 3, "prompts/list", json!({}))["error"]["code"], -32601);
+-    assert_eq!(rpc(&mut s, 6, "resources/read", json!({ "uri": "pdfcraft://doc/9/info" }))["error"]["code"], -32602);
++    assert_eq!(rpc(&mut s, 6, "resources/read", json!({ "uri": resource_uri!("doc/9/info") }))["error"]["code"], -32602);
+     assert_eq!(rpc(&mut s, 4, "tools/call", json!({ "name": "nope" }))["error"]["code"], -32602);
+     let failed = rpc(&mut s, 5, "tools/call", json!({ "name": "doc_open", "arguments": { "path": "/definitely/not/here.pdf" } }));
+     assert_eq!(failed["result"]["isError"], true);
+@@ -1681,19 +1688,19 @@ fn mcp_resources_expose_open_documents() {
+     rpc(&mut s, 4, "tools/call", json!({ "name": "doc_open", "arguments": { "path": "a.pdf" } }));
+     let list = rpc(&mut s, 5, "resources/list", json!({}))["result"]["resources"].as_array().cloned().unwrap();
+     assert_eq!(list.len(), 2 + 3 + 2, "info, text, three page images and two session resources");
+-    assert_eq!(list[0]["uri"], "pdfcraft://doc/1/info");
++    assert_eq!(list[0]["uri"], resource_uri!("doc/1/info"));
+     let read = |s: &mut McpServer, uri: &str| rpc(s, 6, "resources/read", json!({ "uri": uri }))["result"]["contents"][0].clone();
+-    let text = read(&mut s, "pdfcraft://doc/1/text");
++    let text = read(&mut s, resource_uri!("doc/1/text"));
+     assert_eq!(text["mimeType"], "text/plain");
+     assert!(text["text"].as_str().unwrap().contains("Page 2\nPage 2"), "{text}");
+-    assert_eq!(read(&mut s, "pdfcraft://doc/1/page/3/text")["text"], "Page 3");
+-    let info: Value = serde_json::from_str(read(&mut s, "pdfcraft://doc/1/info")["text"].as_str().unwrap()).unwrap();
++    assert_eq!(read(&mut s, resource_uri!("doc/1/page/3/text"))["text"], "Page 3");
++    let info: Value = serde_json::from_str(read(&mut s, resource_uri!("doc/1/info"))["text"].as_str().unwrap()).unwrap();
+     assert_eq!(info["pages"].as_array().unwrap().len(), 3);
+-    let img = read(&mut s, "pdfcraft://doc/1/page/1/image?dpi=36");
++    let img = read(&mut s, resource_uri!("doc/1/page/1/image?dpi=36"));
+     use base64::Engine as _;
+     let png = base64::engine::general_purpose::STANDARD.decode(img["blob"].as_str().unwrap()).unwrap();
+     assert_eq!(&png[1..4], b"PNG");
+-    assert_eq!(rpc(&mut s, 7, "resources/read", json!({ "uri": "pdfcraft://doc/1/page/9/image" }))["error"]["code"], -32602);
++    assert_eq!(rpc(&mut s, 7, "resources/read", json!({ "uri": resource_uri!("doc/1/page/9/image") }))["error"]["code"], -32602);
+ }
+ 
+ /// A server in compact mode with `dir` as its root.
+@@ -11495,14 +11502,14 @@ fn conventions_resources() {
+         let r = rpc(s, 1, "resources/read", json!({"uri":uri}));
+         serde_json::from_str::<Value>(r["result"]["contents"][0]["text"].as_str().expect("JSON resource")).unwrap()
+     };
+-    assert_eq!(read(&mut s, "pdfcraft://document"), json!({"documents":[]}));
++    assert_eq!(read(&mut s, resource_uri!("document")), json!({"documents":[]}));
+     rpc(&mut s, 2, "tools/call", json!({"name":"doc_open","arguments":{"path":"a.pdf"}}));
+     let doc = rpc(&mut s, 3, "tools/call", json!({"name":"doc_inspect","arguments":{}}));
+-    assert_eq!(read(&mut s, "pdfcraft://document"), doc["result"]["structuredContent"]);
++    assert_eq!(read(&mut s, resource_uri!("document")), doc["result"]["structuredContent"]);
+     let commands = rpc(&mut s, 4, "tools/call", json!({"name":"command_list","arguments":{}}));
+-    assert_eq!(read(&mut s, "pdfcraft://commands"), commands["result"]["structuredContent"]);
++    assert_eq!(read(&mut s, resource_uri!("commands")), commands["result"]["structuredContent"]);
+     // Responses keep the shape every supported protocol revision expects: no cache hints.
+-    for (method, params) in [("tools/list", json!({})), ("resources/list", json!({})), ("resources/read", json!({"uri":"pdfcraft://document"}))] {
++    for (method, params) in [("tools/list", json!({})), ("resources/list", json!({})), ("resources/read", json!({"uri":resource_uri!("document")}))] {
+         assert!(rpc(&mut s, 5, method, params)["result"].get("resultType").is_none());
+     }
+     assert_eq!(rpc(&mut s, 7, "initialize", json!({"protocolVersion":"2026-07-28"}))["result"]["protocolVersion"], "2025-06-18");
+diff --git a/crates/automation/tests/it/automation_roots.rs b/crates/automation/tests/it/automation_roots.rs
+index e65c582..7f71d28 100644
+--- a/crates/automation/tests/it/automation_roots.rs
++++ b/crates/automation/tests/it/automation_roots.rs
+@@ -107,7 +107,7 @@ fn refused(server: &mut McpServer, name: &str, args: Value, why: &str) {
+ 
+ /// The text of document 1, through the resource a client can read it with.
+ fn text_of(server: &mut McpServer, doc: u64) -> String {
+-    rpc(server, "resources/read", json!({"uri": format!("pdfcraft://doc/{doc}/text")}))["result"]["contents"][0]["text"]
++    rpc(server, "resources/read", json!({"uri": format!("{}doc/{doc}/text", if cfg!(feature = "dobe") { "dobe-pdf://" } else { "pdfcraft://" })}))["result"]["contents"][0]["text"]
+         .as_str()
+         .unwrap_or_default()
+         .to_owned()
+diff --git a/crates/edit/src/lib.rs b/crates/edit/src/lib.rs
+index f02930a..9f93125 100644
+--- a/crates/edit/src/lib.rs
++++ b/crates/edit/src/lib.rs
+@@ -61,9 +61,9 @@ mod linebreak;
+ pub mod paragraph_align;
+ pub mod text;
+ pub use text::{
+-    BlockKey, BlockStyle, LineEdit, MAX_FORM_DEPTH, MAX_FORM_VISITS, RangeStyle, ReadingBlocks, RunSources, TextBlock, TextLine, TextSession,
+-    block_overlapping, clear_block, glyph_text_lines, reading_blocks, reading_blocks_checked, replace_block, replace_line, rewrite_block,
+-    text_blocks, text_lines,
++    BlockKey, BlockStyle, LineEdit, MAX_FORM_DEPTH, MAX_FORM_VISITS, RangeStyle, ReadingBlocks, RunSources, TextBlock, TextLine, TextOwnership,
++    TextSession, block_overlapping, clear_block, glyph_text_lines, reading_blocks, reading_blocks_checked, replace_block, replace_line,
++    rewrite_block, text_blocks, text_lines, text_ownership,
+ };
+ pub mod printer_marks;
+ pub use printer_marks::{PrinterMarks, add_printer_marks};
+diff --git a/crates/edit/src/text.rs b/crates/edit/src/text.rs
+index eba8834..a1442ee 100644
+--- a/crates/edit/src/text.rs
++++ b/crates/edit/src/text.rs
+@@ -138,6 +138,70 @@ pub struct TextLine {
+     soft_gap: usize,
+ }
+ 
++/// Stream ownership for paragraphs and independently editable named text. Ordinary
++/// paragraph grouping can join several named items; each item's visible text must
++/// therefore also be grouped from only the lines its own stream actually draws.
++pub struct TextOwnership {
++    pub blocks: Vec<Vec<Option<pdfcraft_cos::ObjRef>>>,
++    pub text: HashMap<pdfcraft_cos::ObjRef, String>,
++}
++
++pub fn text_ownership(doc: &Document, page: usize) -> Result<TextOwnership, EditError> {
++    let lines = text_lines(doc, page)?;
++    let streams = content_streams(doc, &page_dict(doc, page)?.dict)?;
++    let pieces = joined(&streams);
++    let ops = pieces.parse().ops;
++    let mut line_refs = Vec::new();
++    let mut by_stream: HashMap<pdfcraft_cos::ObjRef, Vec<TextLine>> = HashMap::new();
++    let mut ambiguous = HashSet::new();
++    for line in &lines {
++        let mut refs = Vec::new();
++        for operator in &line.ops {
++            let op = ops.get(*operator).ok_or_else(|| EditError::Invalid("a text line refers to a missing operator".into()))?;
++            let (first, last) = pieces.pieces_of(op);
++            let source = streams.get(first..=last).ok_or_else(|| EditError::Invalid("a text operator refers to missing content streams".into()))?;
++            for stream in source {
++                let reference = stream.entry.as_ref();
++                if !refs.contains(&reference) {
++                    refs.push(reference);
++                }
++            }
++        }
++        if let [Some(reference)] = refs.as_slice() {
++            by_stream.entry(*reference).or_default().push(line.clone());
++        } else {
++            ambiguous.extend(refs.iter().flatten().copied());
++        }
++        line_refs.push(refs);
++    }
++    let blocks = group_blocks(&lines)
++        .iter()
++        .map(|block| {
++            let mut refs = Vec::new();
++            for index in &block.lines {
++                let source = line_refs.get(*index).ok_or_else(|| EditError::Invalid("a paragraph refers to a missing line".into()))?;
++                for reference in source {
++                    if !refs.contains(reference) {
++                        refs.push(*reference);
++                    }
++                }
++            }
++            Ok(refs)
++        })
++        .collect::<Result<_, EditError>>()?;
++    let text = by_stream
++        .into_iter()
++        .filter_map(|(reference, lines)| {
++            let blocks = group_blocks(&lines);
++            if ambiguous.contains(&reference) || blocks.iter().any(|block| block.invisible) {
++                return None;
++            }
++            Some((reference, blocks.iter().map(|b| b.editor_text.as_str()).collect::<Vec<_>>().join("\n")))
++        })
++        .collect();
++    Ok(TextOwnership { blocks, text })
++}
++
+ impl TextLine {
+     /// Refuses editing a line whose font's writing mode couldn't be read (§9.7.4.3).
+     fn ensure_editable(&self) -> Result<(), EditError> {
+diff --git a/crates/engine/Cargo.toml b/crates/engine/Cargo.toml
+index f5b924c..c35c99f 100644
+--- a/crates/engine/Cargo.toml
++++ b/crates/engine/Cargo.toml
+@@ -61,3 +61,7 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
+ pdfcraft-testkit = { workspace = true }
+ # JBIG2 fixtures (`encode_jbig2_generic`).
+ pdfcraft-filters = { workspace = true }
++
++[features]
++# The installed Dobe binary must not discover assets in the build checkout.
++dobe = ["pdfcraft-ocr/dobe"]
+diff --git a/crates/engine/src/find_replace.rs b/crates/engine/src/find_replace.rs
+index 006a53b..05eb018 100644
+--- a/crates/engine/src/find_replace.rs
++++ b/crates/engine/src/find_replace.rs
+@@ -1,6 +1,7 @@
+ //! Find and replace in the page text (Edit text ▸ Replace, the `text_replace` tool).
+ //!
+-//! Each match is rewritten inside its own paragraph ([`crate::Document::text_blocks`]) through
++//! Named added text is updated through `Edit::UpdateContent`, preserving its editable data.
++//! Ordinary page-text matches are rewritten inside their own paragraph ([`crate::Document::text_blocks`]) through
+ //! [`Edit::EditTextBlock`], so the paragraph keeps its fonts, sizes and colours and rewraps in its
+ //! box. The paragraph's `editor_text` is matched with the find bar's own rules
+ //! ([`pdfcraft_render::text::find_in_text`]) and the replacement takes the style of the run it
+@@ -23,6 +24,9 @@
+ use std::collections::BTreeMap;
+ use std::ops::Range;
+ 
++mod owned;
++use owned::OwnedPage;
++
+ use crate::edit::check_permission;
+ use crate::{Document, Edit, EditError, guard};
+ 
+@@ -185,21 +189,42 @@ impl Document {
+                 }
+             };
+             let matches: Vec<Vec<Range<usize>>> = blocks.iter().map(|b| find(&b.editor_text, query, usize::MAX)).collect();
++            let owned = match OwnedPage::read(&work, page, &blocks, query) {
++                Ok(owned) => owned,
++                Err(error) => {
++                    refused(&mut out, matches.iter().map(Vec::len).sum(), page, error.to_string());
++                    continue;
++                }
++            };
++            let mut named = BTreeMap::new();
+             // Paragraph `k`'s matches to replace now.
+             let mut chosen: BTreeMap<usize, Vec<Range<usize>>> = BTreeMap::new();
+             match which {
+                 Which::All => {
+-                    let held = matches.iter().fold(0usize, |a, m| a.saturating_add(m.len()));
+-                    let spanning = spanning(&blocks, query);
++                    let held = matches
++                        .iter()
++                        .enumerate()
++                        .filter(|(k, _)| owned.ordinary(*k))
++                        .map(|(_, m)| m)
++                        .chain(owned.matches.iter())
++                        .fold(0usize, |a, m| a.saturating_add(m.len()));
++                    let spanning = spanning(&blocks, query, &owned);
+                     out.skip(Skip::SpansParagraphs, spanning);
+                     if let Some(f) = found.and_then(|f| f.get(&page)) {
+                         out.skip(Skip::NotEditable, f.saturating_sub(held.saturating_add(spanning)));
+                     }
+-                    chosen.extend(matches.into_iter().enumerate().filter(|(_, m)| !m.is_empty()));
++                    chosen.extend(matches.iter().cloned().enumerate().filter(|(k, m)| owned.ordinary(*k) && !m.is_empty()));
++                    named.extend(owned.matches.iter().cloned().enumerate().filter(|(_, m)| !m.is_empty()));
+                 }
+                 Which::At { start, end, .. } => match at(self, &work, page, &blocks, &matches, start, end) {
+                     Ok((k, m)) => {
+-                        chosen.insert(k, vec![m]);
++                        if owned.ordinary(k) {
++                            chosen.insert(k, vec![m]);
++                        } else if let Some((index, range)) = owned.highlighted(k, &m, &matches) {
++                            named.insert(index, vec![range]);
++                        } else {
++                            refused(&mut out, 1, page, "the highlighted match cannot be mapped to its named text item".into());
++                        }
+                     }
+                     Err(why) => out.skip(why, 1),
+                 },
+@@ -250,6 +275,9 @@ impl Document {
+                     Err(panic) => refused(&mut out, count, page, panic),
+                 }
+             }
++            // Ordinary paragraphs go first, preserving their block indices. Named updates
++            // then address stable item indices and keep rendered text and metadata together.
++            owned.apply(&mut work, page, named, query, &mut edits, &mut out);
+         }
+         out.pages.sort_unstable();
+         out.edit = match (which, edits.len()) {
+@@ -274,7 +302,7 @@ fn refused(out: &mut Replacement, count: usize, page: usize, why: String) {
+ 
+ /// Matches that start in one paragraph and end in a later one: the page's paragraphs read one
+ /// after another (a line break between two), as the find bar reads the page.
+-fn spanning(blocks: &[pdfcraft_edit::TextBlock], query: &Replace) -> usize {
++fn spanning(blocks: &[pdfcraft_edit::TextBlock], query: &Replace, owned: &OwnedPage) -> usize {
+     let mut joined = String::new();
+     let mut ends = Vec::with_capacity(blocks.len());
+     for b in blocks {
+@@ -286,7 +314,14 @@ fn spanning(blocks: &[pdfcraft_edit::TextBlock], query: &Replace) -> usize {
+     }
+     // Which paragraph a byte of `joined` is in (a separator counts with the paragraph after it).
+     let paragraph = |byte: usize| ends.partition_point(|end| *end <= byte);
+-    find(&joined, query, usize::MAX).into_iter().filter(|r| paragraph(r.start) != paragraph(r.end.saturating_sub(1))).count()
++    find(&joined, query, usize::MAX)
++        .into_iter()
++        .filter(|r| {
++            let first = paragraph(r.start);
++            let last = paragraph(r.end.saturating_sub(1));
++            first != last && !owned.same_item(first, last)
++        })
++        .count()
+ }
+ 
+ /// The paragraph match the find bar's match at `start` … `end` (view space) is: the paragraph
+diff --git a/crates/engine/src/find_replace/owned.rs b/crates/engine/src/find_replace/owned.rs
+new file mode 100644
+index 0000000..b92dad4
+--- /dev/null
++++ b/crates/engine/src/find_replace/owned.rs
+@@ -0,0 +1,162 @@
++//! Replacement of named text must rewrite its native item, including editable metadata.
++//! Generic paragraph rewrites create new streams and leave that metadata stale.
++
++use std::collections::BTreeMap;
++use std::ops::Range;
++
++use super::{Replace, Replacement, Skip, find, refused};
++use crate::{Edit, EditError, guard};
++use pdfcraft_edit::{Added, Content, TextBlock};
++
++pub(super) struct OwnedPage {
++    items: Vec<Added>,
++    /// Every named item touched by each paragraph. Mixed ownership is refused, not guessed.
++    owners: Vec<Vec<usize>>,
++    valid: Vec<bool>,
++    pub matches: Vec<Vec<Range<usize>>>,
++}
++
++impl OwnedPage {
++    pub fn read(doc: &pdfcraft_cos::Document, page: usize, blocks: &[TextBlock], query: &Replace) -> Result<Self, EditError> {
++        let items: Vec<_> = pdfcraft_edit::list_added(doc).into_iter().filter(|item| item.page == page).collect();
++        if items.is_empty() {
++            return Ok(Self { items, owners: vec![Vec::new(); blocks.len()], valid: Vec::new(), matches: Vec::new() });
++        }
++        let ownership = pdfcraft_edit::text_ownership(doc, page)?;
++        let sources = ownership.blocks;
++        if sources.len() != blocks.len() {
++            return Err(EditError::Invalid("the page's paragraphs changed while reading their ownership".into()));
++        }
++        let owners: Vec<Vec<usize>> = sources
++            .iter()
++            .map(|refs| items.iter().enumerate().filter_map(|(index, item)| refs.contains(&Some(item.obj)).then_some(index)).collect())
++            .collect();
++        let valid = items
++            .iter()
++            .map(|item| {
++                let Content::Text(text) = &item.content else { return false };
++                // A paragraph can contain several named text items. Match each item's
++                // metadata against only the visible text drawn by its own stream.
++                ownership.text.get(&item.obj).is_some_and(|visible| equivalent(&text.text, visible))
++            })
++            .collect();
++        let matches = items
++            .iter()
++            .map(|item| match &item.content {
++                Content::Text(text) => find(&text.text, query, usize::MAX),
++                Content::Image(_) => Vec::new(),
++            })
++            .collect();
++        Ok(Self { items, owners, valid, matches })
++    }
++
++    pub fn ordinary(&self, block: usize) -> bool {
++        self.owners.get(block).is_some_and(Vec::is_empty)
++    }
++
++    pub fn same_item(&self, first: usize, last: usize) -> bool {
++        matches!((self.owners.get(first), self.owners.get(last)), (Some(a), Some(b)) if a.len() == 1 && a == b)
++    }
++
++    /// Map a highlighted rendered match to the corresponding native text range. The full
++    /// item must agree first, and all per-paragraph matches must have the same ordered count.
++    /// A match crossing paragraphs cannot be guessed from one paragraph's highlight.
++    pub fn highlighted(&self, block: usize, range: &Range<usize>, matches: &[Vec<Range<usize>>]) -> Option<(usize, Range<usize>)> {
++        let [owner] = self.owners.get(block)?.as_slice() else { return None };
++        if !self.valid.get(*owner).copied().unwrap_or(false) {
++            return None;
++        }
++        let mut ordinal = None;
++        let mut count = 0usize;
++        for (k, owners) in self.owners.iter().enumerate() {
++            if owners.as_slice() != [*owner] {
++                continue;
++            }
++            let held = matches.get(k)?;
++            if k == block {
++                ordinal = held.iter().position(|r| r == range).and_then(|i| count.checked_add(i));
++            }
++            count = count.checked_add(held.len())?;
++        }
++        let raw = self.matches.get(*owner)?;
++        if raw.len() != count {
++            return None;
++        }
++        Some((*owner, raw.get(ordinal?)?.clone()))
++    }
++
++    pub fn apply(
++        &self,
++        work: &mut pdfcraft_cos::Document,
++        page: usize,
++        chosen: BTreeMap<usize, Vec<Range<usize>>>,
++        query: &Replace,
++        edits: &mut Vec<Edit>,
++        out: &mut Replacement,
++    ) {
++        for (index, ranges) in chosen {
++            let count = ranges.len();
++            let Some(item) = self.items.get(index) else { continue };
++            if !self.valid.get(index).copied().unwrap_or(false) {
++                refused(out, count, page, "named text ownership or its visible wording does not agree with its editable data".into());
++                continue;
++            }
++            // An earlier generic edit must not have detached or changed this named item.
++            let current = pdfcraft_edit::list_added(work).into_iter().filter(|a| a.page == page).nth(index);
++            if current.as_ref() != Some(item) {
++                refused(out, count, page, "an earlier replacement changed the named text item".into());
++                continue;
++            }
++            let Content::Text(old) = &item.content else { continue };
++            let mut updated = old.clone();
++            let mut text = old.text.clone();
++            let mut end = text.len();
++            let mut valid = true;
++            for range in ranges.iter().rev() {
++                if range.end > end || text.get(range.clone()).is_none() {
++                    valid = false;
++                    break;
++                }
++                text.replace_range(range.clone(), &query.with);
++                end = range.start;
++            }
++            if !valid {
++                refused(out, count, page, "named text replacement ranges overlap or are invalid".into());
++                continue;
++            }
++            if text == old.text {
++                out.replaced = out.replaced.saturating_add(count);
++                continue;
++            }
++            updated.aligns = pdfcraft_edit::paragraph_align::remap(&old.text, &text, &old.aligns);
++            updated.text = text;
++            if pdfcraft_edit::first_undrawable(&updated).is_some() {
++                out.skip(Skip::MissingGlyphs, count);
++                continue;
++            }
++            let content = Content::Text(updated);
++            let mut trial = work.clone();
++            match guard(|| pdfcraft_edit::update_content(&mut trial, page, index, &content)) {
++                Ok(Ok(())) => {
++                    *work = trial;
++                    edits.push(Edit::UpdateContent { page, index, content });
++                    out.replaced = out.replaced.saturating_add(count);
++                    if !out.pages.contains(&page) {
++                        out.pages.push(page);
++                    }
++                }
++                Ok(Err(error)) => refused(out, count, page, error.to_string()),
++                Err(panic) => refused(out, count, page, panic),
++            }
++        }
++    }
++}
++
++fn equivalent(stored: &str, visible: &str) -> bool {
++    let covers = |text: &str, needle: &str| {
++        let text = text.trim();
++        let matches = pdfcraft_render::text::find_in_text(text, needle, true, false, 2);
++        matches.len() == 1 && matches.first().is_some_and(|range| range.start == 0 && range.end == text.len())
++    };
++    !stored.trim().is_empty() && covers(stored, visible) && covers(visible, stored)
++}
+diff --git a/crates/engine/src/find_replace/tests.rs b/crates/engine/src/find_replace/tests.rs
+index 72f474f..9231ebb 100644
+--- a/crates/engine/src/find_replace/tests.rs
++++ b/crates/engine/src/find_replace/tests.rs
+@@ -339,3 +339,175 @@ fn nothing_to_find_is_refused() {
+     let (s, id) = open(crate::tests::fixture(1));
+     assert!(matches!(s.get(id).unwrap().plan_replace(&[0], &query("  ", "x"), Which::All, None), Err(EditError::Invalid(_))));
+ }
++
++#[test]
++fn dobe_replacement_keeps_added_text_editable_after_restyle() {
++    let (mut s, id) = open(pdf("BT /F1 12 Tf 72 750 Td (Untouched ordinary text) Tj ET"));
++    let original =
++        crate::AddedText { rect: [72.0, 500.0, 540.0, 550.0], text: "Production ready.".into(), size: 24.0, bold: true, ..Default::default() };
++    s.apply(id, Edit::AddText { page: 0, text: original.clone() }).unwrap();
++    // Creation measures the requested height. Compare against the native state that
++    // existed before replacement, not the initial maximum-height request.
++    let crate::AddedContent::Text(original) = s.get(id).unwrap().added()[0].content.clone() else { panic!("text") };
++    let before = s.get(id).unwrap().bytes.clone();
++    let plan = replace_all(&mut s, id, &query("Production ready.", "Release candidate."));
++    assert_eq!((plan.replaced, plan.skipped_total()), (1, 0));
++    let added = s.get(id).unwrap().added().to_vec();
++    let crate::AddedContent::Text(revised) = &added[0].content else { panic!("text stays text") };
++    assert_eq!(revised.text, "Release candidate.", "stored editable text must match the replacement");
++    let mut expected = original.clone();
++    expected.text = "Release candidate.".into();
++    assert_eq!(*revised, expected, "unrequested native text properties remain exact");
++    s.undo(id).unwrap();
++    assert_eq!(s.get(id).unwrap().bytes, before, "replacement remains one reversible edit");
++    s.redo(id).unwrap();
++    let mut restyled = expected;
++    restyled.set_color([0.4, 0.2, 0.1]);
++    s.apply(id, Edit::UpdateContent { page: 0, index: 0, content: crate::AddedContent::Text(restyled) }).unwrap();
++    let rendered = page_text(&s, id, 0).plain_text();
++    assert!(rendered.contains("Release candidate."), "{rendered}");
++    assert!(!rendered.contains("Production ready."), "restyling must not resurrect stale wording: {rendered}");
++    assert_eq!(rendered.matches("Release candidate.").count(), 1, "replacement must not leave duplicate page content");
++    let (cold, cold_id) = open(s.get(id).unwrap().bytes.as_ref().clone());
++    assert_eq!(cold.get(cold_id).unwrap().added(), s.get(id).unwrap().added());
++    assert_eq!(page_text(&cold, cold_id, 0).plain_text(), rendered);
++}
++
++#[test]
++fn dobe_replacement_handles_owned_and_ordinary_text_on_one_page() {
++    let (mut s, id) = open(pdf("BT /F1 12 Tf 72 750 Td (Draft ordinary paragraph) Tj ET"));
++    for (text, y) in [("Draft owned paragraph", 600.0), ("Unchanged named paragraph", 450.0)] {
++        s.apply(id, Edit::AddText { page: 0, text: crate::AddedText { rect: [72.0, y, 540.0, y + 40.0], text: text.into(), ..Default::default() } })
++            .unwrap();
++    }
++    let untouched = s.get(id).unwrap().added()[1].clone();
++    let plan = replace_all(&mut s, id, &query("Draft", "Final"));
++    assert_eq!((plan.replaced, plan.skipped_total()), (2, 0));
++    let crate::AddedContent::Text(revised) = &s.get(id).unwrap().added()[0].content else { panic!("text") };
++    assert_eq!(revised.text, "Final owned paragraph");
++    assert_eq!(s.get(id).unwrap().added()[1], untouched);
++    let rendered = page_text(&s, id, 0).plain_text();
++    assert!(rendered.contains("Final ordinary paragraph") && rendered.contains("Final owned paragraph"), "{rendered}");
++    assert!(!rendered.contains("Draft"), "{rendered}");
++}
++
++#[test]
++fn dobe_replacement_repeated_and_multiline_owned_matches() {
++    let (mut s, id) = open(pdf(""));
++    s.apply(
++        id,
++        Edit::AddText {
++            page: 0,
++            text: crate::AddedText { rect: [72.0, 450.0, 540.0, 600.0], text: "Draft\nbrief. Draft brief.".into(), ..Default::default() },
++        },
++    )
++    .unwrap();
++    let plan = replace_all(&mut s, id, &query("Draft brief.", "Final brief."));
++    assert_eq!((plan.replaced, plan.skipped_total()), (2, 0));
++    let crate::AddedContent::Text(revised) = &s.get(id).unwrap().added()[0].content else { panic!("text") };
++    assert_eq!(revised.text, "Final brief. Final brief.");
++    let plan = replace_all(&mut s, id, &query("Final ", ""));
++    assert_eq!((plan.replaced, plan.skipped_total()), (2, 0));
++    let crate::AddedContent::Text(revised) = &s.get(id).unwrap().added()[0].content else { panic!("text") };
++    assert_eq!(revised.text, " brief.  brief.", "native find trims the query, preserving surrounding source spaces");
++}
++
++#[test]
++fn dobe_replacement_highlight_keeps_other_owned_matches() {
++    let (mut s, id) = open(pdf(""));
++    s.apply(
++        id,
++        Edit::AddText { page: 0, text: crate::AddedText { rect: [72.0, 450.0, 540.0, 600.0], text: "cat and cat".into(), ..Default::default() } },
++    )
++    .unwrap();
++    let text = page_text(&s, id, 0);
++    let found = text.find("cat");
++    assert_eq!(found.len(), 2);
++    let centre = |g: usize| {
++        let r = text.glyphs[g].rect;
++        [(r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0]
++    };
++    let which = Which::At { page: 0, start: centre(found[1].start), end: centre(found[1].end - 1) };
++    let plan = s.get(id).unwrap().plan_replace(&[0], &query("cat", "dog"), which, None).unwrap();
++    assert_eq!((plan.replaced, plan.skipped_total()), (1, 0));
++    assert!(matches!(&plan.edit, Some(Edit::UpdateContent { index: 0, .. })), "{plan:?}");
++    s.apply(id, plan.edit.unwrap()).unwrap();
++    let crate::AddedContent::Text(revised) = &s.get(id).unwrap().added()[0].content else { panic!("text") };
++    assert_eq!(revised.text, "cat and dog");
++    assert_eq!(page_text(&s, id, 0).plain_text().trim(), "cat and dog");
++}
++
++#[test]
++fn dobe_replacement_refuses_stale_owned_metadata() {
++    let (mut s, id) = open(pdf(""));
++    s.apply(
++        id,
++        Edit::AddText { page: 0, text: crate::AddedText { rect: [72.0, 450.0, 540.0, 600.0], text: "Draft wording".into(), ..Default::default() } },
++    )
++    .unwrap();
++    // Reproduce an old generic rewrite whose named metadata was not updated.
++    s.apply(id, Edit::EditTextBlock { page: 0, block: 0, text: "Visible wording".into(), style: Default::default() }).unwrap();
++    let before = s.get(id).unwrap().bytes.clone();
++    let plan = replace_all(&mut s, id, &query("Draft", "Final"));
++    assert_eq!(plan.replaced, 0, "metadata alone does not prove a visible match: {plan:?}");
++    assert_eq!(plan.skipped_total(), 1, "{plan:?}");
++    assert!(plan.edit.is_none());
++    assert_eq!(s.get(id).unwrap().bytes, before);
++}
++
++#[test]
++fn dobe_replacement_refuses_missing_glyph_without_mutation() {
++    let (mut s, id) = open(pdf(""));
++    s.apply(
++        id,
++        Edit::AddText { page: 0, text: crate::AddedText { rect: [72.0, 450.0, 540.0, 600.0], text: "Draft wording".into(), ..Default::default() } },
++    )
++    .unwrap();
++    let before = s.get(id).unwrap().bytes.clone();
++    let plan = replace_all(&mut s, id, &query("Draft", "\u{1f600}"));
++    assert_eq!(plan.replaced, 0, "{plan:?}");
++    assert_eq!(plan.skipped, BTreeMap::from([(Skip::MissingGlyphs, 1)]));
++    assert!(plan.edit.is_none());
++    assert_eq!(s.get(id).unwrap().bytes, before);
++}
++
++#[test]
++fn dobe_replacement_noop_keeps_named_bytes_exact() {
++    let (mut s, id) = open(pdf(""));
++    s.apply(
++        id,
++        Edit::AddText { page: 0, text: crate::AddedText { rect: [72.0, 450.0, 540.0, 600.0], text: "Draft wording".into(), ..Default::default() } },
++    )
++    .unwrap();
++    let before = s.get(id).unwrap().bytes.clone();
++    let plan = replace_all(&mut s, id, &query("Draft", "Draft"));
++    assert_eq!((plan.replaced, plan.skipped_total()), (1, 0));
++    assert!(plan.edit.is_none() && plan.pages.is_empty());
++    assert_eq!(s.get(id).unwrap().bytes, before);
++}
++
++#[test]
++fn dobe_replacement_keeps_separate_named_items_in_a_grouped_paragraph() {
++    let (mut s, id) = open(pdf(""));
++    for (text, rect, size, bold) in [
++        ("Production ready.", [48.0, 652.0, 564.0, 722.0], 36.0, true),
++        ("A study in quiet detail.", [48.0, 594.0, 564.0, 644.0], 18.0, false),
++        ("01   THE DIRECTION", [48.0, 506.0, 564.0, 556.0], 11.0, true),
++        ("Warm glass. Soft light. Room to breathe.\nKeep material and silhouette distinct.", [48.0, 446.0, 564.0, 516.0], 16.0, false),
++    ] {
++        s.apply(id, Edit::AddText { page: 0, text: crate::AddedText { rect, text: text.into(), size, bold, ..Default::default() } }).unwrap();
++    }
++    let blocks = s.get(id).unwrap().text_blocks(0);
++    assert!(
++        blocks.iter().any(|b| b.text.contains("Production ready.") && b.text.contains("A study")),
++        "fixture must exercise a grouped paragraph: {blocks:?}"
++    );
++    let original = s.get(id).unwrap().added().to_vec();
++    let plan = replace_all(&mut s, id, &query("Production ready.", "Release candidate."));
++    assert_eq!((plan.replaced, plan.skipped_total()), (1, 0), "{plan:?}");
++    let revised = s.get(id).unwrap().added();
++    assert_eq!(&revised[1..], &original[1..], "adjacent named items stay exact");
++    let crate::AddedContent::Text(headline) = &revised[0].content else { panic!("text") };
++    assert_eq!(headline.text, "Release candidate.");
++    assert!(!page_text(&s, id, 0).plain_text().contains("Production ready."));
++}
+diff --git a/crates/ocr/Cargo.toml b/crates/ocr/Cargo.toml
+index d3374fb..2908214 100644
+--- a/crates/ocr/Cargo.toml
++++ b/crates/ocr/Cargo.toml
+@@ -25,3 +25,7 @@ png = "0.18"
+ 
+ [dev-dependencies]
+ tempfile = "3.27"
++
++[features]
++# The installed Dobe binary must not discover assets in the build checkout.
++dobe = []
+diff --git a/crates/ocr/src/ocrs.rs b/crates/ocr/src/ocrs.rs
+index 53070d9..2c7b9de 100644
+--- a/crates/ocr/src/ocrs.rs
++++ b/crates/ocr/src/ocrs.rs
+@@ -82,6 +82,8 @@ impl Models {
+         if let Some(exe) = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf)) {
+             dirs.extend(Self::dirs_beside_exe(&exe));
+         }
++        // Development source discovery is not an installed product input.
++        #[cfg(not(feature = "dobe"))]
+         dirs.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/models"));
+         dirs
+     }

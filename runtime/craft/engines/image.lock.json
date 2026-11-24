@@ -1,0 +1,30 @@
+{
+  "cargo_lock_sha256": "cdbc4d9535d8cf94307e631d1d9ffee481c8b5fcd6b8ac29e0ec667183efdb1c",
+  "engine_version": "0.23.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "image.patch",
+    "sha256": "b960c1516efe0acc5f71ea0bc40e9c929edfe65c07b367bad6a39d0cdf7ba828"
+  },
+  "patched_files": {
+    "apps/photocraft-cli/Cargo.toml": "caea7e0cffe93292ec714933d2a6852826c482a93cdbbe3abd3f3053d1da8c6a",
+    "apps/photocraft-cli/src/args.rs": "f201cd75642b4bea98abf65170a015167655c7d818c36a3a442803f01a847479",
+    "crates/algo/src/photo_util.rs": "9b4bf8afa4dcb1b9bd60403b75b900d2f8dbd10b02881b26792e55ae105bff90",
+    "crates/cms/src/synth.rs": "6bd66442858b57bf14c11903a41892fd32c67878fbf25a02f6c74dc59b64d810",
+    "crates/engine/src/cmd/multichannel_cmds/tests.rs": "44ffb0a48ac5d5d1fa5c228d81b3974098c11a339f206c7773c05ca6ea9db3dc",
+    "crates/engine/src/cmd/type_cmds.rs": "c2f45652502c3cef1aec28a22650db4165a46fb17d472b4a5e9485427abed448",
+    "crates/engine/src/cmd/type_cmds/font_diagnostics.rs": "ca92b322c322477d5d69f43bd176dc8e09337e62b608576242b3b2af58eb6d81",
+    "crates/engine/src/cmd/type_cmds/tests.rs": "8bef67c3c50588d68c575c498752c5a0d4e1735afab3a7c5764df3c3d9ffcbad"
+  },
+  "product": "dobe-image",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "45066c48292e92229ada3459a83453439514c83d",
+    "url": "https://github.com/storytold/photocraft"
+  },
+  "source_date_epoch": 1794452105
+}

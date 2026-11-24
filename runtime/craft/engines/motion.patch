@@ -1,0 +1,390 @@
+diff --git a/apps/effectcraft-cli/Cargo.toml b/apps/effectcraft-cli/Cargo.toml
+index abfc014..c474a55 100644
+--- a/apps/effectcraft-cli/Cargo.toml
++++ b/apps/effectcraft-cli/Cargo.toml
+@@ -12,6 +12,14 @@ workspace = true
+ name = "effectcraft-cli"
+ path = "src/main.rs"
+ 
++[features]
++dobe = ["effectcraft-automation/dobe", "effectcraft-ui-egui/dobe"]
++
++[[bin]]
++name = "dobe-motion"
++path = "src/main.rs"
++required-features = ["dobe"]
++
+ [dependencies]
+ effectcraft-engine = { workspace = true }
+ effectcraft-host = { workspace = true }
+diff --git a/apps/effectcraft-cli/src/main.rs b/apps/effectcraft-cli/src/main.rs
+index f52401a..e06ee3e 100644
+--- a/apps/effectcraft-cli/src/main.rs
++++ b/apps/effectcraft-cli/src/main.rs
+@@ -88,7 +88,7 @@ fn write_line(text: std::fmt::Arguments) {
+     if let Err(e) = r {
+         let _ = STDOUT_FAILED.set(e.kind());
+         if e.kind() != std::io::ErrorKind::BrokenPipe {
+-            note!("effectcraft-cli: cannot write to stdout: {e}");
++            note!("{CLI_NAME}: cannot write to stdout: {e}");
+         }
+     }
+ }
+@@ -98,6 +98,33 @@ fn stdout_broken() -> bool {
+     STDOUT_FAILED.get().is_some_and(|k| *k != std::io::ErrorKind::BrokenPipe)
+ }
+ 
++#[cfg(feature = "dobe")]
++const CLI_NAME: &str = "dobe-motion";
++#[cfg(not(feature = "dobe"))]
++const CLI_NAME: &str = "effectcraft-cli";
++#[cfg(feature = "dobe")]
++const PRODUCT_NAME: &str = "Dobe Motion";
++#[cfg(not(feature = "dobe"))]
++const PRODUCT_NAME: &str = "EffectCraft";
++
++#[cfg(feature = "dobe")]
++const USAGE: &str = "usage: dobe-motion <command> [args] [--json]
++  info | commands                         inspect the engine and command registry
++  exec <command-id> [--params JSON]        run one native command
++  run <id> <json> [<id> <json> ...]         run commands in order
++  run --commands FILE|-                   read JSON command steps from a file or stdin
++  props <comp> <layer> [--flat]            inspect editable properties
++  get <comp> <layer> <path>                read a property
++  set <comp> <layer> <path> <value>         change a property
++  render-frame --comp C --frame N --out F.png
++  render --comp C --out F.mp4 --format h264
++  mcp [--automation-read-root DIR] [--automation-write-root DIR]
++                                          native MCP over stdio; roots are repeatable
++options: --project F.ecproj | --empty   --save-as F.ecproj   --json
++Native headless engine. The supported product MCP endpoint is `dobe mcp`.
++Editor bridge connections are unavailable. Native .ecproj compatibility is retained.";
++
++#[cfg(not(feature = "dobe"))]
+ const USAGE: &str = "usage: effectcraft-cli <info|commands|exec|run|props|get|set|render-frame|render|script|replay|mcp> [args] [--json]
+   info                                     project + engine summary
+   commands [--filter TEXT] [--enabled]     list engine commands
+@@ -318,13 +345,17 @@ fn main() {
+         Err(e) => fail_usage(&e),
+     };
+     if matches!(raw.first().map(String::as_str), Some("--version" | "-V" | "version")) {
+-        say!("effectcraft-cli {}", env!("CARGO_PKG_VERSION"));
++        say!("{CLI_NAME} {}", env!("CARGO_PKG_VERSION"));
+         return;
+     }
+     if raw.is_empty() || raw.iter().any(|a| a == "-h" || a == "--help") {
+         say!("{USAGE}");
+         std::process::exit(if raw.is_empty() { 2 } else { 0 });
+     }
++    #[cfg(feature = "dobe")]
++    if raw.iter().any(|a| a == "--bridge" || a.starts_with("--bridge=")) {
++        fail_usage("editor bridge connections are unavailable in Dobe Motion");
++    }
+     let mut args = match Args::parse(raw) {
+         Ok(a) => a,
+         Err(e) => fail_usage(&e),
+@@ -342,14 +373,14 @@ fn main() {
+             if json_out {
+                 say!("{}", json!({"error": e}));
+             }
+-            note!("effectcraft-cli {cmd}: {e}");
++            note!("{CLI_NAME} {cmd}: {e}");
+             std::process::exit(1);
+         }
+     }
+ }
+ 
+ fn fail_usage(e: &str) -> ! {
+-    note!("effectcraft-cli: {e}\n{USAGE}");
++    note!("{CLI_NAME}: {e}\n{USAGE}");
+     std::process::exit(2)
+ }
+ 
+@@ -604,7 +635,7 @@ fn replay_cmd(args: &Args, json_out: bool) -> Result<(), Failure> {
+         if report.skipped > 0 { format!(" ({} later steps not run)", report.skipped) } else { String::new() }
+     );
+     if json_out {
+-        note!("effectcraft-cli replay: {msg}");
++        note!("{CLI_NAME} replay: {msg}");
+         std::process::exit(1);
+     }
+     Err(Failure::Error(msg))
+@@ -643,7 +674,7 @@ fn run(cmd: &str, args: &Args, json_out: bool) -> Result<(), Failure> {
+                 emit(&info, true);
+             } else {
+                 say!(
+-                    "EffectCraft {} ({}), {} commands, {} effects",
++                    "{PRODUCT_NAME} {} ({}), {} commands, {} effects",
+                     info["version"].as_str().unwrap_or(""),
+                     info["mode"].as_str().unwrap_or(""),
+                     info["commands"],
+diff --git a/crates/automation/Cargo.toml b/crates/automation/Cargo.toml
+index e0caf32..883455c 100644
+--- a/crates/automation/Cargo.toml
++++ b/crates/automation/Cargo.toml
+@@ -9,6 +9,9 @@ rust-version.workspace = true
+ [lints]
+ workspace = true
+ 
++[features]
++dobe = []
++
+ [dependencies]
+ effectcraft-engine = { workspace = true }
+ serde_json = { workspace = true }
+diff --git a/crates/automation/src/server.rs b/crates/automation/src/server.rs
+index 99b7ac6..b5e8bca 100644
+--- a/crates/automation/src/server.rs
++++ b/crates/automation/src/server.rs
+@@ -13,6 +13,18 @@ use crate::{Backend, Error, base64};
+ /// Protocol revisions we speak, newest first. We answer with the client's if we know it.
+ pub const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
+ 
++#[cfg(feature = "dobe")]
++const SERVER_NAME: &str = "dobe-motion";
++#[cfg(not(feature = "dobe"))]
++const SERVER_NAME: &str = "effectcraft";
++#[cfg(feature = "dobe")]
++const PRODUCT_NAME: &str = "Dobe Motion";
++#[cfg(not(feature = "dobe"))]
++const PRODUCT_NAME: &str = "EffectCraft";
++
++#[cfg(feature = "dobe")]
++const INSTRUCTIONS: &str = "Dobe Motion is a native headless motion compositor. Discover native commands with command_list; run command_run or command_batch. Inspect editable compositions, layers and properties with doc_inspect, get_project, get_comp, get_layer and get_property. Use set_property and add_keyframe for precise revisions, render_preview to inspect output, and native file commands to save editable .ecproj projects. Times are seconds. This is the private native engine interface; use `dobe mcp` for durable product jobs and portable deliverables.";
++#[cfg(not(feature = "dobe"))]
+ const INSTRUCTIONS: &str = "EffectCraft is an After Effects-class motion graphics compositor. Everything is an engine command: command_list discovers ids and params, command_run {id, params} runs them (undoable; command_batch runs several in order). Typical flow: command_run comp.new -> command_run layer.newText / layer.newSolid (returns the layer id) -> set_property / add_keyframe -> command_run effect.apply -> render_preview to look at the result. Inspect with doc_inspect, get_project, get_comp and get_layer (every property node carries its `path`, e.g. `transform/position`, `effects/#1/blurriness`). Times are seconds. In bridge mode (app started with `--control <port>`) screenshot and the ui_* tools show and operate the live window.";
+ 
+ // JSON-RPC error codes.
+@@ -171,7 +183,7 @@ impl McpServer {
+                 Ok(json!({
+                     "protocolVersion": version,
+                     "capabilities": {"tools": {"listChanged": false}, "resources": {"listChanged": false, "subscribe": false}},
+-                    "serverInfo": {"name": "effectcraft", "title": format!("EffectCraft ({mode})"), "version": env!("CARGO_PKG_VERSION")},
++                    "serverInfo": {"name": SERVER_NAME, "title": format!("{PRODUCT_NAME} ({mode})"), "version": env!("CARGO_PKG_VERSION")},
+                     "instructions": instructions,
+                     "_meta": {"effectcraftAutoSave": self.autosave_info()},
+                 }))
+@@ -275,7 +287,13 @@ impl McpServer {
+ }
+ 
+ /// The craft catalog resources (docs/mcp.md).
++#[cfg(feature = "dobe")]
++const DOCUMENT_URI: &str = "dobe-motion://document";
++#[cfg(not(feature = "dobe"))]
+ const DOCUMENT_URI: &str = "effectcraft://document";
++#[cfg(feature = "dobe")]
++const COMMANDS_URI: &str = "dobe-motion://commands";
++#[cfg(not(feature = "dobe"))]
+ const COMMANDS_URI: &str = "effectcraft://commands";
+ 
+ /// Whether a request declares MCP 2026-07-28 or later in its `_meta` (a "modern" client, which
+diff --git a/crates/automation/src/tests.rs b/crates/automation/src/tests.rs
+index 8a1839e..e8792df 100644
+--- a/crates/automation/src/tests.rs
++++ b/crates/automation/src/tests.rs
+@@ -106,7 +106,7 @@ fn initialize_and_list_tools() {
+     let mut s = server();
+     let r = rpc(&mut s, 1, "initialize", json!({"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}));
+     assert_eq!(r["protocolVersion"], "2025-03-26");
+-    assert_eq!(r["serverInfo"]["name"], "effectcraft");
++    assert_eq!(r["serverInfo"]["name"], if cfg!(feature = "dobe") { "dobe-motion" } else { "effectcraft" });
+     assert!(r["capabilities"]["tools"].is_object());
+     // Unknown revision: we answer with our latest.
+     let r = rpc(&mut s, 2, "initialize", json!({"protocolVersion": "1999-01-01"}));
+@@ -1061,7 +1061,10 @@ fn resources_match_tools_and_recover_after_parse_error() {
+     assert!(bad["id"].is_null());
+     assert_eq!(rpc(&mut s, 1, "ping", json!({})), json!({}));
+     let list = rpc(&mut s, 2, "resources/list", json!({}));
+-    for (uri, tool) in [("effectcraft://document", "doc_inspect"), ("effectcraft://commands", "command_list")] {
++    for (uri, tool) in [
++        (if cfg!(feature = "dobe") { "dobe-motion://document" } else { "effectcraft://document" }, "doc_inspect"),
++        (if cfg!(feature = "dobe") { "dobe-motion://commands" } else { "effectcraft://commands" }, "command_list"),
++    ] {
+         assert!(list["resources"].as_array().unwrap().iter().any(|r| r["uri"] == uri));
+         let r = rpc(&mut s, 3, "resources/read", json!({"uri":uri}));
+         assert_eq!(r["contents"][0]["mimeType"], "application/json");
+@@ -1124,7 +1127,7 @@ fn modern_clients_get_result_type() {
+         (1, "tools/list", json!({"_meta": meta})),
+         (2, "resources/list", json!({"_meta": meta})),
+         (3, "resources/templates/list", json!({"_meta": meta})),
+-        (4, "resources/read", json!({"_meta": meta, "uri": "effectcraft://document"})),
++        (4, "resources/read", json!({"_meta": meta, "uri": if cfg!(feature = "dobe") { "dobe-motion://document" } else { "effectcraft://document" }})),
+         (5, "tools/call", json!({"_meta": meta, "name": "command_list", "arguments": {}})),
+     ] {
+         let r = rpc(&mut s, id, method, params);
+@@ -1136,9 +1139,11 @@ fn modern_clients_get_result_type() {
+     }
+     let mut s = server();
+     rpc(&mut s, 1, "initialize", json!({"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}));
+-    for (id, method, params) in
+-        [(2, "tools/list", json!({})), (3, "resources/list", json!({})), (4, "resources/read", json!({"uri": "effectcraft://document"}))]
+-    {
++    for (id, method, params) in [
++        (2, "tools/list", json!({})),
++        (3, "resources/list", json!({})),
++        (4, "resources/read", json!({"uri": if cfg!(feature = "dobe") { "dobe-motion://document" } else { "effectcraft://document" }})),
++    ] {
+         let r = rpc(&mut s, id, method, params);
+         let res = r.as_object().unwrap();
+         assert!(!res.contains_key("resultType") && !res.contains_key("ttlMs") && !res.contains_key("cacheScope"), "{method}: {r}");
+diff --git a/crates/ui-egui/Cargo.toml b/crates/ui-egui/Cargo.toml
+index 1576907..bb8c051 100644
+--- a/crates/ui-egui/Cargo.toml
++++ b/crates/ui-egui/Cargo.toml
+@@ -9,6 +9,9 @@ rust-version.workspace = true
+ [lints]
+ workspace = true
+ 
++[features]
++dobe = []
++
+ [dependencies]
+ craft-ui = { workspace = true }
+ craft-quit = { workspace = true, features = ["egui"] }
+diff --git a/crates/ui-egui/src/header.rs b/crates/ui-egui/src/header.rs
+index 140a0bb..955e141 100644
+--- a/crates/ui-egui/src/header.rs
++++ b/crates/ui-egui/src/header.rs
+@@ -903,6 +903,10 @@ fn run_workspace_command(app: &mut EffectcraftApp, ui: &egui::Ui, id: &str) {
+ 
+ /// The ArtCraft mark as supplied in `docs/brand` (the README's and getartcraft.com's logo; used
+ /// unmodified, see `docs/brand/LICENSE-brand.txt`).
++// Modified headless distributions must not embed the upstream trademark artwork.
++#[cfg(feature = "dobe")]
++static ARTCRAFT_MARK: &[u8] = &[];
++#[cfg(not(feature = "dobe"))]
+ static ARTCRAFT_MARK: &[u8] = include_bytes!("../../../docs/brand/artcraft-mark.png");
+ 
+ /// The ArtCraft mark in `r` (decoded once into a mipmapped texture, so it stays crisp from the
+diff --git a/crates/engine/src/cmd/text_edit.rs b/crates/engine/src/cmd/text_edit.rs
+--- a/crates/engine/src/cmd/text_edit.rs
++++ b/crates/engine/src/cmd/text_edit.rs
+@@ -909,6 +909,71 @@
+ 
+ fn editing(s: &Session) -> std::result::Result<(), String> {
+     if s.state.text_edit.is_some() { Ok(()) } else { Err("not editing text".into()) }
++}
++
++/// Inspect the same static TextDoc layout consumed by the renderer. Transform
++/// animation does not change shaping; source-text keys and character animators do.
++fn text_diagnostics(s: &mut Session, p: &Value) -> Result<Value> {
++    const COMMAND: &str = "text.diagnostics";
++    let cid = comp_id(s, p)?;
++    let lid = target(s, p, COMMAND)?;
++    let layer = s.project.comp(cid).and_then(|c| c.layer(lid)).ok_or_else(|| bad(COMMAND, "missing text layer"))?;
++    let text = layer.props.sub("text").ok_or_else(|| bad(COMMAND, "missing text properties"))?;
++    let property = layer.props.prop("text/sourceText").ok_or_else(|| bad(COMMAND, "missing source text"))?;
++    if !property.keys.is_empty() || property.expr.is_some() || text.sub("animators").is_some_and(|group| !group.children.is_empty()) {
++        return Err(bad(COMMAND, "diagnostics require static source text without character animators"));
++    }
++    let KV::Text(doc) = &property.value else { return Err(bad(COMMAND, "source property is not text")) };
++    let characters = doc.text.chars().count();
++    if !(1..=4000).contains(&characters)
++        || !doc.size.is_finite()
++        || !(1.0..=512.0).contains(&doc.size)
++        || !doc.runs.is_empty()
++        || !doc.paragraphs.is_empty()
++        || doc.box_size.is_some()
++        || doc.vertical
++        || doc.faux_bold
++        || doc.faux_italic
++        || doc.all_caps
++        || doc.small_caps
++        || !doc.variations.is_empty()
++    {
++        return Err(bad(COMMAND, "diagnostics require bounded plain horizontal point text without synthetic styling"));
++    }
++    let resolved = effectcraft_text::fonts::resolve(&doc.font, &doc.style);
++    let layout = effectcraft_text::layout_doc(doc);
++    if layout.layout.glyphs.len() > 16000 {
++        return Err(bad(COMMAND, "shaped glyph count exceeds the diagnostic bound"));
++    }
++    let mut missing = 0usize;
++    let mut other_faces = 0usize;
++    let glyphs: Vec<Value> = layout
++        .layout
++        .glyphs
++        .iter()
++        .map(|glyph| {
++            let face = effectcraft_text::fonts::face(glyph.face);
++            let bundled = face.info.index == 0
++                && matches!(&face.info.data,
++            effectcraft_text::fonts::FaceData::Static(bytes) if *bytes == effectcraft_text::fonts::INTER_REGULAR);
++            if glyph.id == 0 {
++                missing += 1;
++            }
++            if !bundled {
++                other_faces += 1;
++            }
++            json!({"id":glyph.id, "cluster":glyph.cluster, "family":face.info.family,
++            "style":face.info.style, "bundled_inter_regular":bundled,
++            "synthetic_bold":glyph.synth_bold, "synthetic_italic":glyph.synth_italic,
++            "variable_instance":glyph.variations != 0})
++        })
++        .collect();
++    Ok(json!({"schema_version":1, "profile":"static-point-text", "layer":lid.0,
++        "text":doc.text, "requested_family":doc.font, "requested_style":doc.style,
++        "family_missing":resolved.missing, "synthetic_bold":resolved.synth_bold,
++        "synthetic_italic":resolved.synth_italic, "characters":characters,
++        "glyph_count":glyphs.len(), "missing_glyph_count":missing,
++        "non_bundled_glyph_count":other_faces, "glyphs":glyphs}))
+ }
+ 
+ /// The command specs of this module: the `text.*` editing, selection and caret commands and
+@@ -916,6 +981,15 @@
+ pub fn specs() -> Vec<CommandSpec> {
+     vec![
+         cmd!(
++            "text.diagnostics",
++            "Inspect Shaped Text",
++            [],
++            None,
++            "{comp?, layer} → bounded static text shaping, missing glyphs and actual bundled font identities",
++            always_ok,
++            text_diagnostics
++        ),
++        cmd!(
+             "text.edit",
+             "Edit Text",
+             [],
+diff --git a/crates/engine/src/tests/text.rs b/crates/engine/src/tests/text.rs
+--- a/crates/engine/src/tests/text.rs
++++ b/crates/engine/src/tests/text.rs
+@@ -299,4 +299,37 @@
+     s.execute("edit.duplicate", json!({})).unwrap();
+     assert_eq!(s.active_comp().unwrap().layers.len(), 1);
+     assert_eq!(anims(&s).groups().count(), 2, "the animator is copied");
++}
++
++#[test]
++fn static_text_diagnostics_use_render_layout_and_detect_missing_glyphs() {
++    let (mut s, layer) = session();
++    s.execute("layer.setText", json!({"layer":layer,"text":"Office Åä e\u{301}","font":"Inter","style":"Regular"})).unwrap();
++    let before = serde_json::to_value(&s.project).unwrap();
++    let report = s.execute("text.diagnostics", json!({"layer":layer})).unwrap();
++    assert_eq!(report["missing_glyph_count"], 0);
++    assert_eq!(report["non_bundled_glyph_count"], 0);
++    assert_eq!(report["family_missing"], false);
++    assert!(report["glyph_count"].as_u64().unwrap() > 0);
++    assert_eq!(serde_json::to_value(&s.project).unwrap(), before);
++    s.execute("layer.setText", json!({"layer":layer,"text":"A\u{10ffff}B"})).unwrap();
++    let missing = s.execute("text.diagnostics", json!({"layer":layer})).unwrap();
++    assert!(missing["missing_glyph_count"].as_u64().unwrap() > 0 || missing["non_bundled_glyph_count"].as_u64().unwrap() > 0);
+ }
++
++#[test]
++fn static_text_diagnostics_refuse_character_substitution_and_source_keys() {
++    let (mut s, layer) = session();
++    s.execute("layer.addTextAnimator", json!({"layer":layer,"property":"characterOffset"})).unwrap();
++    assert!(s.execute("text.diagnostics", json!({"layer":layer})).is_err());
++    let (mut s, layer) = session();
++    s.execute("prop.toggleAnimation", json!({"layer":layer,"path":"text/sourceText","value":true})).unwrap();
++    assert!(s.execute("text.diagnostics", json!({"layer":layer})).is_err());
++    let (mut s, layer) = session();
++    let cid = s.active_comp_id().unwrap();
++    let value = &mut std::sync::Arc::make_mut(&mut s.project).comp_mut(cid).unwrap().layers[0].props.prop_mut("text/sourceText").unwrap().value;
++    if let KV::Text(doc) = value {
++        doc.faux_bold = true;
++    }
++    assert!(s.execute("text.diagnostics", json!({"layer":layer})).is_err());
++}

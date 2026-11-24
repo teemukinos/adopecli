@@ -1,0 +1,33 @@
+{
+  "cargo_lock_sha256": "6dd3f6a3f41b2c21c7811ea8927fcd3f6cfb09167127630036c1e6cc5efb3b66",
+  "engine_version": "0.6.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "texture.patch",
+    "sha256": "58e9cea5f883c5c36875667d6c903a761fea06af754f7a21d274b0b7c2c1f549"
+  },
+  "patched_files": {
+    "apps/texturecraft-cli/Cargo.toml": "d5a5f1c31fe5a6cbf3fa4b6d1e267c6b6fc5b1d98775f0db13da83798c50b0cf",
+    "apps/texturecraft-cli/src/dobe_help.txt": "163c66cab5a9a81ee4a2b2073874e9c2a1dfe27de9cabd5597dd07784fe22639",
+    "apps/texturecraft-cli/src/dobe_main.rs": "b10d29087a169f9c2cec24ab845fde2a18c273713a1a22db9442cffc3cdc2d01",
+    "apps/texturecraft-cli/src/main.rs": "235927a47e26785357c965c669777e7bf17b8454e49fa42123a7b46da2a73170",
+    "crates/automation/Cargo.toml": "0816780a136fd8c97427c6b58b27592660eba41a27bf21febe281a9a23b2e13f",
+    "crates/automation/src/headless.rs": "714ac9c84b838edc568a5538ee0453b5b99f33f87a29bbc987291c2bd6bbf959",
+    "crates/automation/src/server.rs": "6907f0049e94c1a328199f087a2819bd96907a32b1699c6582d7d91b414aa5f8",
+    "crates/engine/Cargo.toml": "9723647d57055cc688f17e4f5999b72f907f65f46ac1389762e08358d6fa75fb",
+    "crates/engine/src/file_cmds.rs": "0c98cd49a300e727ffcd1d8d88cf7630b044393f6dd6d9c801ab2f0f014bf863",
+    "crates/engine/src/link_cmds.rs": "4ce9c78deab1013f1f7f49508adcba8e93e105789fb01119f6fad523169194e5",
+    "crates/engine/src/session.rs": "1dccd8d5a3886a9f8a8b9ddff1e14424f158507b2a0a318bddc79583f3cf4b0a"
+  },
+  "product": "dobe-texture",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+    "url": "https://github.com/storytold/texturecraft"
+  },
+  "source_date_epoch": 1794442556
+}

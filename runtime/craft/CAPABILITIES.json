@@ -1,0 +1,2718 @@
+{
+  "schema_version": 1,
+  "product": "A dope CLI",
+  "basis": "current_source_registration",
+  "native_families": 17,
+  "local_operations": 97,
+  "hosted_operations": 86,
+  "families": [
+    {
+      "family": "synthesis",
+      "engine": {
+        "name": "open-weight-synthesis",
+        "version": "1.0"
+      },
+      "operations": [
+        "synthesis.generate",
+        "synthesis.edit"
+      ]
+    },
+    {
+      "family": "production",
+      "engine": {
+        "name": "photographic-production",
+        "version": "1.1"
+      },
+      "operations": [
+        "production.create",
+        "production.edit",
+        "production.render",
+        "production.verify",
+        "production.inspect"
+      ]
+    },
+    {
+      "family": "construction",
+      "engine": {
+        "name": "construction",
+        "version": "1.0"
+      },
+      "operations": [
+        "construct.create",
+        "construct.edit",
+        "construct.inspect",
+        "construct.render",
+        "construct.verify"
+      ]
+    },
+    {
+      "family": "vector",
+      "engine": {
+        "name": "vectorcraft",
+        "version": "0.24.1"
+      },
+      "operations": [
+        "vector.create",
+        "vector.revise_text",
+        "vector.revise_geometry"
+      ]
+    },
+    {
+      "family": "image",
+      "engine": {
+        "name": "photocraft",
+        "version": "0.23.1"
+      },
+      "operations": [
+        "image.adjust",
+        "image.revise",
+        "image.create",
+        "image.edit"
+      ]
+    },
+    {
+      "family": "video",
+      "engine": {
+        "name": "filmcraft",
+        "version": "0.20.1"
+      },
+      "operations": [
+        "video.create",
+        "video.edit"
+      ]
+    },
+    {
+      "family": "motion",
+      "engine": {
+        "name": "effectcraft",
+        "version": "0.24.1"
+      },
+      "operations": [
+        "motion.create",
+        "motion.edit"
+      ]
+    },
+    {
+      "family": "audio",
+      "engine": {
+        "name": "soundcraft",
+        "version": "0.20.1"
+      },
+      "operations": [
+        "audio.create",
+        "audio.edit"
+      ]
+    },
+    {
+      "family": "photo",
+      "engine": {
+        "name": "lightcraft",
+        "version": "0.21.1"
+      },
+      "operations": [
+        "photo.create",
+        "photo.edit"
+      ]
+    },
+    {
+      "family": "pdf",
+      "engine": {
+        "name": "pdfcraft",
+        "version": "0.21.1"
+      },
+      "operations": [
+        "pdf.create",
+        "pdf.import",
+        "pdf.inspect",
+        "pdf.merge",
+        "pdf.extract",
+        "pdf.edit"
+      ]
+    },
+    {
+      "family": "layout",
+      "engine": {
+        "name": "designcraft",
+        "version": "0.20.1"
+      },
+      "operations": [
+        "layout.create",
+        "layout.import",
+        "layout.inspect",
+        "layout.edit"
+      ]
+    },
+    {
+      "family": "interface",
+      "engine": {
+        "name": "figcraft",
+        "version": "0.18.1"
+      },
+      "operations": [
+        "interface.create",
+        "interface.import",
+        "interface.inspect",
+        "interface.edit"
+      ]
+    },
+    {
+      "family": "animate",
+      "engine": {
+        "name": "anicraft",
+        "version": "0.2.1"
+      },
+      "operations": [
+        "animate.create",
+        "animate.import",
+        "animate.inspect",
+        "animate.edit",
+        "animate.export"
+      ]
+    },
+    {
+      "family": "texture",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "operations": [
+        "texture.create",
+        "texture.import",
+        "texture.inspect",
+        "texture.edit",
+        "texture.export",
+        "texture.render",
+        "texture.bake",
+        "texture.material"
+      ]
+    },
+    {
+      "family": "material",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "operations": [
+        "material.create",
+        "material.import",
+        "material.inspect",
+        "material.edit",
+        "material.cook",
+        "material.export",
+        "material.preview",
+        "material.bundle"
+      ]
+    },
+    {
+      "family": "write",
+      "engine": {
+        "name": "wordcraft",
+        "version": "0.18.1"
+      },
+      "operations": [
+        "write.create",
+        "write.import",
+        "write.inspect",
+        "write.edit",
+        "write.bundle",
+        "write.export"
+      ]
+    },
+    {
+      "family": "slides",
+      "engine": {
+        "name": "deckcraft",
+        "version": "0.18.1"
+      },
+      "operations": [
+        "slides.create",
+        "slides.import",
+        "slides.inspect",
+        "slides.edit",
+        "slides.bundle",
+        "slides.export",
+        "slides.migrate"
+      ]
+    },
+    {
+      "family": "cad",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "operations": [
+        "cad.create",
+        "cad.import",
+        "cad.inspect",
+        "cad.edit",
+        "cad.solve",
+        "cad.solid",
+        "cad.export",
+        "cad.bundle",
+        "cad.migrate"
+      ]
+    },
+    {
+      "family": "sheets",
+      "engine": {
+        "name": "gridcraft",
+        "version": "0.19.1"
+      },
+      "operations": [
+        "sheets.create",
+        "sheets.import",
+        "sheets.inspect",
+        "sheets.edit",
+        "sheets.calculate",
+        "sheets.export",
+        "sheets.bundle"
+      ]
+    },
+    {
+      "family": "inspect",
+      "engine": {
+        "name": "craft-anything",
+        "version": "0.6.1"
+      },
+      "operations": [
+        "inspect.analyze",
+        "inspect.import",
+        "inspect.inspect",
+        "inspect.annotate",
+        "inspect.export",
+        "inspect.bundle"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "operation": "synthesis.generate",
+      "family": "synthesis",
+      "adapter": "craft/runtime/studio_runtime/synthesis.py",
+      "parameter_validator": "craft/runtime/studio_runtime/synthesis.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Explicitly provisioned offline SDXL generation and masked editing; macOS CPU/MPS only",
+      "deliverables": "Raster PNG and recipe; no editable 3D scene",
+      "engine": {
+        "name": "open-weight-synthesis",
+        "version": "1.0"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "synthesis.edit",
+      "family": "synthesis",
+      "adapter": "craft/runtime/studio_runtime/synthesis.py",
+      "parameter_validator": "craft/runtime/studio_runtime/synthesis.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Explicitly provisioned offline SDXL generation and masked editing; macOS CPU/MPS only",
+      "deliverables": "Raster PNG and recipe; no editable 3D scene",
+      "engine": {
+        "name": "open-weight-synthesis",
+        "version": "1.0"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "production.create",
+      "family": "production",
+      "adapter": "craft/runtime/studio_runtime/production.py",
+      "parameter_validator": "craft/runtime/studio_runtime/production.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Bounded Blender product scenes; material/light revisions preserve composition",
+      "deliverables": ".blend and recipe; PNG",
+      "engine": {
+        "name": "photographic-production",
+        "version": "1.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "production.edit",
+      "family": "production",
+      "adapter": "craft/runtime/studio_runtime/production.py",
+      "parameter_validator": "craft/runtime/studio_runtime/production.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Bounded Blender product scenes; material/light revisions preserve composition",
+      "deliverables": ".blend and recipe; PNG",
+      "engine": {
+        "name": "photographic-production",
+        "version": "1.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "production.render",
+      "family": "production",
+      "adapter": "craft/runtime/studio_runtime/production.py",
+      "parameter_validator": "craft/runtime/studio_runtime/production.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Bounded Blender product scenes; material/light revisions preserve composition",
+      "deliverables": ".blend and recipe; PNG",
+      "engine": {
+        "name": "photographic-production",
+        "version": "1.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "production.verify",
+      "family": "production",
+      "adapter": "craft/runtime/studio_runtime/production.py",
+      "parameter_validator": "craft/runtime/studio_runtime/production.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Bounded Blender product scenes; material/light revisions preserve composition",
+      "deliverables": ".blend and recipe; PNG",
+      "engine": {
+        "name": "photographic-production",
+        "version": "1.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "production.inspect",
+      "family": "production",
+      "adapter": "craft/runtime/studio_runtime/production.py",
+      "parameter_validator": "craft/runtime/studio_runtime/production.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Bounded Blender product scenes; material/light revisions preserve composition",
+      "deliverables": ".blend and recipe; PNG",
+      "engine": {
+        "name": "photographic-production",
+        "version": "1.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "construct.create",
+      "family": "construction",
+      "adapter": "craft/runtime/studio_runtime/construction.py",
+      "parameter_validator": "craft/runtime/studio_runtime/construction.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Editable compositions and explicit Blender/Rive supporting profiles",
+      "deliverables": "Recipe and profile-specific editable sources/exports",
+      "engine": {
+        "name": "construction",
+        "version": "1.0"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "construct.edit",
+      "family": "construction",
+      "adapter": "craft/runtime/studio_runtime/construction.py",
+      "parameter_validator": "craft/runtime/studio_runtime/construction.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Editable compositions and explicit Blender/Rive supporting profiles",
+      "deliverables": "Recipe and profile-specific editable sources/exports",
+      "engine": {
+        "name": "construction",
+        "version": "1.0"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "construct.inspect",
+      "family": "construction",
+      "adapter": "craft/runtime/studio_runtime/construction.py",
+      "parameter_validator": "craft/runtime/studio_runtime/construction.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Editable compositions and explicit Blender/Rive supporting profiles",
+      "deliverables": "Recipe and profile-specific editable sources/exports",
+      "engine": {
+        "name": "construction",
+        "version": "1.0"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "construct.render",
+      "family": "construction",
+      "adapter": "craft/runtime/studio_runtime/construction.py",
+      "parameter_validator": "craft/runtime/studio_runtime/construction.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Editable compositions and explicit Blender/Rive supporting profiles",
+      "deliverables": "Recipe and profile-specific editable sources/exports",
+      "engine": {
+        "name": "construction",
+        "version": "1.0"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "construct.verify",
+      "family": "construction",
+      "adapter": "craft/runtime/studio_runtime/construction.py",
+      "parameter_validator": "craft/runtime/studio_runtime/construction.py:validate",
+      "contract": "craft/runtime/CONSTRUCTION.md",
+      "scope": "Editable compositions and explicit Blender/Rive supporting profiles",
+      "deliverables": "Recipe and profile-specific editable sources/exports",
+      "engine": {
+        "name": "construction",
+        "version": "1.0"
+      },
+      "local_registered": true,
+      "hosted_admitted": false,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory"
+    },
+    {
+      "operation": "vector.create",
+      "family": "vector",
+      "adapter": "craft/runtime/studio_runtime/vector.py",
+      "parameter_validator": "craft/runtime/studio_runtime/vector.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Named rectangles, ellipses, polygons and text; text or geometry revisions",
+      "deliverables": ".vectorcraft; SVG and PNG",
+      "engine": {
+        "name": "vectorcraft",
+        "version": "0.24.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/vectorcraft",
+        "revision": "f4922aa7ac99a4f6d56fc68a83a44945207ec610",
+        "lock": "craft/engines/vector.lock.json",
+        "lock_sha256": "ab23e6d982044f6b6e1c6bcdfd9df8e9df6d2f377b7622c65c11bb38f7c08c76"
+      }
+    },
+    {
+      "operation": "vector.revise_text",
+      "family": "vector",
+      "adapter": "craft/runtime/studio_runtime/vector.py",
+      "parameter_validator": "craft/runtime/studio_runtime/vector.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Named rectangles, ellipses, polygons and text; text or geometry revisions",
+      "deliverables": ".vectorcraft; SVG and PNG",
+      "engine": {
+        "name": "vectorcraft",
+        "version": "0.24.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/vectorcraft",
+        "revision": "f4922aa7ac99a4f6d56fc68a83a44945207ec610",
+        "lock": "craft/engines/vector.lock.json",
+        "lock_sha256": "ab23e6d982044f6b6e1c6bcdfd9df8e9df6d2f377b7622c65c11bb38f7c08c76"
+      }
+    },
+    {
+      "operation": "vector.revise_geometry",
+      "family": "vector",
+      "adapter": "craft/runtime/studio_runtime/vector.py",
+      "parameter_validator": "craft/runtime/studio_runtime/vector.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Named rectangles, ellipses, polygons and text; text or geometry revisions",
+      "deliverables": ".vectorcraft; SVG and PNG",
+      "engine": {
+        "name": "vectorcraft",
+        "version": "0.24.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/vectorcraft",
+        "revision": "f4922aa7ac99a4f6d56fc68a83a44945207ec610",
+        "lock": "craft/engines/vector.lock.json",
+        "lock_sha256": "ab23e6d982044f6b6e1c6bcdfd9df8e9df6d2f377b7622c65c11bb38f7c08c76"
+      }
+    },
+    {
+      "operation": "image.adjust",
+      "family": "image",
+      "adapter": "craft/runtime/studio_runtime/photo.py",
+      "parameter_validator": "craft/runtime/studio_runtime/photo.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Imported 8-bit images; bounded adjustment and resize",
+      "deliverables": ".pcraft; PNG",
+      "engine": {
+        "name": "photocraft",
+        "version": "0.23.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/photocraft",
+        "revision": "45066c48292e92229ada3459a83453439514c83d",
+        "lock": "craft/engines/image.lock.json",
+        "lock_sha256": "8927da49c7a25e93d2887324beddae8e5374b5c3abed88e1eb03c8276b681518"
+      }
+    },
+    {
+      "operation": "image.revise",
+      "family": "image",
+      "adapter": "craft/runtime/studio_runtime/photo.py",
+      "parameter_validator": "craft/runtime/studio_runtime/photo.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Imported 8-bit images; bounded adjustment and resize",
+      "deliverables": ".pcraft; PNG",
+      "engine": {
+        "name": "photocraft",
+        "version": "0.23.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/photocraft",
+        "revision": "45066c48292e92229ada3459a83453439514c83d",
+        "lock": "craft/engines/image.lock.json",
+        "lock_sha256": "8927da49c7a25e93d2887324beddae8e5374b5c3abed88e1eb03c8276b681518"
+      }
+    },
+    {
+      "operation": "image.create",
+      "family": "image",
+      "adapter": "craft/runtime/studio_runtime/image_layers.py",
+      "parameter_validator": "craft/runtime/studio_runtime/image_layers.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Named solid, embedded asset and text layers; controlled revisions",
+      "deliverables": ".pcraft; PNG",
+      "engine": {
+        "name": "photocraft",
+        "version": "0.23.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/photocraft",
+        "revision": "45066c48292e92229ada3459a83453439514c83d",
+        "lock": "craft/engines/image.lock.json",
+        "lock_sha256": "8927da49c7a25e93d2887324beddae8e5374b5c3abed88e1eb03c8276b681518"
+      }
+    },
+    {
+      "operation": "image.edit",
+      "family": "image",
+      "adapter": "craft/runtime/studio_runtime/image_layers.py",
+      "parameter_validator": "craft/runtime/studio_runtime/image_layers.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Named solid, embedded asset and text layers; controlled revisions",
+      "deliverables": ".pcraft; PNG",
+      "engine": {
+        "name": "photocraft",
+        "version": "0.23.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/photocraft",
+        "revision": "45066c48292e92229ada3459a83453439514c83d",
+        "lock": "craft/engines/image.lock.json",
+        "lock_sha256": "8927da49c7a25e93d2887324beddae8e5374b5c3abed88e1eb03c8276b681518"
+      }
+    },
+    {
+      "operation": "video.create",
+      "family": "video",
+      "adapter": "craft/runtime/studio_runtime/video.py",
+      "parameter_validator": "craft/runtime/studio_runtime/video.py:validate",
+      "contract": "craft/runtime/VIDEO.md",
+      "scope": "Typed timeline, imported project assets, named clip and title revisions",
+      "deliverables": ".fcproj; MP4",
+      "engine": {
+        "name": "filmcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/filmcraft",
+        "revision": "cedf0c9bd060eb06a977d532402be2097c9ebe42",
+        "lock": "craft/engines/video.lock.json",
+        "lock_sha256": "0a01a1812d9c2295f1c56cbeedf703f576894753fad93f13aa23fd833c470026"
+      }
+    },
+    {
+      "operation": "video.edit",
+      "family": "video",
+      "adapter": "craft/runtime/studio_runtime/video.py",
+      "parameter_validator": "craft/runtime/studio_runtime/video.py:validate",
+      "contract": "craft/runtime/VIDEO.md",
+      "scope": "Typed timeline, imported project assets, named clip and title revisions",
+      "deliverables": ".fcproj; MP4",
+      "engine": {
+        "name": "filmcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/filmcraft",
+        "revision": "cedf0c9bd060eb06a977d532402be2097c9ebe42",
+        "lock": "craft/engines/video.lock.json",
+        "lock_sha256": "0a01a1812d9c2295f1c56cbeedf703f576894753fad93f13aa23fd833c470026"
+      }
+    },
+    {
+      "operation": "motion.create",
+      "family": "motion",
+      "adapter": "craft/runtime/studio_runtime/motion.py",
+      "parameter_validator": "craft/runtime/studio_runtime/motion.py:validate",
+      "contract": "craft/runtime/MOTION.md",
+      "scope": "Typed layers and property/keyframe revisions",
+      "deliverables": ".ecproj; PNG frames and MP4",
+      "engine": {
+        "name": "effectcraft",
+        "version": "0.24.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/effectcraft",
+        "revision": "582344dd4ef462362c02e56e3094de7af01847ab",
+        "lock": "craft/engines/motion.lock.json",
+        "lock_sha256": "6fda0b9b404bb82deb90651ad17b81baaa959008e70f8f45cc541b5db1026bdf"
+      }
+    },
+    {
+      "operation": "motion.edit",
+      "family": "motion",
+      "adapter": "craft/runtime/studio_runtime/motion.py",
+      "parameter_validator": "craft/runtime/studio_runtime/motion.py:validate",
+      "contract": "craft/runtime/MOTION.md",
+      "scope": "Typed layers and property/keyframe revisions",
+      "deliverables": ".ecproj; PNG frames and MP4",
+      "engine": {
+        "name": "effectcraft",
+        "version": "0.24.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/effectcraft",
+        "revision": "582344dd4ef462362c02e56e3094de7af01847ab",
+        "lock": "craft/engines/motion.lock.json",
+        "lock_sha256": "6fda0b9b404bb82deb90651ad17b81baaa959008e70f8f45cc541b5db1026bdf"
+      }
+    },
+    {
+      "operation": "audio.create",
+      "family": "audio",
+      "adapter": "craft/runtime/studio_runtime/audio.py",
+      "parameter_validator": "craft/runtime/studio_runtime/audio.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Owned audio tracks, clip placement, gain and fades",
+      "deliverables": ".scraft; WAV",
+      "engine": {
+        "name": "soundcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/soundcraft",
+        "revision": "a52bbdccbe15342f44e0de1906bf71a621e7a68f",
+        "lock": "craft/engines/audio.lock.json",
+        "lock_sha256": "182c397dde73bc5bff2b10968da6b7659b4a1c0dd20ae8a8ee942a41656490ed"
+      }
+    },
+    {
+      "operation": "audio.edit",
+      "family": "audio",
+      "adapter": "craft/runtime/studio_runtime/audio.py",
+      "parameter_validator": "craft/runtime/studio_runtime/audio.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Owned audio tracks, clip placement, gain and fades",
+      "deliverables": ".scraft; WAV",
+      "engine": {
+        "name": "soundcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/soundcraft",
+        "revision": "a52bbdccbe15342f44e0de1906bf71a621e7a68f",
+        "lock": "craft/engines/audio.lock.json",
+        "lock_sha256": "182c397dde73bc5bff2b10968da6b7659b4a1c0dd20ae8a8ee942a41656490ed"
+      }
+    },
+    {
+      "operation": "photo.create",
+      "family": "photo",
+      "adapter": "craft/runtime/studio_runtime/photo_library.py",
+      "parameter_validator": "craft/runtime/studio_runtime/photo_library.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Owned photo library and bounded development edits; DNG profile",
+      "deliverables": "Native library and owned originals; PNG",
+      "engine": {
+        "name": "lightcraft",
+        "version": "0.21.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/lightcraft",
+        "revision": "361e3bc0c838ffe5e5cea515b1fe5b71951989c6",
+        "lock": "craft/engines/photo.lock.json",
+        "lock_sha256": "fa60909684a366e3102a0d6390b26b89c31232c0bdb43a39c17292f3834ef7c8"
+      }
+    },
+    {
+      "operation": "photo.edit",
+      "family": "photo",
+      "adapter": "craft/runtime/studio_runtime/photo_library.py",
+      "parameter_validator": "craft/runtime/studio_runtime/photo_library.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Owned photo library and bounded development edits; DNG profile",
+      "deliverables": "Native library and owned originals; PNG",
+      "engine": {
+        "name": "lightcraft",
+        "version": "0.21.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/lightcraft",
+        "revision": "361e3bc0c838ffe5e5cea515b1fe5b71951989c6",
+        "lock": "craft/engines/photo.lock.json",
+        "lock_sha256": "fa60909684a366e3102a0d6390b26b89c31232c0bdb43a39c17292f3834ef7c8"
+      }
+    },
+    {
+      "operation": "pdf.create",
+      "family": "pdf",
+      "adapter": "craft/runtime/studio_runtime/pdf.py",
+      "parameter_validator": "craft/runtime/studio_runtime/pdf.py:validate",
+      "contract": "craft/runtime/PDF.md",
+      "scope": "Bounded static PDF creation, import, merge, extraction and edits",
+      "deliverables": "PDF; inspection and previews",
+      "engine": {
+        "name": "pdfcraft",
+        "version": "0.21.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/pdfcraft",
+        "revision": "b503b2e62dfeec5598f344e4e287d9c9cbdb34fa",
+        "lock": "craft/engines/pdf.lock.json",
+        "lock_sha256": "4ec85a33847e624adfe2a8cbcaf8050c2742bd9c6db9a7bd80a2add4971c2bba"
+      }
+    },
+    {
+      "operation": "pdf.import",
+      "family": "pdf",
+      "adapter": "craft/runtime/studio_runtime/pdf.py",
+      "parameter_validator": "craft/runtime/studio_runtime/pdf.py:validate",
+      "contract": "craft/runtime/PDF.md",
+      "scope": "Bounded static PDF creation, import, merge, extraction and edits",
+      "deliverables": "PDF; inspection and previews",
+      "engine": {
+        "name": "pdfcraft",
+        "version": "0.21.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/pdfcraft",
+        "revision": "b503b2e62dfeec5598f344e4e287d9c9cbdb34fa",
+        "lock": "craft/engines/pdf.lock.json",
+        "lock_sha256": "4ec85a33847e624adfe2a8cbcaf8050c2742bd9c6db9a7bd80a2add4971c2bba"
+      }
+    },
+    {
+      "operation": "pdf.inspect",
+      "family": "pdf",
+      "adapter": "craft/runtime/studio_runtime/pdf.py",
+      "parameter_validator": "craft/runtime/studio_runtime/pdf.py:validate",
+      "contract": "craft/runtime/PDF.md",
+      "scope": "Bounded static PDF creation, import, merge, extraction and edits",
+      "deliverables": "PDF; inspection and previews",
+      "engine": {
+        "name": "pdfcraft",
+        "version": "0.21.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/pdfcraft",
+        "revision": "b503b2e62dfeec5598f344e4e287d9c9cbdb34fa",
+        "lock": "craft/engines/pdf.lock.json",
+        "lock_sha256": "4ec85a33847e624adfe2a8cbcaf8050c2742bd9c6db9a7bd80a2add4971c2bba"
+      }
+    },
+    {
+      "operation": "pdf.merge",
+      "family": "pdf",
+      "adapter": "craft/runtime/studio_runtime/pdf.py",
+      "parameter_validator": "craft/runtime/studio_runtime/pdf.py:validate",
+      "contract": "craft/runtime/PDF.md",
+      "scope": "Bounded static PDF creation, import, merge, extraction and edits",
+      "deliverables": "PDF; inspection and previews",
+      "engine": {
+        "name": "pdfcraft",
+        "version": "0.21.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/pdfcraft",
+        "revision": "b503b2e62dfeec5598f344e4e287d9c9cbdb34fa",
+        "lock": "craft/engines/pdf.lock.json",
+        "lock_sha256": "4ec85a33847e624adfe2a8cbcaf8050c2742bd9c6db9a7bd80a2add4971c2bba"
+      }
+    },
+    {
+      "operation": "pdf.extract",
+      "family": "pdf",
+      "adapter": "craft/runtime/studio_runtime/pdf.py",
+      "parameter_validator": "craft/runtime/studio_runtime/pdf.py:validate",
+      "contract": "craft/runtime/PDF.md",
+      "scope": "Bounded static PDF creation, import, merge, extraction and edits",
+      "deliverables": "PDF; inspection and previews",
+      "engine": {
+        "name": "pdfcraft",
+        "version": "0.21.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/pdfcraft",
+        "revision": "b503b2e62dfeec5598f344e4e287d9c9cbdb34fa",
+        "lock": "craft/engines/pdf.lock.json",
+        "lock_sha256": "4ec85a33847e624adfe2a8cbcaf8050c2742bd9c6db9a7bd80a2add4971c2bba"
+      }
+    },
+    {
+      "operation": "pdf.edit",
+      "family": "pdf",
+      "adapter": "craft/runtime/studio_runtime/pdf.py",
+      "parameter_validator": "craft/runtime/studio_runtime/pdf.py:validate",
+      "contract": "craft/runtime/PDF.md",
+      "scope": "Bounded static PDF creation, import, merge, extraction and edits",
+      "deliverables": "PDF; inspection and previews",
+      "engine": {
+        "name": "pdfcraft",
+        "version": "0.21.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/pdfcraft",
+        "revision": "b503b2e62dfeec5598f344e4e287d9c9cbdb34fa",
+        "lock": "craft/engines/pdf.lock.json",
+        "lock_sha256": "4ec85a33847e624adfe2a8cbcaf8050c2742bd9c6db9a7bd80a2add4971c2bba"
+      }
+    },
+    {
+      "operation": "layout.create",
+      "family": "layout",
+      "adapter": "craft/runtime/studio_runtime/layout.py",
+      "parameter_validator": "craft/runtime/studio_runtime/layout.py:validate",
+      "contract": "craft/runtime/LAYOUT.md",
+      "scope": "Admitted page/story/image models; bounded IDML interchange",
+      "deliverables": ".designcraft; PDF, IDML and PNG previews",
+      "engine": {
+        "name": "designcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/designcraft",
+        "revision": "33a467872268c98536231491865b4011b0275b17",
+        "lock": "craft/engines/layout.lock.json",
+        "lock_sha256": "fd76bca333a61e886b6a6394dfcbba99bfb9650a1b6b4f5393f7d210dba8001d"
+      }
+    },
+    {
+      "operation": "layout.import",
+      "family": "layout",
+      "adapter": "craft/runtime/studio_runtime/layout.py",
+      "parameter_validator": "craft/runtime/studio_runtime/layout.py:validate",
+      "contract": "craft/runtime/LAYOUT.md",
+      "scope": "Admitted page/story/image models; bounded IDML interchange",
+      "deliverables": ".designcraft; PDF, IDML and PNG previews",
+      "engine": {
+        "name": "designcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/designcraft",
+        "revision": "33a467872268c98536231491865b4011b0275b17",
+        "lock": "craft/engines/layout.lock.json",
+        "lock_sha256": "fd76bca333a61e886b6a6394dfcbba99bfb9650a1b6b4f5393f7d210dba8001d"
+      }
+    },
+    {
+      "operation": "layout.inspect",
+      "family": "layout",
+      "adapter": "craft/runtime/studio_runtime/layout.py",
+      "parameter_validator": "craft/runtime/studio_runtime/layout.py:validate",
+      "contract": "craft/runtime/LAYOUT.md",
+      "scope": "Admitted page/story/image models; bounded IDML interchange",
+      "deliverables": ".designcraft; PDF, IDML and PNG previews",
+      "engine": {
+        "name": "designcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/designcraft",
+        "revision": "33a467872268c98536231491865b4011b0275b17",
+        "lock": "craft/engines/layout.lock.json",
+        "lock_sha256": "fd76bca333a61e886b6a6394dfcbba99bfb9650a1b6b4f5393f7d210dba8001d"
+      }
+    },
+    {
+      "operation": "layout.edit",
+      "family": "layout",
+      "adapter": "craft/runtime/studio_runtime/layout.py",
+      "parameter_validator": "craft/runtime/studio_runtime/layout.py:validate",
+      "contract": "craft/runtime/LAYOUT.md",
+      "scope": "Admitted page/story/image models; bounded IDML interchange",
+      "deliverables": ".designcraft; PDF, IDML and PNG previews",
+      "engine": {
+        "name": "designcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/designcraft",
+        "revision": "33a467872268c98536231491865b4011b0275b17",
+        "lock": "craft/engines/layout.lock.json",
+        "lock_sha256": "fd76bca333a61e886b6a6394dfcbba99bfb9650a1b6b4f5393f7d210dba8001d"
+      }
+    },
+    {
+      "operation": "interface.create",
+      "family": "interface",
+      "adapter": "craft/runtime/studio_runtime/interface.py",
+      "parameter_validator": "craft/runtime/studio_runtime/interface.py:validate",
+      "contract": "craft/runtime/INTERFACE.md",
+      "scope": "Admitted interface documents and named edits",
+      "deliverables": ".figcraft; inspection and previews",
+      "engine": {
+        "name": "figcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/figcraft",
+        "revision": "4acc293c2ec941ac1400837ee7e3ab51780399f8",
+        "lock": "craft/engines/interface.lock.json",
+        "lock_sha256": "214076a2a842b48864a840f85943bf7202987334e03ed472ef7f4ef6ef5ca8ad"
+      }
+    },
+    {
+      "operation": "interface.import",
+      "family": "interface",
+      "adapter": "craft/runtime/studio_runtime/interface.py",
+      "parameter_validator": "craft/runtime/studio_runtime/interface.py:validate",
+      "contract": "craft/runtime/INTERFACE.md",
+      "scope": "Admitted interface documents and named edits",
+      "deliverables": ".figcraft; inspection and previews",
+      "engine": {
+        "name": "figcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/figcraft",
+        "revision": "4acc293c2ec941ac1400837ee7e3ab51780399f8",
+        "lock": "craft/engines/interface.lock.json",
+        "lock_sha256": "214076a2a842b48864a840f85943bf7202987334e03ed472ef7f4ef6ef5ca8ad"
+      }
+    },
+    {
+      "operation": "interface.inspect",
+      "family": "interface",
+      "adapter": "craft/runtime/studio_runtime/interface.py",
+      "parameter_validator": "craft/runtime/studio_runtime/interface.py:validate",
+      "contract": "craft/runtime/INTERFACE.md",
+      "scope": "Admitted interface documents and named edits",
+      "deliverables": ".figcraft; inspection and previews",
+      "engine": {
+        "name": "figcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/figcraft",
+        "revision": "4acc293c2ec941ac1400837ee7e3ab51780399f8",
+        "lock": "craft/engines/interface.lock.json",
+        "lock_sha256": "214076a2a842b48864a840f85943bf7202987334e03ed472ef7f4ef6ef5ca8ad"
+      }
+    },
+    {
+      "operation": "interface.edit",
+      "family": "interface",
+      "adapter": "craft/runtime/studio_runtime/interface.py",
+      "parameter_validator": "craft/runtime/studio_runtime/interface.py:validate",
+      "contract": "craft/runtime/INTERFACE.md",
+      "scope": "Admitted interface documents and named edits",
+      "deliverables": ".figcraft; inspection and previews",
+      "engine": {
+        "name": "figcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/figcraft",
+        "revision": "4acc293c2ec941ac1400837ee7e3ab51780399f8",
+        "lock": "craft/engines/interface.lock.json",
+        "lock_sha256": "214076a2a842b48864a840f85943bf7202987334e03ed472ef7f4ef6ef5ca8ad"
+      }
+    },
+    {
+      "operation": "animate.create",
+      "family": "animate",
+      "adapter": "craft/runtime/studio_runtime/animate.py",
+      "parameter_validator": "craft/runtime/studio_runtime/animate.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Admitted native animation and explicit export profiles",
+      "deliverables": ".anicraft; profile-specific raster/video exports",
+      "engine": {
+        "name": "anicraft",
+        "version": "0.2.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/anicraft",
+        "revision": "d0beaf253274948b55ee9e1107749f9491bff880",
+        "lock": "craft/engines/animate.lock.json",
+        "lock_sha256": "16ae0ce95db0064b435ca34cb6d20d031e84d641f5be9559424cf3cc35a46790"
+      }
+    },
+    {
+      "operation": "animate.import",
+      "family": "animate",
+      "adapter": "craft/runtime/studio_runtime/animate.py",
+      "parameter_validator": "craft/runtime/studio_runtime/animate.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Admitted native animation and explicit export profiles",
+      "deliverables": ".anicraft; profile-specific raster/video exports",
+      "engine": {
+        "name": "anicraft",
+        "version": "0.2.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/anicraft",
+        "revision": "d0beaf253274948b55ee9e1107749f9491bff880",
+        "lock": "craft/engines/animate.lock.json",
+        "lock_sha256": "16ae0ce95db0064b435ca34cb6d20d031e84d641f5be9559424cf3cc35a46790"
+      }
+    },
+    {
+      "operation": "animate.inspect",
+      "family": "animate",
+      "adapter": "craft/runtime/studio_runtime/animate.py",
+      "parameter_validator": "craft/runtime/studio_runtime/animate.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Admitted native animation and explicit export profiles",
+      "deliverables": ".anicraft; profile-specific raster/video exports",
+      "engine": {
+        "name": "anicraft",
+        "version": "0.2.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/anicraft",
+        "revision": "d0beaf253274948b55ee9e1107749f9491bff880",
+        "lock": "craft/engines/animate.lock.json",
+        "lock_sha256": "16ae0ce95db0064b435ca34cb6d20d031e84d641f5be9559424cf3cc35a46790"
+      }
+    },
+    {
+      "operation": "animate.edit",
+      "family": "animate",
+      "adapter": "craft/runtime/studio_runtime/animate.py",
+      "parameter_validator": "craft/runtime/studio_runtime/animate.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Admitted native animation and explicit export profiles",
+      "deliverables": ".anicraft; profile-specific raster/video exports",
+      "engine": {
+        "name": "anicraft",
+        "version": "0.2.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/anicraft",
+        "revision": "d0beaf253274948b55ee9e1107749f9491bff880",
+        "lock": "craft/engines/animate.lock.json",
+        "lock_sha256": "16ae0ce95db0064b435ca34cb6d20d031e84d641f5be9559424cf3cc35a46790"
+      }
+    },
+    {
+      "operation": "animate.export",
+      "family": "animate",
+      "adapter": "craft/runtime/studio_runtime/animate.py",
+      "parameter_validator": "craft/runtime/studio_runtime/animate.py:validate",
+      "contract": "craft/runtime/README.md",
+      "scope": "Admitted native animation and explicit export profiles",
+      "deliverables": ".anicraft; profile-specific raster/video exports",
+      "engine": {
+        "name": "anicraft",
+        "version": "0.2.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/anicraft",
+        "revision": "d0beaf253274948b55ee9e1107749f9491bff880",
+        "lock": "craft/engines/animate.lock.json",
+        "lock_sha256": "16ae0ce95db0064b435ca34cb6d20d031e84d641f5be9559424cf3cc35a46790"
+      }
+    },
+    {
+      "operation": "texture.create",
+      "family": "texture",
+      "adapter": "craft/runtime/studio_runtime/texture.py",
+      "parameter_validator": "craft/runtime/studio_runtime/texture.py:validate",
+      "contract": "craft/runtime/TEXTURE.md",
+      "scope": "Texture creation, edits, export, CPU preview, baking and material handoff",
+      "deliverables": "Native texture project; PNG and handoff artifacts",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/texturecraft",
+        "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+        "lock": "craft/engines/texture.lock.json",
+        "lock_sha256": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3"
+      }
+    },
+    {
+      "operation": "texture.import",
+      "family": "texture",
+      "adapter": "craft/runtime/studio_runtime/texture.py",
+      "parameter_validator": "craft/runtime/studio_runtime/texture.py:validate",
+      "contract": "craft/runtime/TEXTURE.md",
+      "scope": "Texture creation, edits, export, CPU preview, baking and material handoff",
+      "deliverables": "Native texture project; PNG and handoff artifacts",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/texturecraft",
+        "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+        "lock": "craft/engines/texture.lock.json",
+        "lock_sha256": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3"
+      }
+    },
+    {
+      "operation": "texture.inspect",
+      "family": "texture",
+      "adapter": "craft/runtime/studio_runtime/texture.py",
+      "parameter_validator": "craft/runtime/studio_runtime/texture.py:validate",
+      "contract": "craft/runtime/TEXTURE.md",
+      "scope": "Texture creation, edits, export, CPU preview, baking and material handoff",
+      "deliverables": "Native texture project; PNG and handoff artifacts",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/texturecraft",
+        "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+        "lock": "craft/engines/texture.lock.json",
+        "lock_sha256": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3"
+      }
+    },
+    {
+      "operation": "texture.edit",
+      "family": "texture",
+      "adapter": "craft/runtime/studio_runtime/texture.py",
+      "parameter_validator": "craft/runtime/studio_runtime/texture.py:validate",
+      "contract": "craft/runtime/TEXTURE.md",
+      "scope": "Texture creation, edits, export, CPU preview, baking and material handoff",
+      "deliverables": "Native texture project; PNG and handoff artifacts",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/texturecraft",
+        "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+        "lock": "craft/engines/texture.lock.json",
+        "lock_sha256": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3"
+      }
+    },
+    {
+      "operation": "texture.export",
+      "family": "texture",
+      "adapter": "craft/runtime/studio_runtime/texture.py",
+      "parameter_validator": "craft/runtime/studio_runtime/texture.py:validate",
+      "contract": "craft/runtime/TEXTURE.md",
+      "scope": "Texture creation, edits, export, CPU preview, baking and material handoff",
+      "deliverables": "Native texture project; PNG and handoff artifacts",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/texturecraft",
+        "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+        "lock": "craft/engines/texture.lock.json",
+        "lock_sha256": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3"
+      }
+    },
+    {
+      "operation": "texture.render",
+      "family": "texture",
+      "adapter": "craft/runtime/studio_runtime/texture.py",
+      "parameter_validator": "craft/runtime/studio_runtime/texture.py:validate",
+      "contract": "craft/runtime/TEXTURE.md",
+      "scope": "Texture creation, edits, export, CPU preview, baking and material handoff",
+      "deliverables": "Native texture project; PNG and handoff artifacts",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/texturecraft",
+        "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+        "lock": "craft/engines/texture.lock.json",
+        "lock_sha256": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3"
+      }
+    },
+    {
+      "operation": "texture.bake",
+      "family": "texture",
+      "adapter": "craft/runtime/studio_runtime/texture.py",
+      "parameter_validator": "craft/runtime/studio_runtime/texture.py:validate",
+      "contract": "craft/runtime/TEXTURE.md",
+      "scope": "Texture creation, edits, export, CPU preview, baking and material handoff",
+      "deliverables": "Native texture project; PNG and handoff artifacts",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/texturecraft",
+        "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+        "lock": "craft/engines/texture.lock.json",
+        "lock_sha256": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3"
+      }
+    },
+    {
+      "operation": "texture.material",
+      "family": "texture",
+      "adapter": "craft/runtime/studio_runtime/texture.py",
+      "parameter_validator": "craft/runtime/studio_runtime/texture.py:validate",
+      "contract": "craft/runtime/TEXTURE.md",
+      "scope": "Texture creation, edits, export, CPU preview, baking and material handoff",
+      "deliverables": "Native texture project; PNG and handoff artifacts",
+      "engine": {
+        "name": "texturecraft",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/texturecraft",
+        "revision": "34a196190fe2daa2f43017a0f32b254cca4836f2",
+        "lock": "craft/engines/texture.lock.json",
+        "lock_sha256": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3"
+      }
+    },
+    {
+      "operation": "material.create",
+      "family": "material",
+      "adapter": "craft/runtime/studio_runtime/material.py",
+      "parameter_validator": "craft/runtime/studio_runtime/material.py:validate",
+      "contract": "craft/runtime/MATERIAL.md",
+      "scope": "Bounded material source, evaluation, maps and CPU previews",
+      "deliverables": "Portable material project; maps and preview",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/materialcraft",
+        "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+        "lock": "craft/engines/material.lock.json",
+        "lock_sha256": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b"
+      }
+    },
+    {
+      "operation": "material.import",
+      "family": "material",
+      "adapter": "craft/runtime/studio_runtime/material.py",
+      "parameter_validator": "craft/runtime/studio_runtime/material.py:validate",
+      "contract": "craft/runtime/MATERIAL.md",
+      "scope": "Bounded material source, evaluation, maps and CPU previews",
+      "deliverables": "Portable material project; maps and preview",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/materialcraft",
+        "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+        "lock": "craft/engines/material.lock.json",
+        "lock_sha256": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b"
+      }
+    },
+    {
+      "operation": "material.inspect",
+      "family": "material",
+      "adapter": "craft/runtime/studio_runtime/material.py",
+      "parameter_validator": "craft/runtime/studio_runtime/material.py:validate",
+      "contract": "craft/runtime/MATERIAL.md",
+      "scope": "Bounded material source, evaluation, maps and CPU previews",
+      "deliverables": "Portable material project; maps and preview",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/materialcraft",
+        "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+        "lock": "craft/engines/material.lock.json",
+        "lock_sha256": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b"
+      }
+    },
+    {
+      "operation": "material.edit",
+      "family": "material",
+      "adapter": "craft/runtime/studio_runtime/material.py",
+      "parameter_validator": "craft/runtime/studio_runtime/material.py:validate",
+      "contract": "craft/runtime/MATERIAL.md",
+      "scope": "Bounded material source, evaluation, maps and CPU previews",
+      "deliverables": "Portable material project; maps and preview",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/materialcraft",
+        "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+        "lock": "craft/engines/material.lock.json",
+        "lock_sha256": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b"
+      }
+    },
+    {
+      "operation": "material.cook",
+      "family": "material",
+      "adapter": "craft/runtime/studio_runtime/material.py",
+      "parameter_validator": "craft/runtime/studio_runtime/material.py:validate",
+      "contract": "craft/runtime/MATERIAL.md",
+      "scope": "Bounded material source, evaluation, maps and CPU previews",
+      "deliverables": "Portable material project; maps and preview",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/materialcraft",
+        "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+        "lock": "craft/engines/material.lock.json",
+        "lock_sha256": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b"
+      }
+    },
+    {
+      "operation": "material.export",
+      "family": "material",
+      "adapter": "craft/runtime/studio_runtime/material.py",
+      "parameter_validator": "craft/runtime/studio_runtime/material.py:validate",
+      "contract": "craft/runtime/MATERIAL.md",
+      "scope": "Bounded material source, evaluation, maps and CPU previews",
+      "deliverables": "Portable material project; maps and preview",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/materialcraft",
+        "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+        "lock": "craft/engines/material.lock.json",
+        "lock_sha256": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b"
+      }
+    },
+    {
+      "operation": "material.preview",
+      "family": "material",
+      "adapter": "craft/runtime/studio_runtime/material.py",
+      "parameter_validator": "craft/runtime/studio_runtime/material.py:validate",
+      "contract": "craft/runtime/MATERIAL.md",
+      "scope": "Bounded material source, evaluation, maps and CPU previews",
+      "deliverables": "Portable material project; maps and preview",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/materialcraft",
+        "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+        "lock": "craft/engines/material.lock.json",
+        "lock_sha256": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b"
+      }
+    },
+    {
+      "operation": "material.bundle",
+      "family": "material",
+      "adapter": "craft/runtime/studio_runtime/material.py",
+      "parameter_validator": "craft/runtime/studio_runtime/material.py:validate",
+      "contract": "craft/runtime/MATERIAL.md",
+      "scope": "Bounded material source, evaluation, maps and CPU previews",
+      "deliverables": "Portable material project; maps and preview",
+      "engine": {
+        "name": "materialcraft",
+        "version": "0.4.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/materialcraft",
+        "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+        "lock": "craft/engines/material.lock.json",
+        "lock_sha256": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b"
+      }
+    },
+    {
+      "operation": "write.create",
+      "family": "write",
+      "adapter": "craft/runtime/studio_runtime/write.py",
+      "parameter_validator": "craft/runtime/studio_runtime/write.py:validate",
+      "contract": "craft/runtime/WRITE.md",
+      "scope": "Receipt-bound document models, edits and portable originals",
+      "deliverables": ".dobewrite; PNG and PDF",
+      "engine": {
+        "name": "wordcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/wordcraft",
+        "revision": "079f478bd85df7bcc567e3bafa7d7219096f9c3c",
+        "lock": "craft/engines/write.lock.json",
+        "lock_sha256": "e54589e6483c7958228df1136b0fd9e50a163dabe79c30c6dca3766e4e9c9d6b"
+      }
+    },
+    {
+      "operation": "write.import",
+      "family": "write",
+      "adapter": "craft/runtime/studio_runtime/write.py",
+      "parameter_validator": "craft/runtime/studio_runtime/write.py:validate",
+      "contract": "craft/runtime/WRITE.md",
+      "scope": "Receipt-bound document models, edits and portable originals",
+      "deliverables": ".dobewrite; PNG and PDF",
+      "engine": {
+        "name": "wordcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/wordcraft",
+        "revision": "079f478bd85df7bcc567e3bafa7d7219096f9c3c",
+        "lock": "craft/engines/write.lock.json",
+        "lock_sha256": "e54589e6483c7958228df1136b0fd9e50a163dabe79c30c6dca3766e4e9c9d6b"
+      }
+    },
+    {
+      "operation": "write.inspect",
+      "family": "write",
+      "adapter": "craft/runtime/studio_runtime/write.py",
+      "parameter_validator": "craft/runtime/studio_runtime/write.py:validate",
+      "contract": "craft/runtime/WRITE.md",
+      "scope": "Receipt-bound document models, edits and portable originals",
+      "deliverables": ".dobewrite; PNG and PDF",
+      "engine": {
+        "name": "wordcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/wordcraft",
+        "revision": "079f478bd85df7bcc567e3bafa7d7219096f9c3c",
+        "lock": "craft/engines/write.lock.json",
+        "lock_sha256": "e54589e6483c7958228df1136b0fd9e50a163dabe79c30c6dca3766e4e9c9d6b"
+      }
+    },
+    {
+      "operation": "write.edit",
+      "family": "write",
+      "adapter": "craft/runtime/studio_runtime/write.py",
+      "parameter_validator": "craft/runtime/studio_runtime/write.py:validate",
+      "contract": "craft/runtime/WRITE.md",
+      "scope": "Receipt-bound document models, edits and portable originals",
+      "deliverables": ".dobewrite; PNG and PDF",
+      "engine": {
+        "name": "wordcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/wordcraft",
+        "revision": "079f478bd85df7bcc567e3bafa7d7219096f9c3c",
+        "lock": "craft/engines/write.lock.json",
+        "lock_sha256": "e54589e6483c7958228df1136b0fd9e50a163dabe79c30c6dca3766e4e9c9d6b"
+      }
+    },
+    {
+      "operation": "write.bundle",
+      "family": "write",
+      "adapter": "craft/runtime/studio_runtime/write.py",
+      "parameter_validator": "craft/runtime/studio_runtime/write.py:validate",
+      "contract": "craft/runtime/WRITE.md",
+      "scope": "Receipt-bound document models, edits and portable originals",
+      "deliverables": ".dobewrite; PNG and PDF",
+      "engine": {
+        "name": "wordcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/wordcraft",
+        "revision": "079f478bd85df7bcc567e3bafa7d7219096f9c3c",
+        "lock": "craft/engines/write.lock.json",
+        "lock_sha256": "e54589e6483c7958228df1136b0fd9e50a163dabe79c30c6dca3766e4e9c9d6b"
+      }
+    },
+    {
+      "operation": "write.export",
+      "family": "write",
+      "adapter": "craft/runtime/studio_runtime/write.py",
+      "parameter_validator": "craft/runtime/studio_runtime/write.py:validate",
+      "contract": "craft/runtime/WRITE.md",
+      "scope": "Receipt-bound document models, edits and portable originals",
+      "deliverables": ".dobewrite; PNG and PDF",
+      "engine": {
+        "name": "wordcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/wordcraft",
+        "revision": "079f478bd85df7bcc567e3bafa7d7219096f9c3c",
+        "lock": "craft/engines/write.lock.json",
+        "lock_sha256": "e54589e6483c7958228df1136b0fd9e50a163dabe79c30c6dca3766e4e9c9d6b"
+      }
+    },
+    {
+      "operation": "slides.create",
+      "family": "slides",
+      "adapter": "craft/runtime/studio_runtime/slides.py",
+      "parameter_validator": "craft/runtime/studio_runtime/slides.py:validate",
+      "contract": "craft/runtime/SLIDES.md",
+      "scope": "Admitted presentations, precise edits and explicit engine migration",
+      "deliverables": ".dobeslides; PNG and PDF",
+      "engine": {
+        "name": "deckcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/deckcraft",
+        "revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+        "lock": "craft/engines/slides.lock.json",
+        "lock_sha256": "60614491e1c2f2194cfc1078d415cec9eaf9a4b4b8d1935875434ede7ec086ef"
+      }
+    },
+    {
+      "operation": "slides.import",
+      "family": "slides",
+      "adapter": "craft/runtime/studio_runtime/slides.py",
+      "parameter_validator": "craft/runtime/studio_runtime/slides.py:validate",
+      "contract": "craft/runtime/SLIDES.md",
+      "scope": "Admitted presentations, precise edits and explicit engine migration",
+      "deliverables": ".dobeslides; PNG and PDF",
+      "engine": {
+        "name": "deckcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/deckcraft",
+        "revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+        "lock": "craft/engines/slides.lock.json",
+        "lock_sha256": "60614491e1c2f2194cfc1078d415cec9eaf9a4b4b8d1935875434ede7ec086ef"
+      }
+    },
+    {
+      "operation": "slides.inspect",
+      "family": "slides",
+      "adapter": "craft/runtime/studio_runtime/slides.py",
+      "parameter_validator": "craft/runtime/studio_runtime/slides.py:validate",
+      "contract": "craft/runtime/SLIDES.md",
+      "scope": "Admitted presentations, precise edits and explicit engine migration",
+      "deliverables": ".dobeslides; PNG and PDF",
+      "engine": {
+        "name": "deckcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/deckcraft",
+        "revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+        "lock": "craft/engines/slides.lock.json",
+        "lock_sha256": "60614491e1c2f2194cfc1078d415cec9eaf9a4b4b8d1935875434ede7ec086ef"
+      }
+    },
+    {
+      "operation": "slides.edit",
+      "family": "slides",
+      "adapter": "craft/runtime/studio_runtime/slides.py",
+      "parameter_validator": "craft/runtime/studio_runtime/slides.py:validate",
+      "contract": "craft/runtime/SLIDES.md",
+      "scope": "Admitted presentations, precise edits and explicit engine migration",
+      "deliverables": ".dobeslides; PNG and PDF",
+      "engine": {
+        "name": "deckcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/deckcraft",
+        "revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+        "lock": "craft/engines/slides.lock.json",
+        "lock_sha256": "60614491e1c2f2194cfc1078d415cec9eaf9a4b4b8d1935875434ede7ec086ef"
+      }
+    },
+    {
+      "operation": "slides.bundle",
+      "family": "slides",
+      "adapter": "craft/runtime/studio_runtime/slides.py",
+      "parameter_validator": "craft/runtime/studio_runtime/slides.py:validate",
+      "contract": "craft/runtime/SLIDES.md",
+      "scope": "Admitted presentations, precise edits and explicit engine migration",
+      "deliverables": ".dobeslides; PNG and PDF",
+      "engine": {
+        "name": "deckcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/deckcraft",
+        "revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+        "lock": "craft/engines/slides.lock.json",
+        "lock_sha256": "60614491e1c2f2194cfc1078d415cec9eaf9a4b4b8d1935875434ede7ec086ef"
+      }
+    },
+    {
+      "operation": "slides.export",
+      "family": "slides",
+      "adapter": "craft/runtime/studio_runtime/slides.py",
+      "parameter_validator": "craft/runtime/studio_runtime/slides.py:validate",
+      "contract": "craft/runtime/SLIDES.md",
+      "scope": "Admitted presentations, precise edits and explicit engine migration",
+      "deliverables": ".dobeslides; PNG and PDF",
+      "engine": {
+        "name": "deckcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/deckcraft",
+        "revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+        "lock": "craft/engines/slides.lock.json",
+        "lock_sha256": "60614491e1c2f2194cfc1078d415cec9eaf9a4b4b8d1935875434ede7ec086ef"
+      }
+    },
+    {
+      "operation": "slides.migrate",
+      "family": "slides",
+      "adapter": "craft/runtime/studio_runtime/slides.py",
+      "parameter_validator": "craft/runtime/studio_runtime/slides.py:validate",
+      "contract": "craft/runtime/SLIDES.md",
+      "scope": "Admitted presentations, precise edits and explicit engine migration",
+      "deliverables": ".dobeslides; PNG and PDF",
+      "engine": {
+        "name": "deckcraft",
+        "version": "0.18.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/deckcraft",
+        "revision": "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440",
+        "lock": "craft/engines/slides.lock.json",
+        "lock_sha256": "60614491e1c2f2194cfc1078d415cec9eaf9a4b4b8d1935875434ede7ec086ef"
+      }
+    },
+    {
+      "operation": "cad.create",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "cad.import",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "cad.inspect",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "cad.edit",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "cad.solve",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "cad.solid",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "cad.export",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "cad.bundle",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "cad.migrate",
+      "family": "cad",
+      "adapter": "craft/runtime/studio_runtime/cad.py",
+      "parameter_validator": "craft/runtime/studio_runtime/cad.py:validate",
+      "contract": "craft/runtime/CAD.md",
+      "scope": "Admitted drawing/panel models, solver, solid and explicit migration",
+      "deliverables": ".dobecad; OBJ",
+      "engine": {
+        "name": "cadcraft",
+        "version": "0.20.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/cadcraft",
+        "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+        "lock": "craft/engines/cad.lock.json",
+        "lock_sha256": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059"
+      }
+    },
+    {
+      "operation": "sheets.create",
+      "family": "sheets",
+      "adapter": "craft/runtime/studio_runtime/sheets.py",
+      "parameter_validator": "craft/runtime/studio_runtime/sheets.py:validate",
+      "contract": "craft/runtime/SHEETS.md",
+      "scope": "Typed cells, bounded formulas, recalculation and edits",
+      "deliverables": ".dobesheets; CSV and HTML",
+      "engine": {
+        "name": "gridcraft",
+        "version": "0.19.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/gridcraft",
+        "revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+        "lock": "craft/engines/sheets.lock.json",
+        "lock_sha256": "81399b2284de6058022e531ee534a36ecd9d34b8b21a571128d1a4dd68a697e4"
+      }
+    },
+    {
+      "operation": "sheets.import",
+      "family": "sheets",
+      "adapter": "craft/runtime/studio_runtime/sheets.py",
+      "parameter_validator": "craft/runtime/studio_runtime/sheets.py:validate",
+      "contract": "craft/runtime/SHEETS.md",
+      "scope": "Typed cells, bounded formulas, recalculation and edits",
+      "deliverables": ".dobesheets; CSV and HTML",
+      "engine": {
+        "name": "gridcraft",
+        "version": "0.19.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/gridcraft",
+        "revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+        "lock": "craft/engines/sheets.lock.json",
+        "lock_sha256": "81399b2284de6058022e531ee534a36ecd9d34b8b21a571128d1a4dd68a697e4"
+      }
+    },
+    {
+      "operation": "sheets.inspect",
+      "family": "sheets",
+      "adapter": "craft/runtime/studio_runtime/sheets.py",
+      "parameter_validator": "craft/runtime/studio_runtime/sheets.py:validate",
+      "contract": "craft/runtime/SHEETS.md",
+      "scope": "Typed cells, bounded formulas, recalculation and edits",
+      "deliverables": ".dobesheets; CSV and HTML",
+      "engine": {
+        "name": "gridcraft",
+        "version": "0.19.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/gridcraft",
+        "revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+        "lock": "craft/engines/sheets.lock.json",
+        "lock_sha256": "81399b2284de6058022e531ee534a36ecd9d34b8b21a571128d1a4dd68a697e4"
+      }
+    },
+    {
+      "operation": "sheets.edit",
+      "family": "sheets",
+      "adapter": "craft/runtime/studio_runtime/sheets.py",
+      "parameter_validator": "craft/runtime/studio_runtime/sheets.py:validate",
+      "contract": "craft/runtime/SHEETS.md",
+      "scope": "Typed cells, bounded formulas, recalculation and edits",
+      "deliverables": ".dobesheets; CSV and HTML",
+      "engine": {
+        "name": "gridcraft",
+        "version": "0.19.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/gridcraft",
+        "revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+        "lock": "craft/engines/sheets.lock.json",
+        "lock_sha256": "81399b2284de6058022e531ee534a36ecd9d34b8b21a571128d1a4dd68a697e4"
+      }
+    },
+    {
+      "operation": "sheets.calculate",
+      "family": "sheets",
+      "adapter": "craft/runtime/studio_runtime/sheets.py",
+      "parameter_validator": "craft/runtime/studio_runtime/sheets.py:validate",
+      "contract": "craft/runtime/SHEETS.md",
+      "scope": "Typed cells, bounded formulas, recalculation and edits",
+      "deliverables": ".dobesheets; CSV and HTML",
+      "engine": {
+        "name": "gridcraft",
+        "version": "0.19.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/gridcraft",
+        "revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+        "lock": "craft/engines/sheets.lock.json",
+        "lock_sha256": "81399b2284de6058022e531ee534a36ecd9d34b8b21a571128d1a4dd68a697e4"
+      }
+    },
+    {
+      "operation": "sheets.export",
+      "family": "sheets",
+      "adapter": "craft/runtime/studio_runtime/sheets.py",
+      "parameter_validator": "craft/runtime/studio_runtime/sheets.py:validate",
+      "contract": "craft/runtime/SHEETS.md",
+      "scope": "Typed cells, bounded formulas, recalculation and edits",
+      "deliverables": ".dobesheets; CSV and HTML",
+      "engine": {
+        "name": "gridcraft",
+        "version": "0.19.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/gridcraft",
+        "revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+        "lock": "craft/engines/sheets.lock.json",
+        "lock_sha256": "81399b2284de6058022e531ee534a36ecd9d34b8b21a571128d1a4dd68a697e4"
+      }
+    },
+    {
+      "operation": "sheets.bundle",
+      "family": "sheets",
+      "adapter": "craft/runtime/studio_runtime/sheets.py",
+      "parameter_validator": "craft/runtime/studio_runtime/sheets.py:validate",
+      "contract": "craft/runtime/SHEETS.md",
+      "scope": "Typed cells, bounded formulas, recalculation and edits",
+      "deliverables": ".dobesheets; CSV and HTML",
+      "engine": {
+        "name": "gridcraft",
+        "version": "0.19.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/gridcraft",
+        "revision": "476448d7d9f3a5f8e93fcf7d98b47fd52293fe7f",
+        "lock": "craft/engines/sheets.lock.json",
+        "lock_sha256": "81399b2284de6058022e531ee534a36ecd9d34b8b21a571128d1a4dd68a697e4"
+      }
+    },
+    {
+      "operation": "inspect.analyze",
+      "family": "inspect",
+      "adapter": "craft/runtime/studio_runtime/inspection.py",
+      "parameter_validator": "craft/runtime/studio_runtime/inspection.py:validate",
+      "contract": "craft/runtime/INSPECT.md",
+      "scope": "Explicitly authorized native/WASM/JavaScript analysis; annotations, no target execution",
+      "deliverables": ".dobeinspect; JSON and HTML",
+      "engine": {
+        "name": "craft-anything",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/craft-anything",
+        "revision": "48a9c5a60ff83ff620f98661339be6281a7debc6",
+        "lock": "craft/engines/inspect.lock.json",
+        "lock_sha256": "5d3546292bec27b3a0e8f466e26f2013617bba464b075e1f5514ef48dc312975"
+      }
+    },
+    {
+      "operation": "inspect.import",
+      "family": "inspect",
+      "adapter": "craft/runtime/studio_runtime/inspection.py",
+      "parameter_validator": "craft/runtime/studio_runtime/inspection.py:validate",
+      "contract": "craft/runtime/INSPECT.md",
+      "scope": "Explicitly authorized native/WASM/JavaScript analysis; annotations, no target execution",
+      "deliverables": ".dobeinspect; JSON and HTML",
+      "engine": {
+        "name": "craft-anything",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/craft-anything",
+        "revision": "48a9c5a60ff83ff620f98661339be6281a7debc6",
+        "lock": "craft/engines/inspect.lock.json",
+        "lock_sha256": "5d3546292bec27b3a0e8f466e26f2013617bba464b075e1f5514ef48dc312975"
+      }
+    },
+    {
+      "operation": "inspect.inspect",
+      "family": "inspect",
+      "adapter": "craft/runtime/studio_runtime/inspection.py",
+      "parameter_validator": "craft/runtime/studio_runtime/inspection.py:validate",
+      "contract": "craft/runtime/INSPECT.md",
+      "scope": "Explicitly authorized native/WASM/JavaScript analysis; annotations, no target execution",
+      "deliverables": ".dobeinspect; JSON and HTML",
+      "engine": {
+        "name": "craft-anything",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/craft-anything",
+        "revision": "48a9c5a60ff83ff620f98661339be6281a7debc6",
+        "lock": "craft/engines/inspect.lock.json",
+        "lock_sha256": "5d3546292bec27b3a0e8f466e26f2013617bba464b075e1f5514ef48dc312975"
+      }
+    },
+    {
+      "operation": "inspect.annotate",
+      "family": "inspect",
+      "adapter": "craft/runtime/studio_runtime/inspection.py",
+      "parameter_validator": "craft/runtime/studio_runtime/inspection.py:validate",
+      "contract": "craft/runtime/INSPECT.md",
+      "scope": "Explicitly authorized native/WASM/JavaScript analysis; annotations, no target execution",
+      "deliverables": ".dobeinspect; JSON and HTML",
+      "engine": {
+        "name": "craft-anything",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/craft-anything",
+        "revision": "48a9c5a60ff83ff620f98661339be6281a7debc6",
+        "lock": "craft/engines/inspect.lock.json",
+        "lock_sha256": "5d3546292bec27b3a0e8f466e26f2013617bba464b075e1f5514ef48dc312975"
+      }
+    },
+    {
+      "operation": "inspect.export",
+      "family": "inspect",
+      "adapter": "craft/runtime/studio_runtime/inspection.py",
+      "parameter_validator": "craft/runtime/studio_runtime/inspection.py:validate",
+      "contract": "craft/runtime/INSPECT.md",
+      "scope": "Explicitly authorized native/WASM/JavaScript analysis; annotations, no target execution",
+      "deliverables": ".dobeinspect; JSON and HTML",
+      "engine": {
+        "name": "craft-anything",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/craft-anything",
+        "revision": "48a9c5a60ff83ff620f98661339be6281a7debc6",
+        "lock": "craft/engines/inspect.lock.json",
+        "lock_sha256": "5d3546292bec27b3a0e8f466e26f2013617bba464b075e1f5514ef48dc312975"
+      }
+    },
+    {
+      "operation": "inspect.bundle",
+      "family": "inspect",
+      "adapter": "craft/runtime/studio_runtime/inspection.py",
+      "parameter_validator": "craft/runtime/studio_runtime/inspection.py:validate",
+      "contract": "craft/runtime/INSPECT.md",
+      "scope": "Explicitly authorized native/WASM/JavaScript analysis; annotations, no target execution",
+      "deliverables": ".dobeinspect; JSON and HTML",
+      "engine": {
+        "name": "craft-anything",
+        "version": "0.6.1"
+      },
+      "local_registered": true,
+      "hosted_admitted": true,
+      "installed_availability": "query_the_installed_package",
+      "release_qualification": "not_established_by_this_inventory",
+      "source": {
+        "url": "https://github.com/storytold/craft-anything",
+        "revision": "48a9c5a60ff83ff620f98661339be6281a7debc6",
+        "lock": "craft/engines/inspect.lock.json",
+        "lock_sha256": "5d3546292bec27b3a0e8f466e26f2013617bba464b075e1f5514ef48dc312975"
+      }
+    }
+  ],
+  "hosted_only": [
+    {
+      "operation": "project.import",
+      "contract": "craft/hosted/README.md",
+      "scope": "Isolated portable project import",
+      "release_qualification": "not_established_by_this_inventory"
+    }
+  ],
+  "source_files": {
+    "craft/capability_inventory.py": "e91823514f371ec4e9b7aaf5c28a7eab3e53a04338f6e9c83ed8cae564e04708",
+    "craft/engines/animate.lock.json": "16ae0ce95db0064b435ca34cb6d20d031e84d641f5be9559424cf3cc35a46790",
+    "craft/engines/animate.patch": "5bd59e4f9e2c458748fb28791187a79fa389f8771d4c4111c24ce6b63434e0db",
+    "craft/engines/audio.lock.json": "182c397dde73bc5bff2b10968da6b7659b4a1c0dd20ae8a8ee942a41656490ed",
+    "craft/engines/audio.patch": "8edd3ed67176948e05daeee5fcc266a84554210fb69b3066b11142ce6c6450ad",
+    "craft/engines/cad.lock.json": "383362c1a5e33c1623563d3c407206d0a3669fc723af644dfebdbe0460835059",
+    "craft/engines/cad.patch": "830dfb48f156a94bd8d48eb87105cee85b9684740c96f27a2aa9a00f396e9b6f",
+    "craft/engines/catalog.sources.json": "a2d8cf82fb767fd07f3a2da3e2d3bcafcdf1ccae8ec945cab42e4328b7a6916b",
+    "craft/engines/image.lock.json": "8927da49c7a25e93d2887324beddae8e5374b5c3abed88e1eb03c8276b681518",
+    "craft/engines/image.patch": "b960c1516efe0acc5f71ea0bc40e9c929edfe65c07b367bad6a39d0cdf7ba828",
+    "craft/engines/inspect.lock.json": "5d3546292bec27b3a0e8f466e26f2013617bba464b075e1f5514ef48dc312975",
+    "craft/engines/inspect.patch": "a58220b0c0401e99e56ec1ead33c7e2b6d8f54bcfeb1402018c3b8a360baee9e",
+    "craft/engines/interface.lock.json": "214076a2a842b48864a840f85943bf7202987334e03ed472ef7f4ef6ef5ca8ad",
+    "craft/engines/interface.patch": "276b90044867f40d67f0339b110dbc4f3542a070f1e142607066c19da5ef4f3a",
+    "craft/engines/layout.lock.json": "fd76bca333a61e886b6a6394dfcbba99bfb9650a1b6b4f5393f7d210dba8001d",
+    "craft/engines/layout.patch": "4c95ca6e05367ed9225aec3b474d4be1a53a74f0db3e44e41468cfe319c56a1e",
+    "craft/engines/material.lock.json": "2711c23762da15056049c11b0802e7cb751b47fca94f40d517ccb2848951be4b",
+    "craft/engines/material.patch": "d4bb665c4ee099de0a9893e9bbf092d79a7bd3214d095ea50c5862558febd68a",
+    "craft/engines/motion.lock.json": "6fda0b9b404bb82deb90651ad17b81baaa959008e70f8f45cc541b5db1026bdf",
+    "craft/engines/motion.patch": "834eedf835cc81f43aeda14852a8957a430dd5bce4bd6829fc1733784d80db15",
+    "craft/engines/pdf.lock.json": "4ec85a33847e624adfe2a8cbcaf8050c2742bd9c6db9a7bd80a2add4971c2bba",
+    "craft/engines/pdf.patch": "0df46cff4977f1fc21e876f8c22abd235a60d4220c3337e995259f93e4098589",
+    "craft/engines/photo.lock.json": "fa60909684a366e3102a0d6390b26b89c31232c0bdb43a39c17292f3834ef7c8",
+    "craft/engines/photo.patch": "c6a7f1905d3a75e3251769530575d295a9942ac6fb872f52ee0ecd7f306e4aeb",
+    "craft/engines/sheets.lock.json": "81399b2284de6058022e531ee534a36ecd9d34b8b21a571128d1a4dd68a697e4",
+    "craft/engines/sheets.patch": "b87d4b9fa36f84c887f72150eb9795c1491e482963cd336f6b78945cb0801cb0",
+    "craft/engines/slides.lock.json": "60614491e1c2f2194cfc1078d415cec9eaf9a4b4b8d1935875434ede7ec086ef",
+    "craft/engines/slides.patch": "6fcc4d1d5fb6150aad6378c4ab0bad66283efd1ae8e52d8851a1687da18c2e2f",
+    "craft/engines/texture.lock.json": "62a237a5c1af736450341623fa66c964baae72fcdaa96f765ef4c58a06f41fe3",
+    "craft/engines/texture.patch": "58e9cea5f883c5c36875667d6c903a761fea06af754f7a21d274b0b7c2c1f549",
+    "craft/engines/vector.lock.json": "ab23e6d982044f6b6e1c6bcdfd9df8e9df6d2f377b7622c65c11bb38f7c08c76",
+    "craft/engines/vector.patch": "cfe1d3d7ed10df9a9e55cdd2da1d4b2e7ec9bd9a757ce1929db345fe31ec2359",
+    "craft/engines/video.lock.json": "0a01a1812d9c2295f1c56cbeedf703f576894753fad93f13aa23fd833c470026",
+    "craft/engines/video.patch": "c703e7dc7b33517533b920ed122f781d9e1534edecb76e2af1b7526ec5caee06",
+    "craft/engines/write.lock.json": "e54589e6483c7958228df1136b0fd9e50a163dabe79c30c6dca3766e4e9c9d6b",
+    "craft/engines/write.patch": "85926c3601cce82c186c2ef50f515b5dd48c05a1d9b16fb41ba29aa3219332d6",
+    "craft/hosted/studio_hosted/operations.py": "988a7ebc76920cf8b2f63a61f6387b941d4124dd01b21a8afe287b119f4127d2",
+    "craft/runtime/AGENT.md": "8c64351727df1f9be4269ac4e810dd09d466346bed4a5fd2c990320fe4236973",
+    "craft/runtime/AGENT_QUALIFICATION.md": "8c2f22ba88931bf3198dcc09d720958bed1b41ec288ccdce4aa930ac5c30ceb6",
+    "craft/runtime/CAD.md": "e4f4eabbc1544e706ef3c9b2b1dd685e8a85bcba81073ab5a52dc9284cf8e162",
+    "craft/runtime/CONSTRUCTION.md": "6ad6ab23c3225ae491859a6fe027b9e6a11ba452537e95ea334c0608915da500",
+    "craft/runtime/INSPECT.md": "7b3af76f90d029d219ea951a14b4c6fbc87468c2f564cd31e79837355dc51b9c",
+    "craft/runtime/INTERFACE.md": "2ab482b229066b7c5e1935a7ead817af24c9db15bb669b480b808548303888d9",
+    "craft/runtime/LAYOUT.md": "f05222527c92de124434d38aae9df395a1cd619877dfe7d125ed0623282532cb",
+    "craft/runtime/LOCAL_ERASURE.md": "b947b150addd148df3ad86e36f6f86d869eee3c307e4112205e2fa131938f1bc",
+    "craft/runtime/MATERIAL.md": "c5d18a4d67aa86452c1ec6f0109c11bb04803dc3d8564b5985a2015e0c1c75da",
+    "craft/runtime/MOTION.md": "bf31308576d72f70b51128439aadf3fdd28ad0e599cb6614eff8cce4a69eedfc",
+    "craft/runtime/OFFLINE_EXECUTION.md": "64a50ce0116980079bf0b1d4ebc34f103958923fe8c1767bd16e2089bfe6ce7b",
+    "craft/runtime/PDF.md": "73b9e5c0aa650420130be065866d4d8c5a285953121ede5b2e1c3c46d02334ea",
+    "craft/runtime/README.md": "611b36d37d4b944c73525890941eab04c46cb3e56a97343e1de009769c16c20c",
+    "craft/runtime/SHEETS.md": "2e841185a2d85eefd88b99ac5a5c6653090e612ef66b75f3fbb350b9f16c0c12",
+    "craft/runtime/SLIDES.md": "35f9e9365311d0132856d51db416def5967d880348badc2837afd053773bc359",
+    "craft/runtime/TEXTURE.md": "86e3a542aec7d5fbd23fdc08821644a87fc4b36e366a4be8039e59eff9ccbb2b",
+    "craft/runtime/USAGE.md": "1c852e802ccc7f81fbb7fb203366b03fd9ba557eb32f35d20601ed565094315a",
+    "craft/runtime/VIDEO.md": "7901815e7255e97888e6b8c5179cb92faade6539f42c37e5bab3b1512610bfa4",
+    "craft/runtime/WRITE.md": "d3a100eafe23f148303015a77e87bb81694cb1732b0d96ebafee01d95cbffe5a",
+    "craft/runtime/studio_runtime/__init__.py": "807f29d86c7d928f17e5d4ecab6d1b99f3d2f716fd639c6bbbd0da6d533e634f",
+    "craft/runtime/studio_runtime/__main__.py": "36d33fb51ff77b36a05352da0a87d255bf423fd5b11f51bb8a1389e8e6283dbf",
+    "craft/runtime/studio_runtime/agent.py": "7c36143241baa1d182e91c51d981839dec2377efe609166f87e21ec6011716b0",
+    "craft/runtime/studio_runtime/agent_catalog.py": "33cbcadcb55ec746d29f0197da80df700c2390a8f16d708d5cf9dc53646b640c",
+    "craft/runtime/studio_runtime/agent_context.py": "e6cfec1fd44e3c560c89b38b170761b05cfd17a853315439b6de1d87bc69b1f1",
+    "craft/runtime/studio_runtime/agent_crops.py": "438695e52981c2336c7b1bc6eb61d1e9c4a6fca4957e18e9facab1c8aea6e6af",
+    "craft/runtime/studio_runtime/agent_evidence.py": "578ab4ebdc5e74e0c68fc0ff1537079ce761b8bcd6d61e054ab86039e5d92e10",
+    "craft/runtime/studio_runtime/agent_inspection.py": "f5102cd3e7203d6321fabc199efe49dc464f55f9358c68990433222b8679f6f1",
+    "craft/runtime/studio_runtime/agent_operations.py": "496f5bc608e7612ceba252c87ad153ec629593d0cfb39aea6e45d61358f2949c",
+    "craft/runtime/studio_runtime/agent_provider.py": "41013ba3ed1d47be9d7b40da482ae21a75fc97e180b7ac7dea43515327b7a5df",
+    "craft/runtime/studio_runtime/agent_store.py": "9b560160859776193c3338fc085124a481d22afcfd184153d0a23ddcc451f7ef",
+    "craft/runtime/studio_runtime/animate.py": "062692a019409701a6e182040be98c4f1ca678548b4cfce711433ffe574e4131",
+    "craft/runtime/studio_runtime/animate_animation.py": "4397b4e94c80f852f9f7bcb20ce08172cc7b99160066539b69a3cf82b7591997",
+    "craft/runtime/studio_runtime/animate_audio_export.py": "eda5127cbb58fb0a946cb3c32de07af21e6cb77ad0f574830772429d8fcb1468",
+    "craft/runtime/studio_runtime/animate_behavior.py": "0497defd2c1292fbdf509b97251f82fe11c3cc8fd7e3f036f5e5e50edbcabe90",
+    "craft/runtime/studio_runtime/animate_diagnostics.py": "4d0925aa70e8306aa8cbceb9c2479f3d7c4f1179cda552ac75228ca49289ded0",
+    "craft/runtime/studio_runtime/animate_document.py": "b6829938be9d603df9cd98daaf2f968009776a01933a3b28f893a9b348205b7a",
+    "craft/runtime/studio_runtime/animate_document_export.py": "ddceb2cfa06c748a5d9ca15f6b646b7d229e0e1f6d99110430c0e9c71ef29083",
+    "craft/runtime/studio_runtime/animate_exports.py": "7267fcd6762699f0058aede6e45b4c6758f79c7471eeb426fc0d454472f30233",
+    "craft/runtime/studio_runtime/animate_format.py": "5cf26d2762205564f7539b31bd1246fdc615f3314f5f160bc036416970e7523a",
+    "craft/runtime/studio_runtime/animate_graph.py": "7f3563f565ab6a734b162f15cbc94d93937f0d754d32b7445976096e2b612797",
+    "craft/runtime/studio_runtime/animate_media.py": "e1f67cbf177b8dd452891b2eb2c43a2ba3672dbdaf7718626d9de5ec440ae842",
+    "craft/runtime/studio_runtime/animate_media_probe.py": "97fab54f99884470e0dcc500a94529421b4a5d0c233ed59f4c37edf3098b9e34",
+    "craft/runtime/studio_runtime/animate_native_probe.py": "5cfe1d9a88d527626de309067afd0304c73994304131380af804c14f907a65d6",
+    "craft/runtime/studio_runtime/animate_process.py": "962c59e674504761b9d1cc926907b0396e4447de054f3582f847451d40be6d73",
+    "craft/runtime/studio_runtime/animate_project.py": "3ffad2f5940955968906575815a3f899722461cfd2ba57a39f4689bf3a8adab7",
+    "craft/runtime/studio_runtime/animate_properties.py": "d46b77ea44200baf7da2fca759a4651716e44090d346bfb294413e6a8ebce6bf",
+    "craft/runtime/studio_runtime/animate_revision.py": "0eba14a3c94bec3b058d32d221157e0d5598f66b851bf92d2508e07f0e3b4f6a",
+    "craft/runtime/studio_runtime/animate_scene.py": "48113f5d012ebed46a4932f390d35c906cc0404aa8591e252bfd041e7f1859f4",
+    "craft/runtime/studio_runtime/animate_semantics.py": "bf2ea5c451096ec3b4373c6db03f2db785704032e3cb6a669cdb1f2c040dab85",
+    "craft/runtime/studio_runtime/animate_text.py": "a86e0a908646c9a10f109e530896593a5b63115d2766fd564547010b15930dd6",
+    "craft/runtime/studio_runtime/animate_unicode.py": "2e1086510c5c441a22899b9f4e3eae4604461bb7322da13e603be34be729ddfc",
+    "craft/runtime/studio_runtime/animate_video_container.py": "635a8ed04da35a7c59daf11b81ee40bd50615bdcb607167479358070aedf3b02",
+    "craft/runtime/studio_runtime/animate_video_decode.py": "baf7b5a56b3ad224db7421c867466bfef407148fbdff912813780dfe8308f4cb",
+    "craft/runtime/studio_runtime/animate_video_export.py": "721d796a8ba255948c38b0fc3211e56ccc819b7ae4a7e06a883272d7a6938be6",
+    "craft/runtime/studio_runtime/animate_video_handoff.py": "9c886244a6c1691ffe6ed12a987d91b5b30d6f24a0926c6db100be217cd1e04b",
+    "craft/runtime/studio_runtime/attempt_boot.py": "1227a9042146ffe5baeee2dd233d075c3f0fef4b322fc161c0f12bff29da8823",
+    "craft/runtime/studio_runtime/audio.py": "3bcad05ec6eef3fcf52da570689b1b9dbdbd37461b13a9ec00b076409222b877",
+    "craft/runtime/studio_runtime/bundle.py": "3393eebd3060fcf75c00dddcb335b93fe8d31a2f993a0aaf6752d94f55fde29c",
+    "craft/runtime/studio_runtime/bundle_replay.py": "c724d116a6454f1ba9fe8255c9c8401239ab1ef96a191b6e000e64cdca1068ac",
+    "craft/runtime/studio_runtime/cad.py": "f3c324fa42c27c51cf5588b6c3d0f8516e3e2764d701c99100a5955f7ff070d8",
+    "craft/runtime/studio_runtime/cad_admission.py": "c0d61d24cb6d12d98b2cc25937dce156f3e8581bb8ad4d8fae0135b1fb63046e",
+    "craft/runtime/studio_runtime/cad_binding.py": "48e0ec0687143856ec88fbd1eb47f0387d6220d6a1bc3e6ac4c6d30ca5949487",
+    "craft/runtime/studio_runtime/cad_engine.py": "466d251bc33d3f2c2ce42b4701acd28e8edade79958d6a39b56a742dc9d5f1c1",
+    "craft/runtime/studio_runtime/cad_history.py": "b928c33fded506f0e45bbcd66a5632c7d4fbf5bcaff095d8c4f450228dd18515",
+    "craft/runtime/studio_runtime/cad_parametric.py": "c8d4c6cfa856c20c83f090c8089b53c152a503adb0493bf4516d622deeb98352",
+    "craft/runtime/studio_runtime/cad_project.py": "1bbd3aabac3f177ff9beb7d440d61a772c3b0444316952f82dec74c6a848c741",
+    "craft/runtime/studio_runtime/cad_revision.py": "ffd63a4cc1049fa5844c1f82339b0d9fe9cdda385fab2778136440e8c497b53b",
+    "craft/runtime/studio_runtime/cad_solid.py": "d3d6a796b8c11c16ba35e04c27625df19e82369d7c18a41fb7607dbc9924e340",
+    "craft/runtime/studio_runtime/cad_source.py": "54c84b76cbcfd8399e2c9060eda12e9a642c2734076e983a9bd9e2e8779db7ca",
+    "craft/runtime/studio_runtime/capabilities.py": "e9f242d6f6b41c7fd61b63d6aee2d89c12a46c101251cf8def301cce7f09f7e8",
+    "craft/runtime/studio_runtime/capacity.py": "5f13fc33cdef56685b74d035c5028b36a15f36e054115ffd521cf8034d3685da",
+    "craft/runtime/studio_runtime/checkout.py": "e400d93f135cbbd44f7e5fccea6205beff411e68e1ba1651ffa04ff5165fd60b",
+    "craft/runtime/studio_runtime/cloud.py": "3eb08f27166ea76c34961fe5b6159e9b982d1dc125543d643a699f90e3506af3",
+    "craft/runtime/studio_runtime/construction.py": "ef995bb1b71e49964921445b1f6202579d2627ed2f2182abc3a50a18ebc139d5",
+    "craft/runtime/studio_runtime/construction_blender.py": "d930265a04588f41fb18f5771bcdbf6fbf48964de3929467cb1a81674553caa5",
+    "craft/runtime/studio_runtime/construction_blender_engine.py": "d961c0634224e825e06dec25c298423da21f80fdd6cbc5b7da259a6857b1eb6a",
+    "craft/runtime/studio_runtime/construction_boot.py": "7ec9b5ac3d326f9b5c99d03bb0cd0d85c9a2ae7e781953fe77f4469346241d1d",
+    "craft/runtime/studio_runtime/construction_rive.py": "4aff4c99522ad153a387ad65bf9d71dfd86fc20a87c6b4e552fbf20ac7325732",
+    "craft/runtime/studio_runtime/construction_schema.py": "9772440ea9046b38a79b847d3cb502bc9718a9186f03276305bf0674b115fed5",
+    "craft/runtime/studio_runtime/construction_support.py": "84d168fa0f641fa5563a60c29d126079cbc74316aa5f5fcaad27fca10c32d5f9",
+    "craft/runtime/studio_runtime/descriptors.py": "ba6b42aa052d546e2af0ca2199b632c021b2a889f78256405f1cca67578587a6",
+    "craft/runtime/studio_runtime/doctor.py": "55f57777f8cbd5992986abbdaf6e67c180c2a798e9782108e3c8a3e09b96caae",
+    "craft/runtime/studio_runtime/engine_job.py": "3eccfa4d4b54d41dd0f392032c6d5a0e9073f0ea13f9cf875548c0840b6db148",
+    "craft/runtime/studio_runtime/erasure.py": "6dfdb1178dbbae2ba7f84de3ebc8392707d97f92a4e5889263f0c285926dec41",
+    "craft/runtime/studio_runtime/execution.py": "6f109754c0931a3b9026207363a71c973bec62f4671330de9286ca50af3fe0e7",
+    "craft/runtime/studio_runtime/font_policy.py": "29d1a6f558e21f1b1fddee56015984e982a78c95ec27c8752f08ca704fad1f96",
+    "craft/runtime/studio_runtime/image_layers.py": "41542c07f26d2386e7db5e50798a0671bf9fa97eb9f4c79d731ca679ef9b4ff4",
+    "craft/runtime/studio_runtime/inspect_binding.py": "1e920aa0173d0af61b3c96c6757f6afcfd8539895fb64025dc49c01b268834aa",
+    "craft/runtime/studio_runtime/inspect_bundle.py": "8f07a01b676a729e4dd37650572e86689747a9d4c4fd1b75691ebd5f1343740f",
+    "craft/runtime/studio_runtime/inspect_engine.py": "961a3401b0fc1299881d9c2e5e85608ddee01041fffa0171e51c491671f6384d",
+    "craft/runtime/studio_runtime/inspect_host.py": "9d2124c8a6d0489f44927c5556df86990cf0b5ade6251005ceb801709b2160ec",
+    "craft/runtime/studio_runtime/inspect_project.py": "075afba1a14a26710c0ce0f5c17bbe8c9e9e68fcddd3eec349ae215f2a489dad",
+    "craft/runtime/studio_runtime/inspect_source.py": "74e79ae7e0ab1258ac4b1d165cf0b7f861d003473f4ddff4ae4ca6967f26c28e",
+    "craft/runtime/studio_runtime/inspection.py": "91a64a41a29ef3cac29bc37b9e35ce7ccf263ddb7a49af9db6d9166c7a92478e",
+    "craft/runtime/studio_runtime/interface.py": "1a2d0dc3622ebf7ae0faa4307039dda868375835980c02dd1da2941fc275b35f",
+    "craft/runtime/studio_runtime/interface_document.py": "6dd42c08633851db0bfb14f92984ec4e9354b342ff9fd888896d6d9e1b206481",
+    "craft/runtime/studio_runtime/interface_engine.py": "949b55cf1d2bf19ce0676ed8c8be4aa424a1f5d15c2bb21cb3803ae9f16e8e73",
+    "craft/runtime/studio_runtime/interface_project.py": "93ac1a965925fd7fde3c1a4cfd3c895d22e13b36210b388894d731a681e3c77d",
+    "craft/runtime/studio_runtime/interface_revision.py": "5f22ad9ba4bce2fa11852531c59473bb6842730e385b39c872ae893bd9a6aed7",
+    "craft/runtime/studio_runtime/interface_scene.py": "4b5b78f6138a7832388dee703310fc6768bbfb49f792bfe7eecb457d4b4ec242",
+    "craft/runtime/studio_runtime/interface_text.py": "4e69337457617c0d087650be1a0ee9996dfb63e31d858545e8519d923741d721",
+    "craft/runtime/studio_runtime/job_routing.py": "7295e3ead97826300f98471303cac03b70477c4651af5acb65716f18789d6af0",
+    "craft/runtime/studio_runtime/layout.py": "31c9c9388f81543f60bf747891ec577393fb5b97f35c2abb4014e7dfdbf15d19",
+    "craft/runtime/studio_runtime/layout_document.py": "7c4bced72f13e19278a0a5d5eb911d297594a5c8d2f84b3188e8c9a819bcae1c",
+    "craft/runtime/studio_runtime/layout_engine.py": "ce1fc1f6698809b67365aea5402a6e58450acf1590597abc536b629683143e1c",
+    "craft/runtime/studio_runtime/limits.py": "64b1da16693ea506d87f6ada5a0b9749a0068f6255183589e9995514be051e86",
+    "craft/runtime/studio_runtime/maintenance.py": "d95d375bc9eac24657c35bc3ef3b6e4e23d236685525d8fe720eb67ff54e8d06",
+    "craft/runtime/studio_runtime/material.py": "291bc9ccd89f8efb865cd463f1f7881b92d9d0eae802b047528a130c804a4f23",
+    "craft/runtime/studio_runtime/material_base.py": "d1adb47561d9dcc8e42f9ad53b4bbab7bac8708a9736aac1784ed30598b508a5",
+    "craft/runtime/studio_runtime/material_bundle.py": "0e00b1bc48dfe3dd74f11bec38fb0c079649e7bf878733163d272676b76c5a39",
+    "craft/runtime/studio_runtime/material_compute.py": "789423b48eb60ea3b1b3f7298de0099ac7f88bced5861555c4cdb170a0204623",
+    "craft/runtime/studio_runtime/material_container.py": "d4779cb3c081f05c6f2163a42c813fb1b3add67f2cff69fbae5b61e299292ea3",
+    "craft/runtime/studio_runtime/material_dependencies.py": "7e93aace0f6214b97dd7ebcbec08d84cfb86effee85c3cec410e43a56f5ac97f",
+    "craft/runtime/studio_runtime/material_document.py": "852b56f1abf37c0b2e4494dfb867e4957e3172d223b8120ff77876d7c8359762",
+    "craft/runtime/studio_runtime/material_function_catalog.py": "4d0666a2d4343b7bc66c679222c6a893c457a55374d43b4367beb55862714235",
+    "craft/runtime/studio_runtime/material_function_flow.py": "3da401ca993c334efbbf2902c5d826e52d1228817481a261646b9d587c4130fd",
+    "craft/runtime/studio_runtime/material_function_semantics.py": "9beaf399c06b4e724ac33f8ed1680e8616262e190ae3026fd60b3920a44d68ab",
+    "craft/runtime/studio_runtime/material_graphs.py": "51dc290846012a64fcfe58670ee7b09540d607a0d0213573496aade51667b71f",
+    "craft/runtime/studio_runtime/material_maps.py": "b6d19bfab8829b91dafaa28e3361d45503ceee3d48836ea9ec5aafde8def4c57",
+    "craft/runtime/studio_runtime/material_model.py": "f1877b5d974537ad1fd9bd87c415757c0a1bb88d337740c14cdbadcd037862d7",
+    "craft/runtime/studio_runtime/material_node_catalog.py": "7d6d710edebb7a7d1b6f4d054e8d3bd8f1f690468f90a2ac6f999e46edb4d646",
+    "craft/runtime/studio_runtime/material_preview.py": "ac3f86fec2a6eac36dbeaf290a47170c43a3b77d92762882c0737f19ada2fe4a",
+    "craft/runtime/studio_runtime/material_procedural.py": "24853886eb40c57c2ab21bafd7d9f577611d1f392fc673b29ef39c833d934571",
+    "craft/runtime/studio_runtime/material_recipes.py": "6ddc18709959923dd853c05d1bc04767cf3d391b78afecff85e3f6b8a4ff2138",
+    "craft/runtime/studio_runtime/material_references.py": "19b8160567873f9967944b4ab6499f8e78e100464aaea321886c3034aa8830eb",
+    "craft/runtime/studio_runtime/material_resources.py": "1e24e45d8ffc38da885ed3a16336ad8f5492aaa2681362337dfb1ebbec508dd8",
+    "craft/runtime/studio_runtime/material_revision.py": "b29c7551fa3b9c54695ef10e49dc98080bb8cd7230fb26c3c38a8b3e6cf1f095",
+    "craft/runtime/studio_runtime/material_source.py": "85e123b00ce18185cffef331e1f979060aa507cf1eb7b8b212193649c99af612",
+    "craft/runtime/studio_runtime/material_values.py": "f3236c4a2fe153a68c4471e488dddbf87d68f0b4721aa2d7452d0a60a19d7c5b",
+    "craft/runtime/studio_runtime/mcp.py": "28a21a7d0290851484d097d721e7db1a238ce058457a555cae43d827f1aa56b9",
+    "craft/runtime/studio_runtime/media_binding.py": "f749f7047c3a6b6378cfabf33fe8dbdbe10c5e1224b381647b93af8e1b5abc49",
+    "craft/runtime/studio_runtime/media_decoders.py": "1cab2f24d8acdb23ef90f145871fdab6c57646eb60a5052cb1bcf4387b2eea70",
+    "craft/runtime/studio_runtime/motion.py": "b270975cd1ef9fe10f763acfcf24d8cc5b45ee1d057d146bc14af877d352f9e2",
+    "craft/runtime/studio_runtime/movie_replay.py": "1b0dd6a424892a7a9c5c4e7a2edb3b2eec3f0a07664880e5fc48214f78325b8f",
+    "craft/runtime/studio_runtime/native_contracts.py": "ba18af3452e7779fdb918a2e55b88087c22219409dca83501bba3423bbaa3193",
+    "craft/runtime/studio_runtime/native_limits.py": "714858f65b87672d92eac5eab94f29a91aa57e54774eee635c5ca9d7dd2212ba",
+    "craft/runtime/studio_runtime/native_ocr.py": "270d8ec3fac816ce397b9b267658a77b5d16eb42ad2e519fe1ca6c5ab6bca7cf",
+    "craft/runtime/studio_runtime/offline.py": "c217440df1a59e4c263956ca974b54ea27a719a5aada4ebc5c5f04c85bc421df",
+    "craft/runtime/studio_runtime/on_demand_worker.py": "36cc19989511b1a4a873e7b3e3efb148ea738786272a39ef63dbd81dfcc48fe4",
+    "craft/runtime/studio_runtime/pdf.py": "4bd9ff954ea5902eac8cbacda5e2d4db33f5a2db37ed180ac739ebf3c73f1628",
+    "craft/runtime/studio_runtime/photo.py": "1951cfac7450d11eabc3836bab98f8d3893481ca0bd316b9594641c20cd93696",
+    "craft/runtime/studio_runtime/photo_library.py": "4fbe3ffc50512a40eec5f79c7496ee4d88debaf9331b8d9d5975922d657f9e8b",
+    "craft/runtime/studio_runtime/portable_contract.py": "3c5b574cc8cf0f180c778fce6101e6bb6cf1df862df7b51573dee0b73b74a66b",
+    "craft/runtime/studio_runtime/production.py": "15008f14e2d6f80cf7d5085cd9ab94fb409cc9c7e90313a9bd39091d2926b509",
+    "craft/runtime/studio_runtime/production_blender_engine.py": "86106560c917521883bd5dde6716efb9ce2d7d0e5f38c94cf4e46fa416648746",
+    "craft/runtime/studio_runtime/production_schema.py": "85edc2d96ba619c2e096d1b036ff02b3d56afc182ede7033a4f108cc000cf2dd",
+    "craft/runtime/studio_runtime/projects.py": "819ea579a1bbe5841fafddbc90df3e2976511c5329c75cdb78074423439e118e",
+    "craft/runtime/studio_runtime/publication_binding.py": "a71d2f4a73ebd923761cb7a4271aaa419719a8236ae01980ea4239dc90484a9b",
+    "craft/runtime/studio_runtime/reconciliation.py": "c22982bc14e861b1933c26a101a2b13ffcc3440a33f8228a2f4cba40a743a206",
+    "craft/runtime/studio_runtime/rules.py": "b426ac1ab7717256428eb4751f7377e49b1bd97a4ecc47b5c5bdc384ee6d23c8",
+    "craft/runtime/studio_runtime/sheets.py": "0df696d7852a33b2bb0718499b268c311534d73a28f788ea6e334733449268aa",
+    "craft/runtime/studio_runtime/sheets_binding.py": "527ad4c07eb56a576e42a9edb6963ef1a8f805aecff81d561fe20697b198472b",
+    "craft/runtime/studio_runtime/sheets_engine.py": "3f7e90821257767d973ad67e6a3b894afcb8a747b5612999d856fc3dbe5c1777",
+    "craft/runtime/studio_runtime/sheets_project.py": "e461f7c18cdac75dcc91fec2dc0f2be1c208e90a3f833b77c142fd5e313fa85d",
+    "craft/runtime/studio_runtime/sheets_recipes.py": "07948f9b607e8c0453ab8ceed927009da1158fa01463301164690bc15fc554bd",
+    "craft/runtime/studio_runtime/sheets_source.py": "c239028aeec6fd70fca3d1b57fd09ddaa3dcd9895eddb51a456299a685a41aea",
+    "craft/runtime/studio_runtime/slides.py": "717801753ed177b8ccebd9f4164628e3a50bf39799682375a6bf48d2fd68362e",
+    "craft/runtime/studio_runtime/slides_admission.py": "5549f56d862958f37160a071bdd633bcd8700a76c1d1d66cdbf1b3892936b033",
+    "craft/runtime/studio_runtime/slides_binding.py": "ea1d684945e139d83ed31616485c7cca4492b93406d0b16ae7f8a35ad7ed2a08",
+    "craft/runtime/studio_runtime/slides_builtin_fonts.py": "f8ff7d3a8610d593e2af4e32087a8598f424cb584e64ae5121ee96baf4dd2caf",
+    "craft/runtime/studio_runtime/slides_engine.py": "891994cb8bdbc7dfe23755a103d45589b3217515aa0161058e43ff87cab9ad50",
+    "craft/runtime/studio_runtime/slides_exports.py": "180516d6a9438fe423f7aca3157d6753fe2292fd27bfef7d9e010bb8f762e1d7",
+    "craft/runtime/studio_runtime/slides_pictures.py": "1803ad843a7b9a2224804e427c8c70c8ad458d0483cc7d2acd120211046bb345",
+    "craft/runtime/studio_runtime/slides_pptx.py": "39ab832801844b65cecb6a155d55e978043d35a961d43f88d2b03aec87b97e3e",
+    "craft/runtime/studio_runtime/slides_precision.py": "a721d7868c3d3b2aa3a04749a5299707da7e77e0e45f5da9f4337690dafcf3bf",
+    "craft/runtime/studio_runtime/slides_project.py": "4b2b29b38574ec592d87d1d7a1833b980f1508e91027d9533f713ae93aff2136",
+    "craft/runtime/studio_runtime/slides_recipes.py": "3d9e1a33cd574182189667e8c1bd0014b7f79f5964b6409980928d28103fa79a",
+    "craft/runtime/studio_runtime/slides_revision.py": "c381a1c24e1347e0fccb0020ec2c5d13505aba6ec3987a447a5fde83e1767cf6",
+    "craft/runtime/studio_runtime/slides_source.py": "8f15794785b01e5f710af42d21d49276ea30f40b7380d9bc8dfbb85955936c14",
+    "craft/runtime/studio_runtime/slides_text.py": "736b7e0f2b86d7a4aaaa52f830365f4496c9c180503c2498a05b4d22fa2f663b",
+    "craft/runtime/studio_runtime/store.py": "1410188cc18f35b610517fa6b9953825c6d162fb6ea80e7524f4ed7aeb2dc782",
+    "craft/runtime/studio_runtime/surface_binding.py": "2432955f04cbd6dc51f9dd16a99bcda82c133629d6a9cff4a0387c31c5b21453",
+    "craft/runtime/studio_runtime/synthesis.py": "667e46cbdf13ff49aea491d413aee9711c89235e2f8c34de3bab1d43dfc0a03c",
+    "craft/runtime/studio_runtime/synthesis_engine.py": "c25df92785d18175f5443984c5616056c3b7a69d1f71215feebccdf8daf19eab",
+    "craft/runtime/studio_runtime/texture.py": "6eb0c3624d9797b4c00168ae800e890db199a7b2d4e04814d702e7fcc1ac4fa5",
+    "craft/runtime/studio_runtime/texture_archive.py": "6b4dc11711fee6fc8b6ad74be45e40cc0f53707fb86798693f2f6a717911f138",
+    "craft/runtime/studio_runtime/texture_authoring.py": "e200846855503cc721a7761f5de7802d8efe0f8a1e8ef2f698f1cf48150f9903",
+    "craft/runtime/studio_runtime/texture_compute.py": "91bc6e43abf6c351b41686559459deefa6ec2ce6cff3d6f9f3cbf29d6a827182",
+    "craft/runtime/studio_runtime/texture_document.py": "4e76d6407dcd02f50748e88429924ee42b865e291614134ba3b7c7bc171db074",
+    "craft/runtime/studio_runtime/texture_image_codecs.py": "de8610522640a24f86603c41cd7e1ee7a47054883e555bd4a9bb8decab5d52b0",
+    "craft/runtime/studio_runtime/texture_images.py": "2a7e30c97f4b7b8176ff371c1a3a87a5a9f860d06c59e7879299ad2f37651ae0",
+    "craft/runtime/studio_runtime/texture_layers.py": "aba99ee2e5beda66f86098c825c953f3372e1b35da4f7a35b0aebc74a8071075",
+    "craft/runtime/studio_runtime/texture_material.py": "9860f0594d8c4f55e08db6380dbe2c85c7957d696b878aa3e64769d70bf4e53a",
+    "craft/runtime/studio_runtime/texture_mesh.py": "7446751ac5281d6cb1742a070e202b7324c46cabee78c23d88b6b8a06f0f5493",
+    "craft/runtime/studio_runtime/texture_pixels.py": "05db1e7721cb2f4b74f778735026d90d8b5723328d361d0601d4e619c9ab1cb2",
+    "craft/runtime/studio_runtime/texture_project.py": "31a0a3f12d750920b64e1a13ea4e928b2e5c2224d6d7a9c6687250c3b3136622",
+    "craft/runtime/studio_runtime/texture_structure.py": "b4231cac6dc4a93e2402a4d1968c635e0982f4c0227383f7add85388c5421974",
+    "craft/runtime/studio_runtime/texture_workflow.py": "0329bb277af1b35b283e8d4e68226623c007d7860730a94dbc341b2b852d6718",
+    "craft/runtime/studio_runtime/usage.py": "b50fc0eabce7cc30ca6b5b7f8dc2e8d2b3ffa146c7abc0d1d91dac82acd0a5e0",
+    "craft/runtime/studio_runtime/usage_cli.py": "94fd2de0f57b942c6d74e74a7a27b220c990cd1a75d12a733699ba5b91d31ddc",
+    "craft/runtime/studio_runtime/vector.py": "5db539f945e5affcbeee57f8f86e989faaf29083559466e81e66941007514c94",
+    "craft/runtime/studio_runtime/video.py": "4d0e314065a3ea0c627031b29895c906b8f7ccfbaaca0fe4e527ddbe6aa3c79d",
+    "craft/runtime/studio_runtime/worker.py": "79e1a09750c8bd15236c706f2a869e1f0edc1b90c7cb310e8829cd49be57ca73",
+    "craft/runtime/studio_runtime/worker_contract.py": "b5f3aa9406d31612bf2cc244b08e59a81b1915322d8b8455e9d5c5c2d21a2016",
+    "craft/runtime/studio_runtime/write.py": "70674ed1227389393cddb6c16807a133f3370b1a26772825d1caa2f4240a55f6",
+    "craft/runtime/studio_runtime/write_binding.py": "79fc9c15ff17dfc8c4ccbb8acf869552933f45ae380e1335660cda82b4032608",
+    "craft/runtime/studio_runtime/write_builtin_fonts.py": "adc97fe60184b424044e1298a3e4418a8da1fb9dcfc71953f838866d79c38327",
+    "craft/runtime/studio_runtime/write_container.py": "a4b0d5acd155099298cfa3c4bf07b2340445726a763bff040f3cc53946325753",
+    "craft/runtime/studio_runtime/write_engine.py": "97273cd86d31ccdfc656a1a0038ee34bbd5e7bcd282689e9e2b7d5e47b0ab7df",
+    "craft/runtime/studio_runtime/write_exports.py": "e7cd8d9a1669c01d73507437d36f7205a471fec2f86518004b76e47b0f8e175d",
+    "craft/runtime/studio_runtime/write_fonts.py": "f3a7fc78e23c5e021e8ef55ac9354fbb6d316546d594e128deb055686236a001",
+    "craft/runtime/studio_runtime/write_glyphs.py": "b3a45c6049e32bbd60738b7b3bf87e14e147eb98b9b5e155ccf719f6005486b7",
+    "craft/runtime/studio_runtime/write_opc.py": "50814fdded6500203c7fa905f40aa893801f10095a660f04dd777756c433ae2e",
+    "craft/runtime/studio_runtime/write_outlines.py": "399c0e5b41fb1262cfc7d5db76d2bcd0f77b034e6318a6c1a6d28a6abdfbda7b",
+    "craft/runtime/studio_runtime/write_page_properties.py": "524cd5a7e91234668cca675cf84b16c0f902270b8919de1ce555afac61d7e86d",
+    "craft/runtime/studio_runtime/write_project.py": "0bc9afca441f9a77da2529a7195994bfbbff04ceacc654f5efba1d2165f27590",
+    "craft/runtime/studio_runtime/write_properties.py": "89f10cd241aa2ced097bfc5a7ad3fef4c509c592e35318aeb293a1ef477a0678",
+    "craft/runtime/studio_runtime/write_recipes.py": "79d537f181253cda15f25f9bfdd6ec534ba631a93d06b71cfdda0b2d9b68dbf9",
+    "craft/runtime/studio_runtime/write_resources.py": "f1241774080508ab03e7c234f63d96cafae24d43ea82132647b8dccc80ba074f",
+    "craft/runtime/studio_runtime/write_retained.py": "cdcd41c74e7f4a98bf9ead50c09b4745b06a9ceb9b3cad41f2adb4f78b11e230",
+    "craft/runtime/studio_runtime/write_revision.py": "f52f198dff076c8e35b9130f4832a8278786f4923b6817c942f4f51d6fda6167",
+    "craft/runtime/studio_runtime/write_structure.py": "beb185cb92d93b64e0cd4c98726bc9cdce1fe17df93701ed78db1f05fd0ead39",
+    "craft/runtime/studio_runtime/write_structure_styles.py": "cdc3ff8eb9c959b26dec54e8dcc4a5ee6d27759506ecf3648fd8107eb6730e85"
+  },
+  "source_sha256": "5e3896d86e98474126fa10780c7479991c7ee624a644d993927119a1f9725157",
+  "qualification": {
+    "engines_executed": false,
+    "installed_package_verified": false,
+    "macos_release_qualified": false,
+    "linux_release_qualified": false,
+    "supabase_deployment_verified": false,
+    "visual_acceptance": false
+  },
+  "documentation_sha256": "c0f603932359d092f1c0ad41b4ac34b93fc2d695a6b1ac49f42344520b62a06e"
+}

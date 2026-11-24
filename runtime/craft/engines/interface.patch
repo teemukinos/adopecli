@@ -1,0 +1,1185 @@
+diff --git a/ROADMAP.md b/ROADMAP.md
+index 74638c4..847fb89 100644
+--- a/ROADMAP.md
++++ b/ROADMAP.md
+@@ -134,6 +134,8 @@ Ranked; detail and milestones in [`docs/roadmap.md`](docs/roadmap.md).
+ 
+ ## Progress log
+ 
++- **2026-11-15** · Maintained Dobe Interface build input: opt-in CLI/MCP identity and resource namespace, editor attachment and publication command refusal, no headless network collaboration transport, and bundled-only font lookup with required Latin release faces. Upstream defaults and native formats are retained. This is source integration work; runtime, import fidelity and installed release qualification remain separate. Readiness estimates are unchanged.
++
+ - **2026-11-05** · M2, #1823: Suggest auto layout is its own command. `layout.suggest` used to run `layout.add` and made one row of everything. It now splits a frame's layers into rows or columns by the gaps between them, wraps each band of several layers in a hugging frame without fill and repeats inside it, so the design gets as many auto layout frames as it needs and keeps its placement where the gaps are even (the frame keeps its size). Uneven gaps, bands that start at different offsets across the flow (lined up at the smallest) and layers that overlap along both axes are reported as `warnings`, and instances and layers inside them are refused. `layout.add` is unchanged. Tests in `layout_suggest_tests.rs`. Numbers unchanged.
+ - **2026-11-05** · M3, #2002: the Local variables window selects several variables with a click, Shift+click (range) and Cmd/Ctrl+click (toggle), cleared by Escape or a click on the empty space; delete, move to a group and scope act on the selected local variables as one undo step (`command.batch`); inherited variables can be selected but are left out, since they change in their own collection, and the bulk menu needs two or more local variables selected (otherwise the row shows its own menu). Rename and value edits stay single-row.
+ - **2026-11-05** · M10, #2014: the desktop UI takes a system face for Ethiopic, Devanagari, Gurmukhi, Gujarati, Tamil, Telugu, Kannada and Malayalam, Sinhala, Lao, Myanmar, Khmer, Armenian and Georgian as it did for Hebrew and Arabic (`bidi::script_fallbacks`: one sample letter per script, the system's families for each; Bengali and Thai keep `crate::cjk`'s choice), so a layer name or a String variable's Amharic value draws in the panels instead of boxes. Test: `bidi::tests::other_scripts_take_an_installed_system_face`.
+diff --git a/apps/figcraft-cli/Cargo.toml b/apps/figcraft-cli/Cargo.toml
+index 16c2286..61be731 100644
+--- a/apps/figcraft-cli/Cargo.toml
++++ b/apps/figcraft-cli/Cargo.toml
+@@ -10,6 +10,14 @@ description = "FigCraft command line: info, export, convert, render, scripted co
+ name = "figcraft-cli"
+ path = "src/main.rs"
+ 
++[[bin]]
++name = "dobe-interface"
++path = "src/main.rs"
++required-features = ["dobe"]
++
++[features]
++dobe = ["figcraft-mcp/dobe", "figcraft-text/dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/apps/figcraft-cli/src/args.rs b/apps/figcraft-cli/src/args.rs
+index 4696b86..7ec511a 100644
+--- a/apps/figcraft-cli/src/args.rs
++++ b/apps/figcraft-cli/src/args.rs
+@@ -16,12 +16,26 @@ use figcraft_doc::{PrintSettings, VdCompat};
+ /// (best effort; `info` lists what wasn't imported), .sketch (Sketch 48 or newer, best effort),
+ /// .svg, .png/.jpg/.webp/.gif/.bmp (open as an image layer).
+ #[derive(Parser)]
+-#[command(name = "figcraft-cli", bin_name = "figcraft-cli", version, arg_required_else_help = true, after_help = "See docs/cli.md and docs/mcp.md.")]
++#[command(version, arg_required_else_help = true, after_help = "See docs/cli.md and docs/mcp.md.")]
++#[cfg_attr(not(feature = "dobe"), command(name = "figcraft-cli", bin_name = "figcraft-cli"))]
++#[cfg_attr(
++    feature = "dobe",
++    command(
++        name = "dobe-interface",
++        bin_name = "dobe-interface",
++        about = "Dobe Interface without an editor window",
++        long_about = "Dobe Interface: native editable interface documents, exports and headless MCP. Bundled fonts only. Editor attachment and publication commands are unavailable."
++    )
++)]
+ pub struct Cli {
+     /// Lay text out with the fonts built into FigCraft only, for renders that match on every
+     /// machine (or set FIGCRAFT_NO_SYSTEM_FONTS=1). Otherwise installed fonts are indexed the
+     /// first time text is laid out, as in the app
+     #[arg(long, global = true)]
++    #[cfg_attr(
++        feature = "dobe",
++        arg(help = "Use bundled fonts (always enforced)", long_help = "Dobe Interface always uses bundled fonts; host font scanning is disabled.")
++    )]
+     pub no_system_fonts: bool,
+     #[command(subcommand)]
+     pub command: Command,
+@@ -37,11 +51,13 @@ pub enum Command {
+     Commands(CommandsArgs),
+     Mcp(McpArgs),
+     /// Publish plugins to a server's plugin directory
++    #[cfg_attr(feature = "dobe", command(hide = true))]
+     Plugin {
+         #[command(subcommand)]
+         command: PluginCommand,
+     },
+     /// Publish a code repository's component mappings (code connect) to a design file
++    #[cfg_attr(feature = "dobe", command(hide = true))]
+     Connect {
+         #[command(subcommand)]
+         command: ConnectCommand,
+@@ -552,7 +568,10 @@ mod tests {
+         }
+         // The help is the subcommand's, even after a mistake.
+         let help = try_parse(&["plugin", "publish", "--bogus", "--help"]).err().map(|e| e.to_string()).unwrap_or_default();
+-        assert!(help.contains("Usage: figcraft-cli plugin publish"), "{help}");
++        assert!(
++            help.contains(if cfg!(feature = "dobe") { "Usage: dobe-interface plugin publish" } else { "Usage: figcraft-cli plugin publish" }),
++            "{help}"
++        );
+         // After `--`, `-h` is a file name.
+         let Command::Info(a) = ok(&["info", "--", "-h"]) else { panic!("info") };
+         assert_eq!(a.file, "-h");
+@@ -566,7 +585,11 @@ mod tests {
+         let mut todo = vec![cli];
+         while let Some(mut cmd) = todo.pop() {
+             let help = cmd.render_long_help().to_string();
+-            assert!(help.contains("Usage: figcraft-cli"), "{}: {help}", cmd.get_name());
++            assert!(
++                help.contains(if cfg!(feature = "dobe") { "Usage: dobe-interface" } else { "Usage: figcraft-cli" }),
++                "{}: {help}",
++                cmd.get_name()
++            );
+             for arg in cmd.get_arguments().filter(|a| !matches!(a.get_long(), Some("help" | "version"))) {
+                 assert!(arg.get_help().is_some(), "{} {}", cmd.get_name(), arg.get_id());
+             }
+diff --git a/apps/figcraft-cli/src/main.rs b/apps/figcraft-cli/src/main.rs
+index 2d3596b..eb1f6db 100644
+--- a/apps/figcraft-cli/src/main.rs
++++ b/apps/figcraft-cli/src/main.rs
+@@ -30,7 +30,13 @@ fn confined<R>(r: &RootArgs, f: impl FnOnce() -> CliResult<R>) -> CliResult<R> {
+ 
+ fn main() -> ExitCode {
+     // `args_os`: a non-Unicode argument is clap's usage error, not a panic.
+-    let cli = match args::parse(std::env::args_os().collect()) {
++    let arguments: Vec<_> = std::env::args_os().collect();
++    #[cfg(feature = "dobe")]
++    if let Err(message) = dobe_arguments(&arguments) {
++        eprintln!("dobe-interface: {message}");
++        return ExitCode::from(2);
++    }
++    let cli = match args::parse(arguments) {
+         Ok(cli) => cli,
+         Err(e) => {
+             // Help and `--version` on stdout with 0, usage errors on stderr with 2.
+@@ -51,6 +57,19 @@ fn main() -> ExitCode {
+     }
+ }
+ 
++/// Refuse editor and publication routes before help, file reads or address resolution.
++#[cfg(feature = "dobe")]
++fn dobe_arguments(args: &[std::ffi::OsString]) -> Result<(), &'static str> {
++    if args.iter().skip(1).any(|a| a.to_str().is_some_and(|a| a == "--attach" || a.starts_with("--attach="))) {
++        return Err("editor attachment is unavailable in this headless build");
++    }
++    let command = args.iter().skip(1).find(|a| !a.to_string_lossy().starts_with('-')).and_then(|a| a.to_str());
++    if matches!(command, Some("plugin" | "connect")) {
++        return Err("publication commands are unavailable in this local production engine");
++    }
++    Ok(())
++}
++
+ #[derive(Debug)]
+ pub enum CliError {
+     /// Bad arguments found after parsing (an output extension no format writes): exit code 2.
+@@ -68,7 +87,7 @@ impl From<String> for CliError {
+ pub type CliResult<T> = Result<T, CliError>;
+ 
+ fn run(cli: Cli) -> CliResult<ExitCode> {
+-    if !cli.no_system_fonts {
++    if !cfg!(feature = "dobe") && !cli.no_system_fonts {
+         // Text lays out with the installed fonts, like the desktop app, so headless renders and
+         // auto layout sizes match what users see.
+         figcraft_text::scan_system_fonts_on_demand();
+@@ -92,12 +111,15 @@ fn run(cli: Cli) -> CliResult<ExitCode> {
+         }
+         // `--attach` conflicts with the roots: the app runs the commands, only its own roots can confine them.
+         Command::Mcp(a) => mcp(a.attach.as_deref(), a.timeout, roots_of(&a.roots)?),
++        Command::Plugin { .. } | Command::Connect { .. } if cfg!(feature = "dobe") => {
++            Err(CliError::Usage("publication commands are unavailable in this local production engine".into()))
++        }
+         Command::Plugin { command: PluginCommand::Publish(a) } => publish_plugin(&a.folder, &a.server),
+         Command::Connect { command: ConnectCommand::Publish(a) } => confined(&a.roots, || files::connect_publish(&a.file, &a.mappings, a.dry_run)),
+         Command::Perf(a) => {
+             let sizes: Vec<usize> = a.layers.into_iter().map(|n| n.clamp(10, 2_000_000)).collect();
+             let instances: Vec<usize> = a.instances.into_iter().filter(|n| *n > 0).map(|n| n.min(100_000)).collect();
+-            perf::run(&sizes, &instances, !cli.no_system_fonts)
++            perf::run(&sizes, &instances, !cfg!(feature = "dobe") && !cli.no_system_fonts)
+         }
+     }
+ }
+@@ -160,7 +182,8 @@ fn mcp(attach: Option<&str>, timeout: Option<u64>, roots: Option<figcraft_engine
+         }
+         None => Box::new(figcraft_mcp::Headless::new()),
+     };
+-    eprintln!("figcraft MCP server ({}) on stdio", backend.describe());
++    let name = if cfg!(feature = "dobe") { "Dobe Interface" } else { "figcraft" };
++    eprintln!("{name} MCP server ({}) on stdio", backend.describe());
+     if let Some(r) = &roots {
+         eprintln!("file access confined to {}", r.to_json());
+     }
+diff --git a/apps/figcraft-cli/tests/it/dobe.rs b/apps/figcraft-cli/tests/it/dobe.rs
+new file mode 100644
+index 0000000..6faea92
+--- /dev/null
++++ b/apps/figcraft-cli/tests/it/dobe.rs
+@@ -0,0 +1,28 @@
++use std::process::Command;
++
++#[test]
++fn identity_and_headless_help() {
++    let bin = env!("CARGO_BIN_EXE_dobe-interface");
++    let version = Command::new(bin).arg("--version").output().unwrap();
++    assert!(version.status.success());
++    assert_eq!(String::from_utf8(version.stdout).unwrap().trim(), "dobe-interface 0.18.1");
++    let help = Command::new(bin).arg("--help").output().unwrap();
++    let text = String::from_utf8(help.stdout).unwrap();
++    assert!(help.status.success() && text.contains("Dobe Interface") && text.contains("Usage: dobe-interface"));
++    assert!(!text.contains("FigCraft without a window"));
++}
++
++#[test]
++fn editor_and_publication_routes_are_refused_before_help() {
++    let bin = env!("CARGO_BIN_EXE_dobe-interface");
++    for args in [
++        vec!["mcp", "--attach", "7979", "--help"],
++        vec!["mcp", "--attach=7979"],
++        vec!["plugin", "publish", "missing", "--server", "example.invalid", "--help"],
++        vec!["connect", "--help"],
++    ] {
++        let result = Command::new(bin).args(&args).output().unwrap();
++        assert!(!result.status.success(), "{args:?}");
++        assert!(String::from_utf8(result.stderr).unwrap().contains("unavailable"));
++    }
++}
+diff --git a/apps/figcraft-cli/tests/it/main.rs b/apps/figcraft-cli/tests/it/main.rs
+index ab0773b..61c4238 100644
+--- a/apps/figcraft-cli/tests/it/main.rs
++++ b/apps/figcraft-cli/tests/it/main.rs
+@@ -13,3 +13,7 @@ mod pdf;
+ mod pdf_print;
+ #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+ mod vector_drawable;
++
++#[cfg(feature = "dobe")]
++#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
++mod dobe;
+diff --git a/crates/engine/Cargo.toml b/crates/engine/Cargo.toml
+index 11fb7f2..f47f4bb 100644
+--- a/crates/engine/Cargo.toml
++++ b/crates/engine/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "FigCraft engine: sessions, undo history, the command registry every surface (UI, CLI, control channel, MCP) dispatches through, pointer tools, components and the Figma menu catalog"
+ 
++[features]
++dobe = ["figcraft-text/dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/engine/src/cmd.rs b/crates/engine/src/cmd.rs
+index 0e90dc1..af19cbe 100644
+--- a/crates/engine/src/cmd.rs
++++ b/crates/engine/src/cmd.rs
+@@ -4,6 +4,8 @@ pub mod arrange;
+ pub mod comment;
+ pub mod component;
+ pub mod create;
++#[cfg(feature = "dobe")]
++mod dobe_text;
+ pub mod edit;
+ pub mod facilitate;
+ pub mod file;
+@@ -86,6 +88,8 @@ fn registry() -> &'static Registry {
+         list.extend(page::specs());
+         list.extend(view::specs());
+         list.extend(text::specs());
++        #[cfg(feature = "dobe")]
++        list.extend(dobe_text::specs());
+         list.extend(crate::fonts::specs());
+         list.extend(styles::specs());
+         list.extend(image::specs());
+diff --git a/crates/engine/src/cmd/dobe_text.rs b/crates/engine/src/cmd/dobe_text.rs
+new file mode 100644
+index 0000000..1292de3
+--- /dev/null
++++ b/crates/engine/src/cmd/dobe_text.rs
+@@ -0,0 +1,216 @@
++//! Read-only evidence from the same shaped layout used by the native renderer.
++//! This reports missing glyphs and substitutions; it does not approve publication.
++
++use std::collections::BTreeMap;
++
++use figcraft_doc::Node;
++use figcraft_geom::{Rect, kurbo::Shape};
++use serde_json::{Value, json};
++
++use super::CommandSpec;
++use crate::{Result, Session, bad, params::req_id, spec};
++
++const COMMAND: &str = "dobe.textDiagnostics";
++const MAX_CHARS: usize = 16_384;
++const MAX_GLYPHS: usize = 32_768;
++
++pub fn specs() -> Vec<CommandSpec> {
++    vec![spec!(
++        COMMAND,
++        "Inspect shaped text",
++        "{id}  read-only native layout evidence: actual font hashes and faces, glyph clusters, missing glyphs, unmapped characters and truncation; at most 16384 source characters",
++        false,
++        inspect
++    )]
++}
++
++fn inspect(s: &mut Session, p: &Value) -> Result<Value> {
++    let id = req_id(COMMAND, p, "id")?;
++    diagnose(s.doc()?.get(id)?)
++}
++
++fn face_index(face: &figcraft_text::Face, faces: &mut Vec<Value>, indices: &mut BTreeMap<u32, usize>) -> usize {
++    if let Some(index) = indices.get(&face.id) {
++        return *index;
++    }
++    // This existing helper is SHA-256 over arbitrary bytes, despite its image-key name.
++    let hash = figcraft_format::image_hash(face.bytes.data());
++    let index = faces.len();
++    let axes: Vec<Value> = face
++        .axes
++        .iter()
++        .map(|axis| {
++            json!({
++                "tag": axis.tag, "min": axis.min, "max": axis.max, "default": axis.default
++            })
++        })
++        .collect();
++    faces.push(json!({"sha256": hash, "index": face.index, "family": face.family,
++        "style": face.style, "postscript": face.postscript, "weight": face.weight,
++        "italic": face.italic, "axes": axes}));
++    indices.insert(face.id, index);
++    index
++}
++
++/// Bounds of the actual glyph ink, before node strokes/effects and ancestor clipping.
++/// Bitmap and COLR glyphs follow the same branches as the renderer at export scale 1.
++fn ink(glyph: &figcraft_text::Glyph) -> Option<Rect> {
++    let path_bounds = |path: figcraft_geom::BezPath| (!path.elements().is_empty()).then(|| path.bounding_box());
++    match glyph.color(1.0) {
++        Some(figcraft_text::ColorInk::Bitmap(bitmap, place)) => {
++            Some(place.transform_rect_bbox(Rect::new(0.0, 0.0, f64::from(bitmap.width), f64::from(bitmap.height))))
++        }
++        Some(figcraft_text::ColorInk::Layers(layers)) => {
++            layers.iter().filter_map(|layer| path_bounds(glyph.layer_path(layer.gid))).reduce(|a, b| a.union(b))
++        }
++        None => path_bounds(glyph.path()),
++    }
++}
++
++fn diagnose(node: &Node) -> Result<Value> {
++    let text = node.kind.text().ok_or_else(|| bad(COMMAND, "target must be text"))?;
++    // Check bytes before collecting chars, and runs before asking the shaper to expand spans.
++    if text.characters.len() > MAX_CHARS * 4 || text.runs.len() > MAX_CHARS || text.char_count() > MAX_CHARS {
++        return Err(bad(COMMAND, "text exceeds the diagnostic budget"));
++    }
++    if ![node.width, node.height].iter().all(|v| v.is_finite() && (0.0..=8192.0).contains(v)) {
++        return Err(bad(COMMAND, "text box exceeds the diagnostic budget"));
++    }
++    if text.spans().iter().any(|(_, _, style)| !style.font_size.is_finite() || !(1.0..=500.0).contains(&style.font_size)) {
++        return Err(bad(COMMAND, "text size exceeds the diagnostic budget"));
++    }
++    let chars: Vec<char> = text.characters.chars().collect();
++    let (layout, dy) = figcraft_text::layout_node(node).ok_or_else(|| bad(COMMAND, "text has no layout"))?;
++    if layout.glyphs.len() > MAX_GLYPHS || layout.styles.len() > MAX_CHARS || layout.lines.len() > MAX_CHARS + 1 {
++        return Err(bad(COMMAND, "shaped layout exceeds the diagnostic budget"));
++    }
++    let mut faces = Vec::new();
++    let mut face_indices = BTreeMap::new();
++    let mut glyphs = Vec::new();
++    let mut mapped = vec![false; chars.len()];
++    let mut missing = 0;
++    let mut bounds: Option<Rect> = None;
++    let mut style_coordinates = BTreeMap::new();
++    for glyph in &layout.glyphs {
++        let face = &glyph.face;
++        let face_index = face_index(face, &mut faces, &mut face_indices);
++        let start = glyph.char_start;
++        let end = glyph.char_end;
++        // Generated list markers can have an empty cluster. Preserve it as such.
++        if start > end || end > chars.len() || glyph.style >= layout.styles.len() {
++            return Err(bad(COMMAND, "shaper returned an invalid source cluster or style"));
++        }
++        let style = layout.styles.get(glyph.style).ok_or_else(|| bad(COMMAND, "missing glyph style"))?;
++        let expected = style_coordinates.entry((face.id, glyph.style)).or_insert_with(|| face.coords(&face.axis_values(style)));
++        let coordinates_match_style = *expected == glyph.coords;
++        if let Some(rect) = ink(glyph) {
++            bounds = Some(bounds.map_or(rect, |old| old.union(rect)));
++        }
++        if let Some(range) = mapped.get_mut(start..end) {
++            range.fill(true);
++        }
++        missing += usize::from(glyph.gid == 0);
++        let coords: Vec<i16> = glyph.coords.iter().map(|coord| coord.to_bits()).collect();
++        glyphs.push(json!({"gid": glyph.gid, "face": face_index, "coords_f2dot14": coords,
++            "start": start, "end": end, "style": glyph.style, "rtl": glyph.rtl,
++            "coordinates_match_style": coordinates_match_style,
++            "x": glyph.x, "y": glyph.y, "size": glyph.size, "advance": glyph.advance}));
++    }
++    let unmapped: Vec<Value> = chars
++        .iter()
++        .enumerate()
++        .filter(|(i, _)| !mapped[*i])
++        .map(|(i, c)| json!({"index": i, "codepoint": *c as u32, "whitespace": c.is_whitespace(), "control": c.is_control()}))
++        .collect();
++    for decoration in &layout.decorations {
++        let rect = decoration.path().bounding_box();
++        bounds = Some(bounds.map_or(rect, |old| old.union(rect)));
++    }
++    let ink_bounds = bounds.map(|r| [r.x0, r.y0 + dy, r.x1, r.y1 + dy]);
++    if ![layout.width, layout.height, dy].iter().all(|v| v.is_finite()) || ink_bounds.is_some_and(|r| r.iter().any(|v| !v.is_finite())) {
++        return Err(bad(COMMAND, "layout contains nonfinite bounds"));
++    }
++    let styles: Vec<Value> = layout
++        .styles
++        .iter()
++        .map(|st| {
++            let primary = figcraft_text::find_face(&st.font_family, &st.font_style).map(|face| {
++                let index = face_index(&face, &mut faces, &mut face_indices);
++                let coords: Vec<i16> = face.coords(&face.axis_values(st)).iter().map(|c| c.to_bits()).collect();
++                json!({"face": index, "coords_f2dot14": coords})
++            });
++            json!({
++                "family": st.font_family, "style": st.font_style, "size": st.font_size,
++                "variations": st.variations, "case": st.case,
++                "primary": primary,
++                "family_available": figcraft_text::has_family(&st.font_family),
++                "style_available": figcraft_text::family_styles(&st.font_family).contains(&st.font_style)
++            })
++        })
++        .collect();
++    let report = json!({"version": 2, "id": node.id, "source_characters": chars.len(),
++        "width": layout.width, "height": layout.height, "vertical_offset": dy,
++        "ink_bounds": ink_bounds,
++        "truncated": layout.truncated, "on_path": layout.on_path.is_some(),
++        "missing_glyphs": missing, "unmapped": unmapped, "faces": faces,
++        "styles": styles, "glyphs": glyphs, "publication_approved": false});
++    // The private MCP client also bounds the outer frame. Keep space for JSON escaping there.
++    if serde_json::to_vec(&report).map_err(|e| bad(COMMAND, e.to_string()))?.len() > 6 * 1024 * 1024 {
++        return Err(bad(COMMAND, "diagnostic report exceeds the response budget"));
++    }
++    Ok(report)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn text(s: &mut Session, characters: &str) -> Value {
++        s.execute(
++            "node.create",
++            &json!({"type":"text", "text":characters,
++            "props":{"fontFamily":"Inter", "fontStyle":"Regular", "fontSize":20}}),
++        )
++        .unwrap()["id"]
++            .clone()
++    }
++
++    #[test]
++    fn reports_real_faces_and_clusters_without_editing_document() {
++        let mut s = Session::new();
++        let id = text(&mut s, "office café\nSecond line");
++        let before = serde_json::to_value(s.doc().unwrap()).unwrap();
++        let depth = s.undo_depth();
++        let report = s.execute(COMMAND, &json!({"id":id})).unwrap();
++        assert_eq!(report["missing_glyphs"], 0);
++        assert_eq!(report["truncated"], false);
++        assert_eq!(report["publication_approved"], false);
++        assert!(!report["glyphs"].as_array().unwrap().is_empty());
++        assert_eq!(report["faces"][0]["family"], "Inter");
++        assert_eq!(report["faces"][0]["sha256"].as_str().unwrap().len(), 64);
++        assert_eq!(before, serde_json::to_value(s.doc().unwrap()).unwrap());
++        assert_eq!(depth, s.undo_depth());
++    }
++
++    #[test]
++    fn reports_missing_glyph_instead_of_approving_fallback() {
++        let mut s = Session::new();
++        let id = text(&mut s, "\u{10ffff}");
++        let report = s.execute(COMMAND, &json!({"id":id})).unwrap();
++        assert!(report["missing_glyphs"].as_u64().unwrap() > 0);
++        assert_eq!(report["publication_approved"], false);
++    }
++
++    #[test]
++    fn refuses_non_text_and_excessive_text() {
++        let mut s = Session::new();
++        let id = s.execute("node.create", &json!({"type":"rectangle"})).unwrap()["id"].clone();
++        assert!(s.execute(COMMAND, &json!({"id":id})).is_err());
++        let id = text(&mut s, "short");
++        let id = crate::params::id_of(&id).unwrap();
++        if let figcraft_doc::NodeKind::Text(text) = &mut s.doc_mut().unwrap().get_mut(id).unwrap().kind {
++            text.characters = "x".repeat(MAX_CHARS + 1);
++        }
++        assert!(s.execute(COMMAND, &json!({"id":id})).is_err());
++    }
++}
+diff --git a/crates/engine/src/cmd/file.rs b/crates/engine/src/cmd/file.rs
+index 0ed12b8..cc34762 100644
+--- a/crates/engine/src/cmd/file.rs
++++ b/crates/engine/src/cmd/file.rs
+@@ -14,6 +14,8 @@ use super::{CommandSpec, ok};
+ use crate::params::{bool_of, boolean, get, id, num, num_or, req_index, req_string, string, targets};
+ use crate::{DocState, EngineError, Result, Session, bad, spec};
+ 
++#[cfg(all(test, feature = "dobe"))]
++mod dobe_export_tests;
+ mod export;
+ mod import_ids;
+ mod load;
+@@ -358,6 +360,35 @@ pub fn specs() -> Vec<CommandSpec> {
+ /// [`export_bytes_with`] and what the export changed or left out (Android Vector Drawable only;
+ /// empty for the other formats).
+ pub fn export_file(doc: &Document, ids: &[NodeId], setting: &ExportSetting, scale: f64) -> Result<(Vec<u8>, Vec<String>)> {
++    if cfg!(feature = "dobe") {
++        // The editor may omit an over-budget layer and log a warning. Production
++        // exports must fail before any file is written instead of delivering it.
++        figcraft_render::check_export_depth(doc, &drawn_layers(doc, ids, setting)).map_err(|e| EngineError::Other(e.to_string()))?;
++        if !setting.format.is_vector() {
++            let area = export_area(doc, ids, setting).ok_or_else(|| bad("file.export", "nothing to export"))?;
++            let (width, height) = ((area.width() * scale - 1e-6).ceil().max(1.0), (area.height() * scale - 1e-6).ceil().max(1.0));
++            if !scale.is_finite()
++                || scale <= 0.0
++                || !area.is_finite()
++                || !width.is_finite()
++                || !height.is_finite()
++                || width > 8192.0
++                || height > 8192.0
++                || width * height > 32_000_000.0
++            {
++                return Err(bad("file.export", "Dobe raster export exceeds 8192 pixels per side or 32 million pixels"));
++            }
++        }
++        let (result, audit) = figcraft_render::audit_layers(256 << 20, || export_file_inner(doc, ids, setting, scale));
++        if audit.denied_layers != 0 {
++            return Err(bad("file.export", "Dobe export refused: the isolated-layer memory budget would omit content"));
++        }
++        return result;
++    }
++    export_file_inner(doc, ids, setting, scale)
++}
++
++fn export_file_inner(doc: &Document, ids: &[NodeId], setting: &ExportSetting, scale: f64) -> Result<(Vec<u8>, Vec<String>)> {
+     let nothing = || EngineError::Disabled("file.export".into(), "nothing to export".into());
+     if ids.is_empty() {
+         return Err(nothing());
+diff --git a/crates/engine/src/cmd/file/dobe_export_tests.rs b/crates/engine/src/cmd/file/dobe_export_tests.rs
+new file mode 100644
+index 0000000..4d312b4
+--- /dev/null
++++ b/crates/engine/src/cmd/file/dobe_export_tests.rs
+@@ -0,0 +1,52 @@
++use super::*;
++
++fn scene() -> (Session, NodeId) {
++    let mut session = Session::new();
++    let result = session.execute("frame.create", &json!({"width":8,"height":8})).unwrap();
++    let root = crate::params::id_of(&result["id"]).unwrap();
++    session
++        .execute(
++            "node.create",
++            &json!({"type":"rectangle","parent":root,"width":8,"height":8,
++        "props":{"fill":"#111111"}}),
++        )
++        .unwrap();
++    (session, root)
++}
++
++#[test]
++fn incomplete_render_fails_without_writing_a_file_and_recovers() {
++    let (mut session, root) = scene();
++    let folder = std::env::temp_dir().join(format!("dobe-interface-export-audit-{}", std::process::id()));
++    std::fs::create_dir(&folder).unwrap();
++    let path = folder.join("output.png");
++    let params = json!({"ids":[root],"format":"png","scale":1,"path":path});
++    let (result, audit) = figcraft_render::audit_layers(64, || session.execute("file.export", &params));
++    assert!(result.unwrap_err().to_string().contains("would omit content"));
++    assert!(audit.denied_layers > 0);
++    assert!(!path.exists());
++    session.execute("file.export", &params).unwrap();
++    assert!(path.metadata().unwrap().len() > 0);
++    std::fs::remove_file(path).unwrap();
++    std::fs::remove_dir(folder).unwrap();
++}
++
++#[test]
++fn raster_budget_is_checked_before_allocating_layers() {
++    let (mut session, root) = scene();
++    let node = session.doc_mut().unwrap().get_mut(root).unwrap();
++    node.width = 8192.0;
++    node.height = 8192.0;
++    let (result, audit) = figcraft_render::audit_layers(256 << 20, || export_file(session.doc().unwrap(), &[root], &ExportSetting::default(), 1.0));
++    assert!(result.unwrap_err().to_string().contains("32 million pixels"));
++    assert_eq!(audit.peak_bytes, 0);
++    assert_eq!(audit.denied_layers, 0);
++}
++
++#[test]
++fn raster_cycle_is_refused_before_bounds_walk() {
++    let (mut session, root) = scene();
++    session.doc_mut().unwrap().get_mut(root).unwrap().children.push(root);
++    let result = export_file(session.doc().unwrap(), &[root], &ExportSetting::default(), 1.0);
++    assert!(result.unwrap_err().to_string().contains("maximum export depth"));
++}
+diff --git a/crates/mcp/Cargo.toml b/crates/mcp/Cargo.toml
+index ba559b1..b487327 100644
+--- a/crates/mcp/Cargo.toml
++++ b/crates/mcp/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "FigCraft MCP server: JSON-RPC 2.0 over stdio, driving a headless engine session or a running FigCraft app"
+ 
++[features]
++dobe = ["figcraft-engine/dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/mcp/src/backend.rs b/crates/mcp/src/backend.rs
+index df07427..7f579b8 100644
+--- a/crates/mcp/src/backend.rs
++++ b/crates/mcp/src/backend.rs
+@@ -117,6 +117,11 @@ impl Attached {
+     }
+ 
+     fn reconnect(&mut self) -> std::io::Result<()> {
++        // A maintained headless build must not resolve or contact an editor,
++        // including callers that bypass the CLI argument guard.
++        if cfg!(feature = "dobe") {
++            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "Dobe Interface editor attachment is unavailable"));
++        }
+         self.conn = None;
+         let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, format!("cannot resolve {}", self.addr));
+         for sa in self.addr.to_socket_addrs()? {
+@@ -210,6 +215,17 @@ impl Backend for Attached {
+     }
+ }
+ 
+-#[cfg(test)]
++#[cfg(all(test, not(feature = "dobe")))]
+ #[path = "backend_tests.rs"]
+ mod tests;
++
++#[cfg(all(test, feature = "dobe"))]
++mod dobe_tests {
++    #[test]
++    fn attachment_is_refused_before_address_resolution() {
++        for address in ["not an address", "127.0.0.1:1", "example.invalid:7979"] {
++            let error = super::Attached::connect(address).err().expect("attachment must be refused");
++            assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
++        }
++    }
++}
+diff --git a/crates/mcp/src/headless.rs b/crates/mcp/src/headless.rs
+index 449bbd3..3d88c10 100644
+--- a/crates/mcp/src/headless.rs
++++ b/crates/mcp/src/headless.rs
+@@ -48,7 +48,8 @@ impl Headless {
+     /// Wrap an existing session (it can host and join live sessions: an agent takes part with
+     /// its own cursor, `collab.cursor`).
+     pub fn with_session(mut session: Session) -> Self {
+-        if !session.live.available() {
++        // The production worker owns isolation; this build never installs a network collaboration transport.
++        if !cfg!(feature = "dobe") && !session.live.available() {
+             session.live.install(Box::new(figcraft_collab_net::NetLink::new(std::sync::Arc::new(|| {}))));
+         }
+         Self { session }
+@@ -364,3 +365,12 @@ impl Backend for Headless {
+         figcraft_render::encode_png(&pix)
+     }
+ }
++
++#[cfg(all(test, feature = "dobe"))]
++mod dobe_tests {
++    #[test]
++    fn headless_session_has_no_network_collaboration_transport() {
++        let backend = super::Headless::new();
++        assert!(!backend.session.live.available());
++    }
++}
+diff --git a/crates/mcp/src/resources.rs b/crates/mcp/src/resources.rs
+index 1dd4f8e..ac686d0 100644
+--- a/crates/mcp/src/resources.rs
++++ b/crates/mcp/src/resources.rs
+@@ -4,11 +4,24 @@ use serde_json::{Value, json};
+ 
+ use crate::backend::Backend;
+ 
+-pub const DOC_URI: &str = "figcraft://document";
+-pub const COMMANDS_URI: &str = "figcraft://commands";
+-pub const COMMENTS_URI: &str = "figcraft://comments";
+-pub const NODE_TEMPLATE: &str = "figcraft://node/{id}";
+-pub const COMMAND_TEMPLATE: &str = "figcraft://command/{id}";
++#[cfg(feature = "dobe")]
++macro_rules! uri {
++    ($path:literal) => {
++        concat!("dobe-interface://", $path)
++    };
++}
++#[cfg(not(feature = "dobe"))]
++macro_rules! uri {
++    ($path:literal) => {
++        concat!("figcraft://", $path)
++    };
++}
++
++pub const DOC_URI: &str = uri!("document");
++pub const COMMANDS_URI: &str = uri!("commands");
++pub const COMMENTS_URI: &str = uri!("comments");
++pub const NODE_TEMPLATE: &str = uri!("node/{id}");
++pub const COMMAND_TEMPLATE: &str = uri!("command/{id}");
+ 
+ pub enum ReadError {
+     NotFound(String),
+@@ -18,7 +31,7 @@ pub enum ReadError {
+ pub fn list() -> Value {
+     json!({"resources": [
+         {"uri": DOC_URI, "name": "document", "title": "Active document", "description": "The active document as JSON (current page's layer tree, pages, styles, selection, history), like inspect_document.", "mimeType": "application/json"},
+-        {"uri": COMMANDS_URI, "name": "commands", "title": "Command catalog", "description": "Every FigCraft command with label, menu, shortcut and parameter docs.", "mimeType": "application/json"},
++        {"uri": COMMANDS_URI, "name": "commands", "title": "Command catalog", "description": "Every command with label, menu, shortcut and parameter docs.", "mimeType": "application/json"},
+         {"uri": COMMENTS_URI, "name": "comments", "title": "Open comments", "description": "Every open comment thread on every page, as JSON (the same objects as comment.list).", "mimeType": "application/json"},
+     ]})
+ }
+@@ -26,7 +39,7 @@ pub fn list() -> Value {
+ pub fn templates() -> Value {
+     json!({"resourceTemplates": [
+         {"uriTemplate": NODE_TEMPLATE, "name": "node", "title": "Layer", "description": "One layer and its children (depth 2) as JSON.", "mimeType": "application/json"},
+-        {"uriTemplate": COMMAND_TEMPLATE, "name": "command", "title": "Command", "description": "One command's label, menu path, shortcut and parameter docs, e.g. figcraft://command/layout.add.", "mimeType": "application/json"},
++        {"uriTemplate": COMMAND_TEMPLATE, "name": "command", "title": "Command", "description": format!("One command's label, menu path, shortcut and parameter docs, e.g. {}.", uri!("command/layout.add")), "mimeType": "application/json"},
+     ]})
+ }
+ 
+@@ -40,7 +53,7 @@ pub fn read(b: &mut dyn Backend, uri: &str) -> Result<Value, ReadError> {
+     if uri == COMMENTS_URI {
+         return b.call("engine.execute", json!({"command": "comment.list", "params": {"page": "all", "filter": "open"}})).map_err(ReadError::Backend);
+     }
+-    if let Some(id) = uri.strip_prefix("figcraft://node/") {
++    if let Some(id) = uri.strip_prefix(uri!("node/")) {
+         let Some(id) = figcraft_engine::params::id_of(&Value::String(id.to_string())) else { return Err(ReadError::NotFound(uri.into())) };
+         return match b.call("node.get", json!({"id": id.0, "depth": 2})) {
+             Ok(Value::Null) => Err(ReadError::NotFound(uri.into())),
+@@ -49,7 +62,7 @@ pub fn read(b: &mut dyn Backend, uri: &str) -> Result<Value, ReadError> {
+             Err(e) => Err(ReadError::Backend(e)),
+         };
+     }
+-    if let Some(id) = uri.strip_prefix("figcraft://command/") {
++    if let Some(id) = uri.strip_prefix(uri!("command/")) {
+         let all = b.call("engine.commands", json!({})).map_err(ReadError::Backend)?;
+         return all
+             .as_array()
+diff --git a/crates/mcp/src/server.rs b/crates/mcp/src/server.rs
+index 70ac059..f3fc514 100644
+--- a/crates/mcp/src/server.rs
++++ b/crates/mcp/src/server.rs
+@@ -28,6 +28,7 @@ pub const RESOURCE_NOT_FOUND: i64 = -32002;
+ const MAX_LINE: usize = 32 * 1024 * 1024;
+ 
+ /// The `instructions` string sent on initialize.
++#[cfg(not(feature = "dobe"))]
+ pub const INSTRUCTIONS: &str = "FigCraft is an interface design tool: pages hold frames, \
+ groups, shapes, text, components and instances, with auto layout, styles, variables and prototyping. \
+ Coordinates are page units (1 unit = 1 px at 100% zoom), x right and y DOWN. create_node and set_properties \
+@@ -45,6 +46,24 @@ wait_for_changes {after, timeoutMs} and pass the returned cursor back. \
+ Resources: figcraft://document, figcraft://node/{id}, figcraft://command/{id}, figcraft://comments. \
+ prompts/list has workflows, including fix_comments.";
+ 
++#[cfg(feature = "dobe")]
++pub const INSTRUCTIONS: &str = "Dobe Interface is an interface design tool: pages hold frames, \
++groups, shapes, text, components and instances, with auto layout, styles, variables and prototyping. \
++Coordinates are page units (1 unit = 1 px at 100% zoom), x right and y DOWN. create_node and set_properties \
++take x/y RELATIVE TO THE PARENT (the page when there is no parent, so page coordinates); inspect_document \
++reports both x/y relative to the parent frame (groups don't count) and absoluteBounds in page coordinates. Children of an auto-layout frame are \
++positioned by the layout (set layout, gap, padding, mainAlign, crossAlign, sizingH/sizingV instead). \
++Every menu item, panel action and shortcut is a command: find ids and params with list_commands (use a filter) \
++and run them with run_command, or several as one undo step with batch. Commands act on `ids` when given, else \
++on the selection; new layers become the selection. Colours are \"#RRGGBB\" or \"#RRGGBBAA\". Verify your work: \
++inspect_document / get_node return the layer tree as JSON (check sizes, fills, layout, overrides), and \
++screenshot returns a PNG of the page or of given layers to look at. undo/redo step through history. \
++Comments: comment.list returns threads (text, anchor node id, frame, page, x/y, replies); fix open ones, \
++reply with what changed, then resolve (a reply reopens a thread). To react to new feedback, call \
++wait_for_changes {after, timeoutMs} and pass the returned cursor back. \
++Resources: dobe-interface://document, dobe-interface://node/{id}, dobe-interface://command/{id}, dobe-interface://comments. \
++prompts/list has workflows, including fix_comments.";
++
+ /// An MCP server bound to one backend.
+ pub struct Server {
+     backend: Box<dyn Backend>,
+@@ -257,7 +276,7 @@ impl Server {
+                         "resources": {"subscribe": false, "listChanged": false},
+                         "prompts": {"listChanged": false},
+                     },
+-                    "serverInfo": {"name": "figcraft", "title": "FigCraft", "version": env!("CARGO_PKG_VERSION")},
++                    "serverInfo": {"name": if cfg!(feature = "dobe") { "dobe-interface" } else { "figcraft" }, "title": if cfg!(feature = "dobe") { "Dobe Interface" } else { "FigCraft" }, "version": env!("CARGO_PKG_VERSION")},
+                     "instructions": format!("{INSTRUCTIONS} Backend: {}.{}", self.backend.describe(), self.roots_note()),
+                 }))
+             }
+diff --git a/crates/mcp/tests/it/main.rs b/crates/mcp/tests/it/main.rs
+index 7d5195f..fc9b9c8 100644
+--- a/crates/mcp/tests/it/main.rs
++++ b/crates/mcp/tests/it/main.rs
+@@ -5,6 +5,7 @@ mod agent_comments;
+ #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+ mod agent_tasks;
+ #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
++#[cfg(not(feature = "dobe"))]
+ mod attached;
+ #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::disallowed_methods)]
+ mod automation_roots;
+diff --git a/crates/mcp/tests/it/protocol.rs b/crates/mcp/tests/it/protocol.rs
+index cadadba..cd2e14c 100644
+--- a/crates/mcp/tests/it/protocol.rs
++++ b/crates/mcp/tests/it/protocol.rs
+@@ -6,6 +6,10 @@ use common::Client;
+ use figcraft_mcp::{PROTOCOL_VERSION, Server, TOOL_NAMES};
+ use serde_json::{Value, json};
+ 
++fn uri(value: &str) -> String {
++    value.replace("figcraft://", if cfg!(feature = "dobe") { "dobe-interface://" } else { "figcraft://" })
++}
++
+ fn reply(s: &mut Server, line: &str) -> Value {
+     serde_json::from_str(&s.handle_line(line).expect("reply")).unwrap()
+ }
+@@ -17,7 +21,7 @@ fn initialize_negotiates_versions() {
+         let mut s = Server::headless();
+         let r = reply(&mut s, &json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": asked}}).to_string());
+         assert_eq!(r["result"]["protocolVersion"], want);
+-        assert_eq!(r["result"]["serverInfo"]["name"], "figcraft");
++        assert_eq!(r["result"]["serverInfo"]["name"], if cfg!(feature = "dobe") { "dobe-interface" } else { "figcraft" });
+         let caps = &r["result"]["capabilities"];
+         assert!(caps["tools"].is_object() && caps["resources"].is_object() && caps["prompts"].is_object());
+         let ins = r["result"]["instructions"].as_str().unwrap();
+@@ -28,7 +32,7 @@ fn initialize_negotiates_versions() {
+                 && ins.contains("screenshot")
+                 && ins.contains("comment.list")
+                 && ins.contains("wait_for_changes")
+-                && ins.contains("figcraft://comments")
++                && ins.contains(uri("figcraft://comments").as_str())
+         );
+         assert!(!s.is_initialized());
+         assert!(s.handle_line(r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#).is_none());
+@@ -182,33 +186,35 @@ fn resources_and_templates() {
+     let mut c = Client::new();
+     let list = c.rpc("resources/list", json!({}));
+     let uris: Vec<&str> = list["result"]["resources"].as_array().unwrap().iter().map(|r| r["uri"].as_str().unwrap()).collect();
+-    assert!(uris.contains(&"figcraft://document") && uris.contains(&"figcraft://comments"));
++    assert!(uris.contains(&uri("figcraft://document").as_str()) && uris.contains(&uri("figcraft://comments").as_str()));
+     let t = c.rpc("resources/templates/list", json!({}));
+     let tpl: Vec<&str> = t["result"]["resourceTemplates"].as_array().unwrap().iter().map(|r| r["uriTemplate"].as_str().unwrap()).collect();
+-    assert_eq!(tpl, ["figcraft://node/{id}", "figcraft://command/{id}"]);
++    assert_eq!(tpl, [uri("figcraft://node/{id}"), uri("figcraft://command/{id}")]);
+ 
+     let id = c.create(json!({"type": "frame", "name": "Hero", "width": 200, "height": 100}));
+-    let r = c.rpc("resources/read", json!({"uri": "figcraft://document"}));
++    let r = c.rpc("resources/read", json!({"uri": uri("figcraft://document").as_str()}));
+     let doc: Value = serde_json::from_str(r["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+     assert!(doc["pages"].is_array());
+-    let r = c.rpc("resources/read", json!({"uri": format!("figcraft://node/{id}")}));
++    let r = c.rpc("resources/read", json!({"uri": uri(&format!("figcraft://node/{id}"))}));
+     let n: Value = serde_json::from_str(r["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+     assert_eq!(n["name"], "Hero");
+-    let r = c.rpc("resources/read", json!({"uri": "figcraft://command/layout.add"}));
++    let r = c.rpc("resources/read", json!({"uri": uri("figcraft://command/layout.add").as_str()}));
+     assert!(r["result"]["contents"][0]["text"].as_str().unwrap().contains("Add auto layout"));
+     // Open comments are a resource; resolving one removes it.
+     c.run("comment.add", json!({"x": 20, "y": 30, "text": "Fix the padding", "anchor": id}));
+-    let r = c.rpc("resources/read", json!({"uri": "figcraft://comments"}));
++    let r = c.rpc("resources/read", json!({"uri": uri("figcraft://comments").as_str()}));
+     let comments: Value = serde_json::from_str(r["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+     assert_eq!(comments["comments"].as_array().unwrap().len(), 1);
+     assert_eq!(comments["comments"][0]["text"], "Fix the padding");
+     assert_eq!(comments["comments"][0]["anchor"], id);
+     let cid = comments["comments"][0]["id"].clone();
+     c.run("comment.resolve", json!({"id": cid}));
+-    let r = c.rpc("resources/read", json!({"uri": "figcraft://comments"}));
++    let r = c.rpc("resources/read", json!({"uri": uri("figcraft://comments").as_str()}));
+     let comments: Value = serde_json::from_str(r["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+     assert!(comments["comments"].as_array().unwrap().is_empty());
+-    for bad in ["figcraft://node/123456", "figcraft://node/xyz", "figcraft://command/nope", "http://example.com"] {
++    for bad in
++        [uri("figcraft://node/123456").as_str(), uri("figcraft://node/xyz").as_str(), uri("figcraft://command/nope").as_str(), "http://example.com"]
++    {
+         assert_eq!(c.rpc("resources/read", json!({"uri": bad}))["error"]["code"], -32002, "{bad}");
+     }
+     assert_eq!(c.rpc("resources/read", json!({}))["error"]["code"], -32602);
+diff --git a/crates/render/src/layer_budget.rs b/crates/render/src/layer_budget.rs
+index 975ee6c..0b47c11 100644
+--- a/crates/render/src/layer_budget.rs
++++ b/crates/render/src/layer_budget.rs
+@@ -16,6 +16,7 @@ thread_local! {
+     static HELD: Cell<u64> = const { Cell::new(0) };
+     static PEAK: Cell<u64> = const { Cell::new(0) };
+     static LIMIT: Cell<u64> = const { Cell::new(BUDGET) };
++    static DENIED: Cell<u64> = const { Cell::new(0) };
+ }
+ 
+ static WARNED: AtomicBool = AtomicBool::new(false);
+@@ -30,6 +31,7 @@ impl Held {
+         let held = HELD.with(Cell::get);
+         let total = held.saturating_add(bytes);
+         if total > LIMIT.with(Cell::get) {
++            DENIED.with(|c| c.set(c.get().saturating_add(1)));
+             if !WARNED.swap(true, Ordering::Relaxed) {
+                 log::warn!("render: nested layers need more than {} MB at once; the innermost are left out", LIMIT.with(Cell::get) >> 20);
+             }
+@@ -41,6 +43,94 @@ impl Held {
+     }
+ }
+ 
++/// Memory observations for one synchronous render on the calling thread.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct LayerAudit {
++    pub peak_bytes: u64,
++    pub denied_layers: u64,
++}
++
++struct AuditScope {
++    limit: u64,
++    peak: u64,
++    denied: u64,
++}
++
++impl Drop for AuditScope {
++    fn drop(&mut self) {
++        LIMIT.with(|c| c.set(self.limit));
++        PEAK.with(|c| c.set(c.get().max(self.peak)));
++        DENIED.with(|c| c.set(c.get().saturating_add(self.denied)));
++    }
++}
++
++/// Observe isolated layers while running `f`, with a limit no higher than the
++/// enclosing scope. Nested denials propagate out; state is restored on unwinding.
++/// The base image and codec allocations are outside this isolated-layer budget.
++pub fn audit_layers<T>(limit: u64, f: impl FnOnce() -> T) -> (T, LayerAudit) {
++    let scope = AuditScope {
++        limit: LIMIT.with(|c| c.replace(c.get().min(limit))),
++        peak: PEAK.with(|c| c.replace(HELD.with(Cell::get))),
++        denied: DENIED.with(|c| c.replace(0)),
++    };
++    let result = f();
++    let audit = LayerAudit { peak_bytes: PEAK.with(Cell::get), denied_layers: DENIED.with(Cell::get) };
++    drop(scope);
++    (result, audit)
++}
++
++#[cfg(test)]
++mod audit_tests {
++    use super::*;
++
++    #[test]
++    fn denial_is_counted_and_next_scope_recovers() {
++        let (ok, audit) = audit_layers(15, || Held::take(2, 2, 1).is_some());
++        assert!(!ok);
++        assert_eq!(audit, LayerAudit { peak_bytes: 0, denied_layers: 1 });
++        let (ok, audit) = audit_layers(16, || Held::take(2, 2, 1).is_some());
++        assert!(ok);
++        assert_eq!(audit, LayerAudit { peak_bytes: 16, denied_layers: 0 });
++    }
++
++    #[test]
++    fn nested_scope_cannot_raise_limit_or_hide_denial() {
++        let (_, outer) = audit_layers(16, || {
++            let _held = Held::take(2, 2, 1).unwrap();
++            let (ok, inner) = audit_layers(BUDGET, || Held::take(1, 1, 1).is_some());
++            assert!(!ok);
++            assert_eq!(inner.denied_layers, 1);
++        });
++        assert_eq!(outer, LayerAudit { peak_bytes: 16, denied_layers: 1 });
++    }
++
++    #[test]
++    fn scope_restores_limit_after_unwinding() {
++        let before = LIMIT.with(Cell::get);
++        let _ = std::panic::catch_unwind(|| audit_layers(0, || panic!("synthetic render failure")));
++        assert_eq!(LIMIT.with(Cell::get), before);
++        assert!(Held::take(1, 1, 1).is_some());
++    }
++
++    #[test]
++    fn real_clipped_frame_reports_dropped_content() {
++        use figcraft_color::{Color, Paint};
++        use figcraft_doc::{Document, NodeKind};
++        let mut doc = Document::new("Synthetic render audit");
++        let root = doc.create(doc.first_page().unwrap(), NodeKind::Frame, "Frame", 0.0, 0.0, 8.0, 8.0).unwrap();
++        doc.get_mut(root).unwrap().fills.clear();
++        let child = doc.create(root, NodeKind::Rectangle, "Ink", 0.0, 0.0, 8.0, 8.0).unwrap();
++        doc.get_mut(child).unwrap().fills = vec![Paint::solid(Color::BLACK)];
++        let render = || crate::render_area(&doc, &[root], figcraft_geom::Rect::new(0.0, 0.0, 8.0, 8.0), 1.0).unwrap();
++        let (omitted, denied) = audit_layers(64, render);
++        assert!(denied.denied_layers > 0);
++        assert!(omitted.pixels().iter().all(|p| p.alpha() == 0));
++        let (complete, accepted) = audit_layers(1024, render);
++        assert_eq!(accepted.denied_layers, 0);
++        assert!(complete.pixels().iter().all(|p| p.alpha() == 255));
++    }
++}
++
+ impl Drop for Held {
+     fn drop(&mut self) {
+         HELD.with(|c| c.set(c.get().saturating_sub(self.0)));
+diff --git a/crates/render/src/lib.rs b/crates/render/src/lib.rs
+index f138521..ffba311 100644
+--- a/crates/render/src/lib.rs
++++ b/crates/render/src/lib.rs
+@@ -26,6 +26,7 @@ pub mod shadow;
+ pub use dots::Dots;
+ pub use draw::{at_layer_depth, layer_depth, node_outline, paint_bounds, stroke_fill, subtree_outline, ts_path};
+ pub use export_depth::{ExportDepthError, MAX_EXPORT_DEPTH, check_export_depth};
++pub use layer_budget::{LayerAudit, audit_layers};
+ pub use retained::{Begun, Retained, Steps, Work};
+ pub use tiny_skia::{FillRule, Pixmap};
+ 
+diff --git a/crates/text/Cargo.toml b/crates/text/Cargo.toml
+index aea3d3b..a872423 100644
+--- a/crates/text/Cargo.toml
++++ b/crates/text/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "FigCraft text: font database (embedded craft-fonts + system fonts), shaping, line layout, glyph outlines"
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/text/build.rs b/crates/text/build.rs
+index 7960799..78f8823 100644
+--- a/crates/text/build.rs
++++ b/crates/text/build.rs
+@@ -27,7 +27,7 @@ fn main() {
+     let embed_cjk = std::env::var_os("FIGCRAFT_EMBED_CJK").is_some();
+     let embed_scripts = scripts_from(std::env::var("FIGCRAFT_EMBED_SCRIPTS").ok().as_deref());
+     let web_fonts = web_fonts(&std::env::var("FIGCRAFT_WEB_FONTS").unwrap_or_default());
+-    match input_fonts(dir.as_deref(), wasm, required, embed_cjk, &embed_scripts, &web_fonts) {
++    match input_fonts(dir.as_deref(), wasm, required, embed_cjk, &embed_scripts, &web_fonts, cfg!(feature = "dobe")) {
+         Ok(entries) => src.push_str(&entries),
+         Err(e) => println!("cargo::error={e}"),
+     }
+@@ -64,7 +64,10 @@ fn input_fonts(
+     embed_cjk: bool,
+     embed_scripts: &[String],
+     web_fonts: &[String],
++    dobe: bool,
+ ) -> Result<String, String> {
++    // A headless worker has no host font fallback, so its default Latin faces are required.
++    let required = required || dobe;
+     let Some(dir) = dir else {
+         for family in web_fonts {
+             println!("cargo::warning=FIGCRAFT_WEB_FONTS: {family:?} isn't embedded: this build has no craft-fonts");
+@@ -95,10 +98,13 @@ fn input_fonts(
+     for family in not_embedded(web_fonts, &faces) {
+         println!("cargo::warning=FIGCRAFT_WEB_FONTS: {family:?} isn't embedded: {why}");
+     }
+-    if required && wasm {
++    if required && (wasm || dobe) {
+         for (family, style) in [("Inter", "Regular"), ("Inter", "SemiBold"), ("Noto Sans Georgian", "Regular")] {
+             if !faces.iter().any(|(f, s)| f == family && s == style) {
+-                return Err(format!("required web font missing: {family} {style}; CRAFT_FONTS_DIR must include both Latin and core release faces"));
++                let target = if dobe { "Dobe" } else { "web" };
++                return Err(format!(
++                    "required {target} font missing: {family} {style}; CRAFT_FONTS_DIR must include both Latin and core release faces"
++                ));
+             }
+         }
+     }
+@@ -227,16 +233,27 @@ mod tests {
+         }
+         assert!(native.faces.iter().any(|(family, _)| family == "Carlito"));
+         assert!(native.faces.iter().any(|(family, _)| family == "Liberation Serif"));
+-        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[]).is_ok());
++        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[], false).is_ok());
++    }
++
++    #[test]
++    fn dobe_requires_latin_faces_without_enabling_web_filtering() {
++        assert!(input_fonts(None, false, false, false, &[], &[], true).unwrap_err().contains("CRAFT_FONTS_DIR is missing"));
++        let f = Fixture::new();
++        assert!(input_fonts(Some(&f.0), false, false, false, &[], &[], true).unwrap_err().contains("Inter Regular"));
++        std::fs::write(f.0.join("fonts/latin-manifest.txt"), include_str!("tests/fixtures/latin-families.txt")).unwrap();
++        let entries = input_fonts(Some(&f.0), false, false, false, &[], &[], true).unwrap();
++        assert!(entries.contains("Carlito") && entries.contains("Inter") && entries.contains("Noto Sans Georgian"));
++        assert!(!entries.contains("Source Sans 3"));
+     }
+ 
+     /// Asserts required web input rejects a catalog missing Inter Regular or Inter SemiBold.
+     #[test]
+     fn required_web_rejects_core_only_and_partial_latin_catalogs() {
+         let f = Fixture::new();
+-        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[]).unwrap_err().contains("Inter Regular"));
++        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[], false).unwrap_err().contains("Inter Regular"));
+         f.manifest("latin-manifest.txt", &[("Inter", "Regular"), ("Unrelated", "SemiBold")]);
+-        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[]).unwrap_err().contains("Inter SemiBold"));
++        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[], false).unwrap_err().contains("Inter SemiBold"));
+     }
+ 
+     /// Asserts required web input embeds the Inter and Georgian catalogs (three entries) and
+@@ -245,12 +262,12 @@ mod tests {
+     fn required_web_embeds_both_catalogs_and_requires_georgian() {
+         let f = Fixture::new();
+         f.manifest("latin-manifest.txt", &[("Inter", "Regular"), ("Inter", "SemiBold")]);
+-        let entries = input_fonts(Some(&f.0), true, true, false, &[], &[]).unwrap();
++        let entries = input_fonts(Some(&f.0), true, true, false, &[], &[], false).unwrap();
+         assert_eq!(entries.matches("CraftFont {").count(), 3);
+         assert!(entries.contains("family: \"Inter\""));
+         assert!(entries.contains("family: \"Noto Sans Georgian\""));
+         f.manifest("manifest.txt", &[("Other", "Regular")]);
+-        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[]).unwrap_err().contains("Noto Sans Georgian Regular"));
++        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[], false).unwrap_err().contains("Noto Sans Georgian Regular"));
+     }
+ 
+     /// Asserts absent font input is empty when optional and an error when required, while present
+@@ -258,10 +275,10 @@ mod tests {
+     #[test]
+     fn optional_and_native_inputs_keep_their_existing_policy() {
+         let f = Fixture::new();
+-        assert!(input_fonts(None, true, false, false, &[], &[]).unwrap().is_empty());
+-        assert!(input_fonts(None, true, true, false, &[], &[]).unwrap_err().contains("CRAFT_FONTS_DIR is missing"));
+-        assert!(input_fonts(Some(&f.0), true, false, false, &[], &[]).unwrap().contains("Noto Sans Georgian"));
+-        assert!(input_fonts(Some(&f.0), false, true, false, &[], &[]).unwrap().contains("Noto Sans Georgian"));
++        assert!(input_fonts(None, true, false, false, &[], &[], false).unwrap().is_empty());
++        assert!(input_fonts(None, true, true, false, &[], &[], false).unwrap_err().contains("CRAFT_FONTS_DIR is missing"));
++        assert!(input_fonts(Some(&f.0), true, false, false, &[], &[], false).unwrap().contains("Noto Sans Georgian"));
++        assert!(input_fonts(Some(&f.0), false, true, false, &[], &[], false).unwrap().contains("Noto Sans Georgian"));
+     }
+ 
+     /// Asserts required web input rejects a manifest whose face file is missing, even when every
+@@ -271,7 +288,7 @@ mod tests {
+         let f = Fixture::new();
+         f.manifest("latin-manifest.txt", &[("Inter", "Regular"), ("Inter", "SemiBold")]);
+         std::fs::remove_file(f.0.join("fonts/face.ttf")).unwrap();
+-        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[]).unwrap_err().contains("fonts/face.ttf"));
++        assert!(input_fonts(Some(&f.0), true, true, false, &[], &[], false).unwrap_err().contains("fonts/face.ttf"));
+     }
+ 
+     /// #1902: a web build leaves the other scripts' faces out (an Arabic or Persian document shows
+@@ -296,8 +313,8 @@ mod tests {
+         // Native builds keep every face whatever the variable says.
+         assert_eq!(craft_fonts(&f.0, "fonts/manifest.txt", false, false, &[], &[]).unwrap().faces.len(), 4);
+         // The variable reaches the catalog through `input_fonts`.
+-        assert!(input_fonts(Some(&f.0), true, false, false, &["Arab".into()], &[]).unwrap().contains("Noto Sans Arabic"));
+-        assert!(!input_fonts(Some(&f.0), true, false, false, &[], &[]).unwrap().contains("Noto Sans Arabic"));
++        assert!(input_fonts(Some(&f.0), true, false, false, &["Arab".into()], &[], false).unwrap().contains("Noto Sans Arabic"));
++        assert!(!input_fonts(Some(&f.0), true, false, false, &[], &[], false).unwrap().contains("Noto Sans Arabic"));
+         assert!(scripts_from(None).is_empty());
+     }
+ 
+@@ -316,6 +333,6 @@ mod tests {
+         assert_eq!(families(&craft_fonts(&f.0, "fonts/manifest.txt", true, false, &[], &[]).unwrap()), ["Noto Sans Georgian"], "unset: as before");
+         assert_eq!(craft_fonts(&f.0, "fonts/manifest.txt", false, false, &[], &[]).unwrap().faces.len(), 3, "native builds embed every family");
+         assert_eq!(not_embedded(&named, &web.faces), ["Noto Sans Thia"], "a misspelt family is reported");
+-        assert!(input_fonts(Some(&f.0), true, false, false, &[], &named).unwrap().contains("family: \"Noto Sans Thai\""));
++        assert!(input_fonts(Some(&f.0), true, false, false, &[], &named, false).unwrap().contains("family: \"Noto Sans Thai\""));
+     }
+ }
+diff --git a/crates/text/src/fontdb.rs b/crates/text/src/fontdb.rs
+index 3c82cd2..22f569b 100644
+--- a/crates/text/src/fontdb.rs
++++ b/crates/text/src/fontdb.rs
+@@ -1242,7 +1242,7 @@ impl FontDb {
+     /// Index the system font directories (desktop only): family names are read now, faces loaded
+     /// when first used. Safe to call more than once.
+     pub fn scan_system(&mut self) {
+-        if self.system_scanned {
++        if cfg!(feature = "dobe") || self.system_scanned {
+             return;
+         }
+         self.system_scanned = true;
+@@ -1641,7 +1641,9 @@ pub fn local_only(family: &str) -> bool {
+ /// ([`opt_out_of_system_fonts`]): renders use only the embedded fonts.
+ #[cfg(not(target_arch = "wasm32"))]
+ fn system_fonts_opted_out() -> bool {
+-    OPTED_OUT.load(Ordering::Relaxed) || std::env::var_os("FIGCRAFT_NO_SYSTEM_FONTS").is_some_and(|v| !v.is_empty() && v != "0")
++    cfg!(feature = "dobe")
++        || OPTED_OUT.load(Ordering::Relaxed)
++        || std::env::var_os("FIGCRAFT_NO_SYSTEM_FONTS").is_some_and(|v| !v.is_empty() && v != "0")
+ }
+ 
+ /// Use only the embedded fonts for the rest of the process, as `FIGCRAFT_NO_SYSTEM_FONTS` does
+@@ -1693,3 +1695,20 @@ mod names_tests;
+ #[cfg(test)]
+ #[path = "fontdb_fallback_tests.rs"]
+ mod fallback_tests;
++
++#[cfg(all(test, feature = "dobe", not(target_arch = "wasm32")))]
++mod dobe_tests {
++    #[test]
++    fn global_and_private_databases_never_scan_host_fonts() {
++        assert!(super::system_fonts_opted_out());
++        super::scan_system_fonts_on_demand();
++        super::scan_system_fonts();
++        assert!(!super::system_fonts_scanned());
++        assert!(super::rescan_system_fonts().changed.is_empty());
++        let mut db = super::FontDb::default();
++        let before = db.families();
++        db.scan_system();
++        assert!(!db.system_scanned);
++        assert_eq!(db.families(), before);
++    }
++}

@@ -1,0 +1,28 @@
+{
+  "cargo_lock_sha256": "eb9864c8f2548dbaa72069b4e4fb45ad966d2ef8d245595d17b206f9dc4de22a",
+  "engine_version": "0.21.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "photo.patch",
+    "sha256": "c6a7f1905d3a75e3251769530575d295a9942ac6fb872f52ee0ecd7f306e4aeb"
+  },
+  "patched_files": {
+    "apps/lightcraft-cli/Cargo.toml": "c9dde7dc87253bf8c1b4560ae1a07f187260b5242078c5ca7eb6168ed3e89ba9",
+    "apps/lightcraft-cli/src/main.rs": "ff8240d10c3569975586999f3a7a6e32fa1d8f5be49094c0ce11148bebbd296f",
+    "crates/mcp/Cargo.toml": "6782c08ec9686f51046dbf03d75d4dbe1550b191d157dc5090b843f9aae56b68",
+    "crates/mcp/src/headless.rs": "3db4b95b8dbdb8126b0e790dd6ede8b3f9c042dfbcc74db564103431f4fdbb79",
+    "crates/mcp/src/server.rs": "0297d155e4fec30a6966fc1b5ed943725a63843c88276eceec2045574c829088",
+    "crates/mcp/src/tests.rs": "3c25f238dff0b12d49a09b163a9d6bbd172b00963dd99ddd30dbc299e91374df"
+  },
+  "product": "dobe-photo",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "361e3bc0c838ffe5e5cea515b1fe5b71951989c6",
+    "url": "https://github.com/storytold/lightcraft"
+  },
+  "source_date_epoch": 1794452105
+}

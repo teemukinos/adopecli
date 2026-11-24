@@ -1,0 +1,54 @@
+{
+  "cargo_lock_sha256": "f08026e3aac32b8391c021a9c658b78b7e163109b92acd63d9e649497dbd11c0",
+  "engine_version": "0.4.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "material.patch",
+    "sha256": "d4bb665c4ee099de0a9893e9bbf092d79a7bd3214d095ea50c5862558febd68a"
+  },
+  "patched_files": {
+    "apps/materialcraft-cli/Cargo.toml": "7977209966eb3980680038bd6b7db8fea15aa970d469ff98ca6cf97c50554eba",
+    "apps/materialcraft-cli/src/dobe_help.txt": "ffbb41cc4e48d96f0a4b092919dd2e51a92612be1b930fb9fd6f2e705c2efbc6",
+    "apps/materialcraft-cli/src/dobe_main.rs": "d4dcc455e327b7c1c2f6a43893a38d1387c350b8b3f20ff6759ec50e42f2b141",
+    "apps/materialcraft-cli/src/main.rs": "2290c60395aa7f450555bb2321d6d7ae47d4fa18c50a5114659eb513737853eb",
+    "crates/automation/Cargo.toml": "7a29da09c5134cdc69628e510f4ad5ed4edf52538cb3f74ef763484537f03e27",
+    "crates/automation/src/dobe_preview.rs": "fe55e2e8d7e7cfd5c2099ead5b67077a8e74730ff32bfcea8b4a0060c9f89bfa",
+    "crates/automation/src/lib.rs": "c98e24fc76db7587764ecfefd409a2a97966048b969e1afab1efa1a4ac223e5c",
+    "crates/engine/Cargo.toml": "d552e9c21a420a340a4d1001eb145b81d96175eef35b9add367bfa1c49b1409c",
+    "crates/engine/src/dobe_evaluate.rs": "579cea74e3b23197cca24fefd7fd7ceb8e5710bb3ab4402191644fc93b829f23",
+    "crates/engine/src/dobe_maps.rs": "4fe203adc8fa5e1c2bcf6e3e6ccfe35af34976b21f63e2d48b3a8dbb49feb5b3",
+    "crates/engine/src/file_cmds.rs": "49e1b1faa727f2346bcb52741b8122d8624d9f79d46a1a30917bf16a69d8264b",
+    "crates/engine/src/lib.rs": "0d0ba30bbdb7d48e469c1e013b516e144ae9bb9f0936fd1781870a427908b658",
+    "crates/engine/src/linked_files.rs": "4145675a56525eb2d059f5ae098d5f5398cd0ed69a5317b6f6e8dd5a7546f250",
+    "crates/engine/src/linked_resource.rs": "b860f42c78846167bb60c9be99dc070a1754da8d79df7d2c630bcaa6cd464f7d",
+    "crates/engine/src/material_cmds.rs": "be62f0c6e7f011d52179b6e082be49f9d99347cbfdd8840b19f496c279e4e45c",
+    "crates/eval/Cargo.toml": "f826ba3e047f69ff7debf0a72a54dd98a488fecd668021f7016865e1777dec0d",
+    "crates/eval/src/dobe_budget.rs": "d3a318abbb691b97bc7d57a1571fdaafaa0bedb6a5a7c548f114d27d80683974",
+    "crates/eval/src/graph_execution.rs": "50f0fa526b528349f4666c997cca797e2ef0c458627b01e26e46bfcd664a6d90",
+    "crates/eval/src/graph_instance.rs": "f03af72ef01cbb84cc994de75b82bbc9c82819379628d87b97a51136c3d85454",
+    "crates/eval/src/lib.rs": "aa24a39cd34d6f9cca3c0119831190217e755a0ac6e6bab4a5668707f9dfbe8f",
+    "crates/eval/src/node_execution.rs": "fbb2d9b85e37af0c0963644502498fe8cf85f349a492373a296413ed7ef3b3bc",
+    "crates/eval/src/options.rs": "c3c63297c19868a4c6daa672fcaa9c82b805fb81c578f0ad827bf0280119426c",
+    "crates/formats/Cargo.toml": "0209446caad2e2093d1fda23cb9dad6cf1abbceb5e6e8f67655485932fe77773",
+    "crates/formats/src/image.rs": "1b789a25d8085d8c861389a1a5b65205f3cf586257491a15a6284d1ff993d8e7",
+    "crates/formats/src/project.rs": "0df5cc41affdb35491f71a7efe89344c37a7f550c9766848f637642557d820b3",
+    "crates/formats/src/sbs/library_dobe.rs": "0431dbf853a43cca15f7717d84e7e05c77f56bb7b50507949ac804d708ca7b17",
+    "crates/formats/src/sbs/mod.rs": "8556d46a17b23bcde76da8bd2da04808b4c6d16cb1901382b5afd3a3f290b9c0",
+    "crates/formats/src/sbs/sbs_reader.rs": "2bd760eb2d4a9468382fbd4eb926c77eccad5e85a548679d9a8b65070debea8a",
+    "crates/nodes/Cargo.toml": "b8f6a19a9e086193a8b89799caacb9f737cd819c736d2250cde08adc3843332a",
+    "crates/nodes/src/function/operation.rs": "d061e309056a69df6408266a1f7b13d406dfa7d237b4ed293649c561936e5440",
+    "crates/render/Cargo.toml": "97c356d5bee15c4c18dde4eda45ae1001d6c255b7c7e844683fc8e83f478d188",
+    "crates/render/src/preview.rs": "cb1e804777a15ab62f1c1008f465680be40ffff33902380c506c273aa46ce9f1"
+  },
+  "product": "dobe-material",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "65f7bfd3e5f40d695d03162285879f0f8079ff6c",
+    "url": "https://github.com/storytold/materialcraft"
+  },
+  "source_date_epoch": 1794443154
+}

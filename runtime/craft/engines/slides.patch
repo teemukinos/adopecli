@@ -1,0 +1,579 @@
+diff --git a/apps/deckcraft-cli/Cargo.toml b/apps/deckcraft-cli/Cargo.toml
+index 6d2f572..3284e14 100644
+--- a/apps/deckcraft-cli/Cargo.toml
++++ b/apps/deckcraft-cli/Cargo.toml
+@@ -6,16 +6,27 @@ license.workspace = true
+ description = "DeckCraft on the command line: render, convert, run commands, inspect, and serve MCP"
+ publish = false
+ 
++[features]
++default = ["upstream"]
++upstream = ["dep:deckcraft-mcp"]
++dobe = ["deckcraft-engine/dobe"]
++
+ [lints]
+ workspace = true
+ 
+ [[bin]]
+ name = "deckcraft-cli"
+ path = "src/main.rs"
++required-features = ["upstream"]
++
++[[bin]]
++name = "dobe-slides"
++path = "src/dobe_main.rs"
++required-features = ["dobe"]
+ 
+ [dependencies]
+ deckcraft-engine = { workspace = true }
+-deckcraft-mcp = { workspace = true }
++deckcraft-mcp = { workspace = true, optional = true }
+ serde_json = { workspace = true }
+ 
+ [dev-dependencies]
+diff --git a/apps/deckcraft-cli/src/dobe_diagnostics.rs b/apps/deckcraft-cli/src/dobe_diagnostics.rs
+new file mode 100644
+index 0000000..cc35ba8
+--- /dev/null
++++ b/apps/deckcraft-cli/src/dobe_diagnostics.rs
+@@ -0,0 +1,107 @@
++//! Actual placed-text layout and font bytes, not an independent shaping oracle.
++//! Charts, text converted to geometry and effects need separate coverage checks.
++use deckcraft_engine::{fonts, geom::Rect, render};
++use serde_json::{Value, json};
++use std::collections::BTreeMap;
++
++fn finite(values: &[f64]) -> Result<(), String> {
++    if values.iter().any(|v| !v.is_finite() || v.abs() > 10_000_000.0) {
++        return Err("text layout has unbounded geometry".into());
++    }
++    Ok(())
++}
++
++fn rect(value: Rect) -> Result<[f64; 4], String> {
++    let values = [value.x0, value.y0, value.x1, value.y1];
++    finite(&values)?;
++    Ok(values)
++}
++
++pub fn packet(input: &str, index: usize) -> Result<Vec<u8>, String> {
++    let doc = super::opened(input)?;
++    if index >= doc.slides.len() {
++        return Err("slide index exceeds bounds".into());
++    }
++    fonts::install_embedded_fonts(&doc);
++    let placed = render::place_slide(&doc, index);
++    if placed.texts.len() > 4096 {
++        return Err("text body count exceeds diagnostic budget".into());
++    }
++    let mut faces = Vec::new();
++    let mut face_ids = BTreeMap::new();
++    let mut raw = Vec::new();
++    let mut texts = Vec::new();
++    let mut glyph_count = 0usize;
++    let mut line_count = 0usize;
++    let mut text_bytes = 0usize;
++    for text in &placed.texts {
++        let layout = &text.layout;
++        finite(&[layout.content_width, layout.content_height, layout.font_scale, layout.line_reduction, layout.rotation])?;
++        finite(&text.transform.as_coeffs())?;
++        let paragraphs: Vec<String> = text.body.paragraphs.iter().map(|p| p.text()).collect();
++        for paragraph in &paragraphs {
++            text_bytes = text_bytes.checked_add(paragraph.len()).ok_or("text size overflow")?;
++        }
++        line_count = line_count.checked_add(layout.lines.len()).ok_or("line count overflow")?;
++        if text_bytes > 4 << 20 || line_count > 100_000 {
++            return Err("text or line budget exceeded".into());
++        }
++        let mut lines = Vec::new();
++        for line in &layout.lines {
++            finite(&[line.top, line.baseline, line.bottom, line.extent.0, line.extent.1])?;
++            lines.push(json!({"paragraph":line.para,"start":line.start,"end":line.end,"top":line.top,
++                "baseline":line.baseline,"bottom":line.bottom,"extent":[line.extent.0,line.extent.1],"column":line.column,"rtl":line.rtl}));
++        }
++        let mut runs = Vec::new();
++        for run in &layout.runs {
++            glyph_count = glyph_count.checked_add(run.glyphs.len()).ok_or("glyph count overflow")?;
++            if glyph_count > 200_000 || run.cells.len() > 200_000 {
++                return Err("glyph budget exceeded".into());
++            }
++            let face = &run.face;
++            let face_index = if let Some(index) = face_ids.get(&face.id()) {
++                *index
++            } else {
++                let bytes = face.data();
++                if faces.len() >= 64 || bytes.len() > 16 << 20 || raw.len().saturating_add(bytes.len()) > 32 << 20 {
++                    return Err("font byte budget exceeded".into());
++                }
++                finite(&[f64::from(face.weight), face.upem])?;
++                if face.coords.len() > 32 || face.coords.iter().any(|(_, v)| !v.is_finite()) {
++                    return Err("font variation coordinates exceed bounds".into());
++                }
++                let index = faces.len();
++                faces.push(json!({"family":face.family,"style":face.style,"index":face.index(),"weight":face.weight,"italic":face.italic,
++                    "unitsPerEm":face.upem,"coordinates":face.coords,"offset":raw.len(),"bytes":bytes.len()}));
++                raw.extend_from_slice(bytes);
++                face_ids.insert(face.id(), index);
++                index
++            };
++            finite(&[run.size, run.alpha])?;
++            for (_, x, y) in &run.glyphs {
++                finite(&[*x, *y])?;
++            }
++            runs.push(json!({"font":face_index,"size":run.size,"paragraph":run.para,"characters":[run.chars.0,run.chars.1],
++                "glyphs":run.glyphs,"cells":run.cells,"syntheticBold":run.fake_bold,"syntheticItalic":run.fake_italic,
++                "alpha":run.alpha,"upright":run.upright}));
++        }
++        texts.push(json!({"owner":text.owner.0,"paragraphs":paragraphs,"transform":text.transform.as_coeffs(),
++            "inner":rect(layout.inner)?,"contentWidth":layout.content_width,"contentHeight":layout.content_height,
++            "fontScale":layout.font_scale,"lineReduction":layout.line_reduction,"rotation":layout.rotation,
++            "overflow":layout.overflow,"lines":lines,"runs":runs}));
++    }
++    let header: Value = json!({"schemaVersion":1,"scope":"placed-slide-text","completeRenderCoverage":false,
++        "slide":index,"size":[doc.slide_size.width,doc.slide_size.height],"faces":faces,"fontBytes":raw.len(),
++        "glyphCount":glyph_count,"lineCount":line_count,"texts":texts});
++    let json = serde_json::to_vec(&header).map_err(|e| e.to_string())?;
++    if json.len() > 16 << 20 {
++        return Err("text layout header exceeds byte budget".into());
++    }
++    let len = u32::try_from(json.len()).map_err(|_| "header length overflow")?;
++    let mut result = Vec::with_capacity(12 + json.len() + raw.len());
++    result.extend_from_slice(b"DOBESLY1");
++    result.extend_from_slice(&len.to_le_bytes());
++    result.extend_from_slice(&json);
++    result.extend_from_slice(&raw);
++    Ok(result)
++}
+diff --git a/apps/deckcraft-cli/src/dobe_main.rs b/apps/deckcraft-cli/src/dobe_main.rs
+new file mode 100644
+index 0000000..2537f98
+--- /dev/null
++++ b/apps/deckcraft-cli/src/dobe_main.rs
+@@ -0,0 +1,221 @@
++//! Private maintained presentation worker. Public ownership and fidelity gates
++//! belong to the durable runtime; this binary is not an untrusted-file service.
++#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
++#![forbid(unsafe_code)]
++
++mod dobe_diagnostics;
++
++use deckcraft_engine::{Session, cmd::file, model::Presentation};
++use serde_json::{Value, json};
++use std::io::{Read, Write};
++use std::path::Path;
++use std::process::ExitCode;
++
++const MAX_BYTES: usize = 128 << 20;
++const REVISION: &str = "7cc73ab1895ed2e30c8afbcada20c70b9ea0a440";
++const HELP: &str = "Dobe Slides private native worker\nnew OUTPUT\nsnapshot INPUT\ntext-layout INPUT SLIDE_INDEX\npicture INPUT OUTPUT\nencode MODEL_JSON OUTPUT\nrender INPUT OUTPUT SLIDE_INDEX SCALE\nconvert INPUT OUTPUT FORMAT (deckcraft|pptx|pdf)\nNo app bridge, MCP listener, system font scan or external command route.\nControlled inputs only; complete source fidelity and public admission remain unqualified.";
++
++fn read(path: &str) -> Result<Vec<u8>, String> {
++    let path = Path::new(path);
++    let metadata = std::fs::symlink_metadata(path).map_err(|e| e.to_string())?;
++    if !metadata.is_file() || metadata.len() > MAX_BYTES as u64 {
++        return Err("input must be a bounded regular file".into());
++    }
++    let mut data = Vec::new();
++    std::fs::File::open(path).map_err(|e| e.to_string())?.take(MAX_BYTES as u64 + 1).read_to_end(&mut data).map_err(|e| e.to_string())?;
++    if data.len() > MAX_BYTES {
++        return Err("input exceeds byte budget".into());
++    }
++    Ok(data)
++}
++
++fn write(path: &str, data: &[u8]) -> Result<(), String> {
++    if data.is_empty() || data.len() > MAX_BYTES {
++        return Err("output exceeds byte budget or is empty".into());
++    }
++    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(path).map_err(|e| e.to_string())?;
++    let result = file.write_all(data).and_then(|()| file.sync_all()).map_err(|e| e.to_string());
++    if result.is_err() {
++        let _ = std::fs::remove_file(path);
++    }
++    result
++}
++
++fn check(doc: &Presentation) -> Result<(), String> {
++    if doc.slides.len() > 256 || doc.masters.len() > 256 || doc.media.len() > 4096 {
++        return Err("presentation exceeds private operation budget".into());
++    }
++    let mut bytes = 0usize;
++    for item in &doc.media {
++        bytes = bytes.checked_add(item.data.len()).ok_or("media size overflow")?;
++        if bytes > 16 << 20 {
++            return Err("media exceeds aggregate byte budget".into());
++        }
++    }
++    for side in [doc.slide_size.width, doc.slide_size.height] {
++        if !side.is_finite() || !(1.0..=8192.0).contains(&side) {
++            return Err("slide dimensions exceed finite bounds".into());
++        }
++    }
++    Ok(())
++}
++
++fn opened(path: &str) -> Result<Presentation, String> {
++    let (doc, damage) = file::open_checked(path, &read(path)?).map_err(|e| e.to_string())?;
++    if !damage.is_empty() {
++        return Err(format!("source damage: {} slides, {} media", damage.slides.len(), damage.media.len()));
++    }
++    check(&doc)?;
++    Ok(doc)
++}
++
++fn snapshot(doc: &Presentation) -> Value {
++    let mut document = json!(doc);
++    if let Some(media) = document.get_mut("media").and_then(Value::as_array_mut) {
++        for (record, item) in media.iter_mut().zip(&doc.media) {
++            // The upstream model deliberately omits these bytes from serde;
++            // our complete private observation carries them as canonical hex.
++            let data: String = item.data.iter().map(|byte| format!("{byte:02x}")).collect();
++            record["dataHex"] = json!(data);
++        }
++    }
++    json!({"schemaVersion":1,"document":document,"usedFonts":deckcraft_engine::fonts::used_fonts(doc),
++        "missingFonts":deckcraft_engine::fonts::missing_fonts(doc),"sourceFidelityQualified":false})
++}
++
++fn decode_model(data: &[u8]) -> Result<Presentation, String> {
++    let value: Value = serde_json::from_slice(data).map_err(|e| e.to_string())?;
++    let mut doc: Presentation = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
++    let media = value.get("media").and_then(Value::as_array).ok_or("model requires media array")?;
++    if media.len() != doc.media.len() {
++        return Err("model media inventory differs".into());
++    }
++    for (record, item) in media.iter().zip(&mut doc.media) {
++        let hex = record.get("dataHex").and_then(Value::as_str).ok_or("media requires exact dataHex bytes")?;
++        if hex.len() > 32 << 20 || hex.len() % 2 != 0 || !hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
++            return Err("media requires bounded canonical hexadecimal bytes".into());
++        }
++        let bytes: Result<Vec<u8>, _> = hex
++            .as_bytes()
++            .chunks_exact(2)
++            .map(|pair| std::str::from_utf8(pair).map_err(|e| e.to_string()).and_then(|s| u8::from_str_radix(s, 16).map_err(|e| e.to_string())))
++            .collect();
++        item.data = std::sync::Arc::new(bytes?);
++    }
++    Ok(doc)
++}
++
++fn execute(args: &[String]) -> Result<Value, String> {
++    match args {
++        [command, output] if command == "new" => {
++            let mut session = Session::new();
++            session.execute("file.new", &json!({"blank":false})).map_err(|e| e.to_string())?;
++            let doc = &session.doc().map_err(|e| e.to_string())?.doc;
++            check(doc)?;
++            write(output, &file::save_bytes(doc, "deckcraft").map_err(|e| e.to_string())?)?;
++            Ok(snapshot(doc))
++        }
++        [command, input] if command == "snapshot" => Ok(snapshot(&opened(input)?)),
++        [command, input, output] if command == "encode" => {
++            let doc = decode_model(&read(input)?)?;
++            check(&doc)?;
++            write(output, &file::save_bytes(&doc, "deckcraft").map_err(|e| e.to_string())?)?;
++            Ok(snapshot(&doc))
++        }
++        [command, input, output, format] if command == "convert" => {
++            if !matches!(format.as_str(), "deckcraft" | "pptx" | "pdf") {
++                return Err("unsupported explicit conversion format".into());
++            }
++            let doc = opened(input)?;
++            deckcraft_engine::fonts::install_embedded_fonts(&doc);
++            if format == "pdf" && !deckcraft_engine::fonts::missing_fonts(&doc).is_empty() {
++                return Err("PDF has unavailable requested fonts".into());
++            }
++            let bytes = file::save_bytes(&doc, format).map_err(|e| e.to_string())?;
++            write(output, &bytes)?;
++            Ok(json!({"format":format,"bytes":bytes.len(),"sourceFidelityQualified":false}))
++        }
++        [command, input, output, index, scale] if command == "render" => {
++            let doc = opened(input)?;
++            let index: usize = index.parse().map_err(|_| "invalid slide index")?;
++            let scale: f64 = scale.parse().map_err(|_| "invalid scale")?;
++            if index >= doc.slides.len() || !scale.is_finite() || !(0.25..=4.0).contains(&scale) {
++                return Err("slide index or scale exceeds bounds".into());
++            }
++            let width = (doc.slide_size.width * scale).ceil();
++            let height = (doc.slide_size.height * scale).ceil();
++            if width > 8192.0 || height > 8192.0 || width * height > 16_777_216.0 || file::image_scale(&doc, scale) != scale {
++                return Err("render requires unrequested scaling or exceeds pixel budget".into());
++            }
++            deckcraft_engine::fonts::install_embedded_fonts(&doc);
++            let missing = deckcraft_engine::fonts::missing_fonts(&doc);
++            if !missing.is_empty() {
++                return Err(format!("render has unavailable requested fonts: {missing:?}"));
++            }
++            let (bytes, w, h) = file::render_png(&doc, index, scale, false);
++            write(output, &bytes)?;
++            Ok(json!({"width":w,"height":h,"slide":index,"scale":scale,"bytes":bytes.len(),"sourceFidelityQualified":false}))
++        }
++        _ => Err("unsupported command or argument count; use --help".into()),
++    }
++}
++
++fn main() -> ExitCode {
++    let args: Vec<String> = std::env::args().skip(1).collect();
++    if args == ["--version"] {
++        println!("dobe-slides {} ({REVISION})", env!("CARGO_PKG_VERSION"));
++        return ExitCode::SUCCESS;
++    }
++    if args == ["--help"] {
++        println!("{HELP}");
++        return ExitCode::SUCCESS;
++    }
++    if let [command, input, output] = args.as_slice()
++        && command == "picture"
++    {
++        let result = read(input).and_then(|data| {
++            let picture = deckcraft_engine::render::dobe_picture(&data)?;
++            let header = serde_json::to_vec(&json!({"schemaVersion":1,"width":picture.width(),"height":picture.height(),
++                "sourceBytes":data.len(),"pixelFormat":"RGBA8","pixelBytes":picture.as_raw().len()}))
++            .map_err(|e| e.to_string())?;
++            let size = u32::try_from(header.len()).map_err(|_| "picture header exceeds budget")?;
++            let mut packet = Vec::with_capacity(12 + header.len() + picture.as_raw().len());
++            packet.extend_from_slice(b"DOBESPI1");
++            packet.extend_from_slice(&size.to_le_bytes());
++            packet.extend_from_slice(&header);
++            packet.extend_from_slice(picture.as_raw());
++            write(output, &packet)?;
++            serde_json::to_writer(std::io::stdout().lock(), &json!({"bytes":packet.len()})).map_err(|e| e.to_string())
++        });
++        return match result {
++            Ok(()) => ExitCode::SUCCESS,
++            Err(error) => {
++                eprintln!("dobe-slides: {error}");
++                ExitCode::FAILURE
++            }
++        };
++    }
++    if let [command, input, index] = args.as_slice()
++        && command == "text-layout"
++    {
++        let result = index
++            .parse::<usize>()
++            .map_err(|_| "invalid slide index".to_string())
++            .and_then(|index| dobe_diagnostics::packet(input, index))
++            .and_then(|packet| std::io::stdout().lock().write_all(&packet).map_err(|e| e.to_string()));
++        return match result {
++            Ok(()) => ExitCode::SUCCESS,
++            Err(error) => {
++                eprintln!("dobe-slides: {error}");
++                ExitCode::FAILURE
++            }
++        };
++    }
++    match execute(&args).and_then(|value| serde_json::to_writer(std::io::stdout().lock(), &value).map_err(|e| e.to_string())) {
++        Ok(()) => ExitCode::SUCCESS,
++        Err(error) => {
++            eprintln!("dobe-slides: {error}");
++            ExitCode::FAILURE
++        }
++    }
++}
+diff --git a/crates/engine/Cargo.toml b/crates/engine/Cargo.toml
+index cb1f4c2..363a034 100644
+--- a/crates/engine/Cargo.toml
++++ b/crates/engine/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "DeckCraft engine: sessions, undo history, selection, the command registry every frontend dispatches through, and pointer tools"
+ 
++[features]
++dobe = ["deckcraft-fonts/dobe", "deckcraft-format/dobe", "deckcraft-render/dobe", "deckcraft-pptx/dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/fonts/Cargo.toml b/crates/fonts/Cargo.toml
+index dd873f6..c0d6884 100644
+--- a/crates/fonts/Cargo.toml
++++ b/crates/fonts/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "DeckCraft fonts: font database (craft-fonts + system), substitutes for Office fonts, metrics, outlines, shaping"
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/fonts/src/fontdb.rs b/crates/fonts/src/fontdb.rs
+index e542c8d..e347819 100644
+--- a/crates/fonts/src/fontdb.rs
++++ b/crates/fonts/src/fontdb.rs
+@@ -992,7 +992,18 @@ impl FontDb {
+     /// [`FontDb::scan_in_background`]).
+     pub fn global() -> &'static FontDb {
+         static DB: std::sync::OnceLock<FontDb> = std::sync::OnceLock::new();
+-        DB.get_or_init(|| FontDb::with_font_dirs(system_font_dirs()))
++        DB.get_or_init(|| {
++            // The maintained worker uses pinned and owned embedded fonts only.
++            // Explicit family lookup must not scan personal font directories.
++            #[cfg(feature = "dobe")]
++            {
++                let db = FontDb::with_font_dirs(Vec::new());
++                db.set_system_fallback(false);
++                db
++            }
++            #[cfg(not(feature = "dobe"))]
++            FontDb::with_font_dirs(system_font_dirs())
++        })
+     }
+ 
+     pub(crate) fn read_faces(&self) -> std::sync::RwLockReadGuard<'_, Vec<Arc<FontFace>>> {
+diff --git a/crates/format/Cargo.toml b/crates/format/Cargo.toml
+index 252529e..b153c6c 100644
+--- a/crates/format/Cargo.toml
++++ b/crates/format/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "DeckCraft native file format (.deckcraft: zip of a JSON manifest plus media) and outline text import/export"
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/format/src/lib.rs b/crates/format/src/lib.rs
+index 4125c29..db83fe9 100644
+--- a/crates/format/src/lib.rs
++++ b/crates/format/src/lib.rs
+@@ -116,7 +116,19 @@ fn is_compressed(ct: &str) -> bool {
+ 
+ /// Does this look like a `.deckcraft` file?
+ pub fn sniff(bytes: &[u8]) -> bool {
+-    bytes.starts_with(b"PK") && [MIMETYPE, LEGACY_MIMETYPE].iter().any(|m| bytes.windows(m.len()).take(200).any(|w| w == m.as_bytes()))
++    #[cfg(feature = "dobe")]
++    {
++        // The native writer stores MIME first, but owned sources may compress
++        // or reorder that member. Inspect its bounded bytes instead of losing
++        // valid presentations because a plaintext marker is not near byte zero.
++        let Ok(mut archive) = zip::ZipArchive::new(Cursor::new(bytes)) else { return false };
++        let Ok(mime) = read_entry_max(&mut archive, "mimetype", 128) else { return false };
++        [MIMETYPE, LEGACY_MIMETYPE].iter().any(|expected| mime == expected.as_bytes())
++    }
++    #[cfg(not(feature = "dobe"))]
++    {
++        bytes.starts_with(b"PK") && [MIMETYPE, LEGACY_MIMETYPE].iter().any(|m| bytes.windows(m.len()).take(200).any(|w| w == m.as_bytes()))
++    }
+ }
+ 
+ #[cfg(test)]
+diff --git a/crates/pptx/Cargo.toml b/crates/pptx/Cargo.toml
+index 0ea79d6..59446c3 100644
+--- a/crates/pptx/Cargo.toml
++++ b/crates/pptx/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "DeckCraft PPTX: Office Open XML (PresentationML/DrawingML) import and export, written from the public ECMA-376 standard"
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/pptx/src/read/dml.rs b/crates/pptx/src/read/dml.rs
+index 10a0bac..3aaccba 100644
+--- a/crates/pptx/src/read/dml.rs
++++ b/crates/pptx/src/read/dml.rs
+@@ -433,7 +433,10 @@ fn warp_adjusts(preset: &str, e: &El) -> Vec<f64> {
+ 
+ fn spacing(e: &El) -> Option<Spacing> {
+     if let Some(p) = e.child("spcPct") {
+-        return Some(Spacing::Pct(pct(p, "val").unwrap_or(1.0).clamp(0.0, 100.0)));
++        // The writer emits values through 132. Clamping these to 100 on reopen
++        // changes valid owned presentation spacing even when the file is exact.
++        let upper = if cfg!(feature = "dobe") { 132.0 } else { 100.0 };
++        return Some(Spacing::Pct(pct(p, "val").unwrap_or(1.0).clamp(0.0, upper)));
+     }
+     e.child("spcPts").map(|p| Spacing::Pts(p.f64("val").unwrap_or(0.0).clamp(0.0, 1_000_000.0) / 100.0))
+ }
+diff --git a/crates/render/Cargo.toml b/crates/render/Cargo.toml
+index 2704231..256117a 100644
+--- a/crates/render/Cargo.toml
++++ b/crates/render/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "DeckCraft renderer: slides, layouts and masters to pixels (vello_cpu): fills, outlines, effects, pictures, text, tables, charts"
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/render/src/images.rs b/crates/render/src/images.rs
+index 59a274b..a72e5e3 100644
+--- a/crates/render/src/images.rs
++++ b/crates/render/src/images.rs
+@@ -124,6 +124,24 @@ pub fn decode(bytes: &[u8]) -> Option<image::RgbaImage> {
+     decode_at(bytes, crate::metafile::DEFAULT_SIDE)
+ }
+ 
++/// Decode an owned still raster for the maintained worker. This uses the same
++/// decoder as picture rendering, with tighter limits before any pixel allocation.
++#[cfg(feature = "dobe")]
++pub fn dobe_picture(bytes: &[u8]) -> Result<image::RgbaImage, String> {
++    if bytes.is_empty() || bytes.len() > 16 << 20 {
++        return Err("picture exceeds encoded byte budget".into());
++    }
++    let reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().map_err(|e| e.to_string())?;
++    if !matches!(reader.format(), Some(image::ImageFormat::Png | image::ImageFormat::Jpeg)) {
++        return Err("picture requires PNG or JPEG".into());
++    }
++    let (width, height) = reader.into_dimensions().map_err(|e| e.to_string())?;
++    if width > 8192 || height > 8192 || !fits(width, height, 64 << 20) {
++        return Err("picture exceeds pixel budget".into());
++    }
++    decode_raster(bytes, 64 << 20).ok_or_else(|| "picture cannot be decoded".into())
++}
++
+ /// [`decode`], with a metafile drawn with its longer side `side` px.
+ fn decode_at(bytes: &[u8], side: u32) -> Option<image::RgbaImage> {
+     if bytes.len() > 512 << 20 {
+diff --git a/crates/render/src/lib.rs b/crates/render/src/lib.rs
+index 0f15b97..f643b1a 100644
+--- a/crates/render/src/lib.rs
++++ b/crates/render/src/lib.rs
+@@ -50,6 +50,8 @@ use vello_cpu::{RenderContext, Resources, peniko};
+ 
+ pub use deckcraft_anim::{transition_frame, transition_layers, uses_slide_parts};
+ pub use extent::{Region, TILE, layout_extent, pasteboard_region, slide_extent};
++#[cfg(feature = "dobe")]
++pub use images::dobe_picture;
+ pub use images::{decode as decode_image, gif_frame};
+ pub use morph_path::PathMorph;
+ pub use morph_text::TextMorph;
+diff --git a/crates/render/src/placed.rs b/crates/render/src/placed.rs
+index 483db41..5820d39 100644
+--- a/crates/render/src/placed.rs
++++ b/crates/render/src/placed.rs
+@@ -11,6 +11,9 @@ use crate::{SlideFields, shape_geometry, table};
+ 
+ /// One shape's text as drawn on the slide.
+ pub struct PlacedText {
++    /// Source shape identity retained by the private Dobe diagnostics.
++    #[cfg(feature = "dobe")]
++    pub owner: ShapeId,
+     pub layout: TextLayout,
+     /// Shape-local → slide points (text rotation included, flips not: see [`crate::text_transform`]).
+     pub transform: Affine,
+@@ -185,7 +188,13 @@ fn place_text(out: &mut Placed, rctx: &Ctx, fields: &SlideFields, owner: ShapeId
+         let r = Rect::new(x0, line.top, x1, line.bottom);
+         out.links.push(PlacedLink { rect: m.transform_rect_bbox(r), link, shape: owner, text: true });
+     }
+-    out.texts.push(PlacedText { layout, transform: m, body: placed });
++    out.texts.push(PlacedText {
++        #[cfg(feature = "dobe")]
++        owner,
++        layout,
++        transform: m,
++        body: placed,
++    });
+ }
+ 
+ /// The hyperlink of the model run containing character `at` of paragraph `para`.

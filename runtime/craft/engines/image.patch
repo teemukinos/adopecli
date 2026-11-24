@@ -1,0 +1,295 @@
+diff --git a/apps/photocraft-cli/Cargo.toml b/apps/photocraft-cli/Cargo.toml
+index 059e53eb3..20100a22a 100644
+--- a/apps/photocraft-cli/Cargo.toml
++++ b/apps/photocraft-cli/Cargo.toml
+@@ -8,6 +8,7 @@ build = "build.rs"
+ 
+ [features]
+ default = ["gpu"]
++dobe = []
+ # Open HEIC/HEIF photos (the optional craft-heif crate). Not default so distributors choose
+ # it; official builds (CI, packaging/, release) build with `--features heif`.
+ heif = ["photocraft-codecs/heif"]
+@@ -25,6 +26,11 @@ path = "src/lib.rs"
+ name = "photocraft-cli"
+ path = "src/main.rs"
+ 
++[[bin]]
++name = "dobe-image"
++path = "src/main.rs"
++required-features = ["dobe"]
++
+ [[example]]
+ name = "gpu_bench"
+ required-features = ["gpu"]
+diff --git a/apps/photocraft-cli/src/args.rs b/apps/photocraft-cli/src/args.rs
+index ae1e3f8f8..137d724ee 100644
+--- a/apps/photocraft-cli/src/args.rs
++++ b/apps/photocraft-cli/src/args.rs
+@@ -23,6 +23,7 @@ use serde_json::Value;
+ /// photocraft-cli: headless PhotoCraft
+ #[derive(Parser)]
+ #[command(name = "photocraft-cli", version = photocraft_engine::build_info::long_version_static(), arg_required_else_help = true)]
++#[cfg_attr(feature = "dobe", command(name = "dobe-image", about = "Dobe Image headless production engine"))]
+ pub(crate) struct Cli {
+     #[command(subcommand)]
+     pub(crate) command: Command,
+@@ -474,10 +475,11 @@ fn steps(m: &ArgMatches) -> Vec<Step> {
+ /// stray.psd --help`): clap reports the mistake first.
+ pub(crate) fn parse(args: &[OsString]) -> Result<Cli, clap::Error> {
+     let mut cmd = Cli::command().mut_subcommands(|sub| sub.mut_args(blank_env_is_unset));
+-    let argv = std::iter::once(OsString::from("photocraft-cli")).chain(args.iter().cloned());
++    let name = OsString::from(cmd.get_name());
++    let argv = std::iter::once(name.clone()).chain(args.iter().cloned());
+     let matches = match cmd.try_get_matches_from_mut(argv) {
+         Err(e) if args.iter().take_while(|a| *a != "--").any(|a| *a == "--help" || *a == "-h") => {
+-            let help = [OsString::from("photocraft-cli"), args.first().cloned().unwrap_or_default(), OsString::from("--help")];
++            let help = [name, args.first().cloned().unwrap_or_default(), OsString::from("--help")];
+             return Err(cmd.try_get_matches_from_mut(help).err().unwrap_or(e));
+         }
+         matches => matches.map_err(|e| name_env_vars(e, &cmd, args))?,
+diff --git a/crates/algo/src/photo_util.rs b/crates/algo/src/photo_util.rs
+index 96c6f7b43..8c2558350 100644
+--- a/crates/algo/src/photo_util.rs
++++ b/crates/algo/src/photo_util.rs
+@@ -167,8 +167,10 @@ impl BandChol {
+         let n = a.diag.len();
+         let mut p = 0;
+         for i in 0..n {
+-            for k in a.rows[i]..a.rows[i + 1] {
+-                p = p.max(i.abs_diff(a.cols[k]));
++            let start = *a.rows.get(i)?;
++            let end = *a.rows.get(i + 1)?;
++            for &column in a.cols.get(start..end)? {
++                p = p.max(i.abs_diff(column));
+             }
+         }
+         if n.saturating_mul(p + 1) > 40_000_000 {
+diff --git a/crates/cms/src/synth.rs b/crates/cms/src/synth.rs
+index 390e509dc..9ab1eb2c8 100644
+--- a/crates/cms/src/synth.rs
++++ b/crates/cms/src/synth.rs
+@@ -119,7 +119,7 @@ impl CmykModel {
+             (v + 4.0 * self.tvi[i] * v * (1.0 - v)).clamp(0.0, 1.0)
+         });
+         let mut s = [0.0; 3];
+-        for m in 0..16 {
++        for (m, primary) in self.prim_n.iter().enumerate() {
+             let mut w = 1.0;
+             for (i, ai) in a.iter().enumerate() {
+                 w *= if m & (1 << i) != 0 { *ai } else { 1.0 - ai };
+@@ -127,7 +127,7 @@ impl CmykModel {
+             if w == 0.0 {
+                 continue;
+             }
+-            for (acc, p) in s.iter_mut().zip(&self.prim_n[m]) {
++            for (acc, p) in s.iter_mut().zip(primary) {
+                 *acc += w * p;
+             }
+         }
+diff --git a/crates/engine/src/cmd/multichannel_cmds/tests.rs b/crates/engine/src/cmd/multichannel_cmds/tests.rs
+index fc3cfd1cd..79eac5cd6 100644
+--- a/crates/engine/src/cmd/multichannel_cmds/tests.rs
++++ b/crates/engine/src/cmd/multichannel_cmds/tests.rs
+@@ -110,8 +110,8 @@ fn flattens_layers_and_keeps_alpha_channels() {
+     assert_eq!(d.channels.len(), 4);
+     assert!(d.channels[3].spot.is_none(), "the saved selection stays an alpha channel");
+     // The black fill on the upper layer is solid ink in all three plates.
+-    for k in 0..3 {
+-        assert!(d.channels[k].surface.pixel(1, 1)[0] > 0.99);
++    for channel in d.channels.iter().take(3) {
++        assert!(channel.surface.pixel(1, 1)[0] > 0.99);
+     }
+     // Back to RGB: the alpha channel survives, the inks become colour channels.
+     s.execute("image.mode.rgb", json!({})).unwrap();
+diff --git a/crates/engine/src/cmd/type_cmds.rs b/crates/engine/src/cmd/type_cmds.rs
+index a5fd48c7c..98cdd17ac 100644
+--- a/crates/engine/src/cmd/type_cmds.rs
++++ b/crates/engine/src/cmd/type_cmds.rs
+@@ -851,6 +851,11 @@ pub fn layer_name(text: &str) -> String {
+ }
+ 
+ fn info(s: &Session, p: &Value) -> Result<Value> {
++    let diagnostics = match p.get("fontDiagnostics") {
++        None | Some(Value::Bool(false)) => false,
++        Some(Value::Bool(true)) => true,
++        _ => return Err(bad("type.info", "fontDiagnostics must be boolean")),
++    };
+     let id = layer_id(s, p)?;
+     let d = s.active().ok_or(EngineError::NoDocument)?;
+     let l = d.doc.layer(id).ok_or(EngineError::NoLayer(id))?;
+@@ -903,9 +908,14 @@ fn info(s: &Session, p: &Value) -> Result<Value> {
+     if !warnings.is_empty() {
+         out["warnings"] = json!(warnings);
+     }
++    if diagnostics {
++        out["fontDiagnostics"] = font_diagnostics::describe(text, &layout)?;
++    }
+     Ok(out)
+ }
+ 
++mod font_diagnostics;
++
+ /// A type layer (not yet rendered or added) from `type.create`'s params: text, point `x`/`y` or
+ /// paragraph `box`, `orientation`, character and paragraph keys, starting from the default type
+ /// styles in the foreground colour. Shared with the Type Mask tools' `type.createSelection`.
+@@ -1237,7 +1247,7 @@ pub fn specs() -> Vec<CommandSpec> {
+             label: "Type Layer Info",
+             menu: &[],
+             shortcut: None,
+-            params: r##"{"layer":id?} → text, runs/paragraphs (char offsets + styles), shape, transform, laid-out lines (text space px), bounds"##,
++            params: r##"{"layer":id?,"fontDiagnostics":bool?} → text, runs/paragraphs (char offsets + styles), shape, transform, laid-out lines (text space px), bounds; optional bounded shaped-glyph/face fingerprints with UTF-8 byte ranges"##,
+             enabled: has_doc,
+             journal: false,
+             run: |s, p| info(s, p),
+diff --git a/crates/engine/src/cmd/type_cmds/tests.rs b/crates/engine/src/cmd/type_cmds/tests.rs
+index 1fa8bb89d..2b6ac4cb7 100644
+--- a/crates/engine/src/cmd/type_cmds/tests.rs
++++ b/crates/engine/src/cmd/type_cmds/tests.rs
+@@ -6,6 +6,49 @@ fn session() -> Session {
+     s
+ }
+ 
++#[test]
++fn font_diagnostics_are_opt_in_and_identify_actual_shaped_faces() {
++    let mut s = session();
++    let text = "Office café e\u{301}";
++    let id = s.execute("type.create", json!({"text": text, "font": "Inter", "size": 12})).unwrap()["layer"].as_u64().unwrap();
++    let before = text_layer(&s, id);
++    let plain = s.execute("type.info", json!({"layer": id})).unwrap();
++    assert!(plain.get("fontDiagnostics").is_none());
++    assert!(s.execute("type.info", json!({"layer": id, "fontDiagnostics": "true"})).is_err());
++    let mut inspected = s.execute("type.info", json!({"layer": id, "fontDiagnostics": true})).unwrap();
++    let diagnostics = inspected.as_object_mut().unwrap().remove("fontDiagnostics").unwrap();
++    assert_eq!(plain, inspected, "inspection preserves the existing response");
++    assert_eq!(text_layer(&s, id).text, before.text);
++    assert_eq!(text_layer(&s, id).runs, before.runs);
++    assert_eq!(diagnostics["missingGlyphCount"], 0);
++    let expected = blake3::hash(&photocraft_text::fonts::INTER_REGULAR).to_hex().to_string();
++    let faces = diagnostics["faces"].as_array().unwrap();
++    assert!(!faces.is_empty());
++    assert!(faces.iter().all(|face| face["fontBlake3"] == expected));
++    let glyphs = diagnostics["glyphs"].as_array().unwrap();
++    assert!(!glyphs.is_empty());
++    for glyph in glyphs {
++        let start = glyph["sourceByteStart"].as_u64().unwrap() as usize;
++        let end = glyph["sourceByteEnd"].as_u64().unwrap() as usize;
++        assert!(text.get(start..end).is_some(), "source ranges use UTF-8 bytes");
++        assert!(faces.get(glyph["face"].as_u64().unwrap() as usize).is_some());
++        assert!(diagnostics["resolvedStyles"].as_array().unwrap().get(glyph["style"].as_u64().unwrap() as usize).is_some());
++    }
++}
++
++#[test]
++fn font_diagnostics_report_missing_glyphs_and_reject_invalid_ranges() {
++    let t = TextLayer { text: "\u{10ffff}".into(), ..Default::default() };
++    let mut layout = photocraft_text::shared().lock().unwrap_or_else(|e| e.into_inner()).layout(&t, 72.0);
++    let diagnostics = font_diagnostics::describe(&t.text, &layout).unwrap();
++    assert!(diagnostics["missingGlyphCount"].as_u64().unwrap() > 0);
++    layout.glyph_ranges[0] = 1..2;
++    assert!(font_diagnostics::describe(&t.text, &layout).is_err());
++    layout.glyph_ranges[0] = 0..t.text.len();
++    layout.glyphs[0].face = u32::MAX;
++    assert!(font_diagnostics::describe(&t.text, &layout).is_err());
++}
++
+ fn text_layer(s: &Session, id: u64) -> TextLayer {
+     match &s.active().unwrap().doc.layer(LayerId(id)).unwrap().content {
+         LayerContent::Text(t) => t.clone(),
+diff --git a/crates/engine/src/cmd/type_cmds/font_diagnostics.rs b/crates/engine/src/cmd/type_cmds/font_diagnostics.rs
+new file mode 100644
+index 000000000..bf77c5f77
+--- /dev/null
++++ b/crates/engine/src/cmd/type_cmds/font_diagnostics.rs
+@@ -0,0 +1,91 @@
++//! Opt-in evidence of the font instances actually used by the shaper.
++//! A family existing in the font list does not prove it supplies every shaped glyph.
++//! These records identify font bytes, collection index and variation coordinates. They
++//! do not assert that every source character paints a glyph (controls need not do so).
++
++use photocraft_text::layout::TextLayout;
++use serde_json::{Value, json};
++use std::sync::LazyLock;
++
++use super::{Result, bad};
++
++const MAX_GLYPHS: usize = 65_536;
++const MAX_FACES: usize = 256;
++const MAX_STYLES: usize = 4_096;
++const MAX_TEXT_BYTES: usize = 1_048_576;
++const MAX_FONT_BYTES: usize = 256 * 1_048_576;
++
++static BUNDLED_FONTS: LazyLock<Value> = LazyLock::new(|| {
++    json!(photocraft_text::fonts::BUNDLED.iter().map(|(name, bytes)| {
++        json!({"name": name, "fontBlake3": blake3::hash(bytes).to_hex().as_str(), "collectionIndex": 0})
++    }).collect::<Vec<_>>())
++});
++
++pub(super) fn describe(text: &str, layout: &TextLayout) -> Result<Value> {
++    // Refuse incomplete diagnostics rather than silently truncating evidence used to
++    // decide whether an editable project can reopen with the same typography.
++    if text.len() > MAX_TEXT_BYTES || layout.glyphs.len() > MAX_GLYPHS || layout.faces.len() > MAX_FACES || layout.styles.len() > MAX_STYLES {
++        return Err(bad("type.info", "font diagnostics exceed bounded output limits"));
++    }
++    if layout.glyph_ranges.len() != layout.glyphs.len() {
++        return Err(bad("type.info", "font diagnostics have inconsistent glyph ranges"));
++    }
++    let mut byte_budget = MAX_FONT_BYTES;
++    let mut faces = Vec::with_capacity(layout.faces.len());
++    for (index, face) in layout.faces.iter().enumerate() {
++        let data: &[u8] = face.font.data.as_ref();
++        byte_budget = byte_budget.checked_sub(data.len()).ok_or_else(|| bad("type.info", "font diagnostics exceed font byte budget"))?;
++        if face.coords.len() > 64 || !face.size_px.is_finite() || !face.skew_deg.is_finite() {
++            return Err(bad("type.info", "font diagnostics have invalid face parameters"));
++        }
++        faces.push(json!({
++            "face": index,
++            "fontBlake3": blake3::hash(data).to_hex().as_str(),
++            "fontBytes": data.len(),
++            "collectionIndex": face.font.index,
++            "variationCoordsF2Dot14": face.coords,
++            "sizePx": face.size_px,
++            "syntheticBold": face.embolden,
++            "syntheticSkewDegrees": face.skew_deg,
++        }));
++    }
++    let mut glyphs = Vec::with_capacity(layout.glyphs.len());
++    let mut missing = 0;
++    for (glyph, range) in layout.glyphs.iter().zip(&layout.glyph_ranges) {
++        if layout.faces.get(glyph.face as usize).is_none()
++            || layout.styles.get(glyph.style as usize).is_none()
++            || text.get(range.clone()).is_none()
++            || !glyph.x.is_finite()
++            || !glyph.y.is_finite()
++        {
++            return Err(bad("type.info", "font diagnostics have invalid glyph references"));
++        }
++        if glyph.id == 0 {
++            missing += 1;
++        }
++        glyphs.push(json!({
++            "face": glyph.face, "glyphId": glyph.id, "style": glyph.style,
++            "sourceByteStart": range.start, "sourceByteEnd": range.end,
++            "x": glyph.x, "y": glyph.y,
++        }));
++    }
++    Ok(json!({
++        "schema": 1, "scope": "shaped-glyphs", "rangeUnit": "utf8-bytes",
++        "sourceBytes": text.len(), "faces": faces, "glyphs": glyphs,
++        "resolvedStyles": layout.styles, "missingGlyphCount": missing,
++        "bundledFonts": &*BUNDLED_FONTS,
++    }))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn bounded_output_rejects_incomplete_evidence() {
++        let mut layout = TextLayout::default();
++        assert!(describe(&"a".repeat(MAX_TEXT_BYTES + 1), &layout).is_err());
++        layout.glyph_ranges.push(0..0);
++        assert!(describe("", &layout).is_err());
++    }
++}

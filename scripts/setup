@@ -1,0 +1,19 @@
+#!/bin/bash
+# Build the engines and the Python environment for this checkout.
+# Usage: scripts/setup [--only vector,image] [--jobs N] [--clean]
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+PYTHON=""
+for candidate in python3.14 python3.13 python3.12 python3; do
+  if command -v "$candidate" >/dev/null 2>&1 \
+     && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 12))' 2>/dev/null; then
+    # Resolve symlinks: a venv made through a symlinked interpreter (uv, pyenv
+    # shims) can fail to find the standard library.
+    PYTHON="$("$candidate" -c 'import os, sys; print(os.path.realpath(sys.executable))')"; break
+  fi
+done
+if [ -z "$PYTHON" ]; then
+  echo "setup: Python 3.12 or later is required (brew install python)" >&2
+  exit 1
+fi
+exec "$PYTHON" -B "$ROOT/runtime/craft/setup_checkout.py" --root "$ROOT" "$@"

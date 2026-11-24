@@ -1,0 +1,36 @@
+{
+  "cargo_lock_sha256": "f4089e89cd2e4309a48bf3066b135331a7f5c929063bdfc3f07465e75fc0b8b0",
+  "engine_version": "0.20.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "video.patch",
+    "sha256": "c703e7dc7b33517533b920ed122f781d9e1534edecb76e2af1b7526ec5caee06"
+  },
+  "patched_files": {
+    "apps/filmcraft-cli/Cargo.toml": "39f7c169a6c38051740fd62f9f827a2ac9a728e09a176361c6e0514b05745f9f",
+    "apps/filmcraft-cli/src/main.rs": "a9b0a5ce69ba1c12b8d08487e0710d5c8c1e7cb0f6fe275e99b8fa922707084f",
+    "apps/filmcraft-cli/src/owned_decode.rs": "3b092dea6ab97fb6e9b11864e27cddb0b0855b3ce6fa1c80eeee360a855b54a9",
+    "crates/automation/Cargo.toml": "dafc1e9074887812add469bdb39931af225a812d69bd1b38df6ce7daf2e2e7d3",
+    "crates/automation/src/server.rs": "f422e32f9e0937ce3bbe213ecd71f7bb6a19ed674aad686eb0ee6d740c849608",
+    "crates/automation/src/server/tests.rs": "7e160886e16cfc52ee9e025d501bb80855561fad4acc248acf43414cf1a3c7db",
+    "crates/codecs/src/lib.rs": "b3a60d54d65ef9ed5b42d24f0f6c19981d88d970232621ae28c7c3c48fb9309d",
+    "crates/codecs/src/owned_decode.rs": "4aca53beec60b394e5e6596b5c8ea53574aed65d4efbd1fe7795b45afe0fd7f7",
+    "crates/engine/src/graphics.rs": "94243c5b80cd1f11ce52f51ae996c51e9150738ead830e762755bd6e26619368",
+    "crates/engine/src/graphics/tests.rs": "fb6bc8568e5c6fe8e31c88dceb9c77d420367f105f6c33434f6211ac0e216555",
+    "crates/export/src/audio_out.rs": "4cb9f7064ab7439585f9f4b4e4a730bb2e9b21e8e6ba970f47af386fddc8b95c",
+    "crates/export/src/format.rs": "50d10b1f81795e0e0d5af28095eed588e27ff64d7b2227794ff14f8c04abff87",
+    "crates/export/src/job.rs": "a52cb7a032343a3d7fb8ffee9e532bc5ef7472698d92b906e7387cdfbf2a028e",
+    "crates/h264/src/decoder.rs": "5324e3f245c105d334839ccc7a3c89034e0dfe46ef35cdf6b61d0e138f082a5a"
+  },
+  "product": "dobe-video",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "cedf0c9bd060eb06a977d532402be2097c9ebe42",
+    "url": "https://github.com/storytold/filmcraft"
+  },
+  "source_date_epoch": 1794441184
+}

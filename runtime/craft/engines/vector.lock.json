@@ -1,0 +1,33 @@
+{
+  "cargo_lock_sha256": "75acd9636f1010c837800a381719c43b191a2ac96fe12efbe64ed9b467491f05",
+  "engine_version": "0.24.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "vector.patch",
+    "sha256": "cfe1d3d7ed10df9a9e55cdd2da1d4b2e7ec9bd9a757ce1929db345fe31ec2359"
+  },
+  "patched_files": {
+    "apps/vectorcraft-cli/Cargo.toml": "56bec2cd4e5cff43b354bdef657b48eba67a3bbea1e71d46f50b63ecac3559d7",
+    "apps/vectorcraft-cli/src/main.rs": "fc402db974efb6740a1d501710e05188155af2f21bd755feef12a5eb6bafed06",
+    "crates/mcp/Cargo.toml": "c41ae423114e9adbf6550eb5725cec41d4a2e24e1a3da5e8ab1f7cb3a39d6ad4",
+    "crates/mcp/src/lib.rs": "a714d8b19f313d270752a58fcea0c773a14b597a152e82029b24b9b48e8f4876",
+    "crates/mcp/src/prompts.rs": "61d6a3f17876dfcb9009d3868356c991869cb890427e459e58b203def44bcd59",
+    "crates/mcp/src/resources.rs": "fcd87197a15b29ee8c8f2f942c5899ba0c230f56cf29afd1e7da08ef658c4a79",
+    "crates/mcp/src/server.rs": "cc2c3c9630ba7512f6419bb88f8519d10424227c8729ca8abbd426aa2f13b054",
+    "crates/mcp/src/tests.rs": "105c21f2a1e025da3e7f910f6a9f85d5635cd2373577b89008ae14f5c78731f7",
+    "crates/mcp/src/tests/conventions.rs": "8c5af708b93002bb464f5b966b0fb73481542243dcc35653b3d31450e8c12d7a",
+    "crates/mcp/src/tests/drawopts.rs": "c6e39521340f4ae8860fc49b3d69eb3aaf82cf180c855aa8af1e934442df7064",
+    "crates/mcp/src/tests/protocol.rs": "74d273a019123ea6f2f29d1e12f31b1bf9cea86c9e5a58da7be14f4155d88551"
+  },
+  "product": "dobe-vector",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "f4922aa7ac99a4f6d56fc68a83a44945207ec610",
+    "url": "https://github.com/storytold/vectorcraft"
+  },
+  "source_date_epoch": 1794452081
+}

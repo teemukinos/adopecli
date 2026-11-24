@@ -1,0 +1,1187 @@
+diff --git a/apps/filmcraft-cli/Cargo.toml b/apps/filmcraft-cli/Cargo.toml
+index a14ee14bd74ba0d0f5c10c29dee41efd76b0b958..da17149770c79d5f7bd68e5ae8ce068cf1380a99 100644
+--- a/apps/filmcraft-cli/Cargo.toml
++++ b/apps/filmcraft-cli/Cargo.toml
+@@ -12,8 +12,14 @@ workspace = true
+ name = "filmcraft-cli"
+ path = "src/main.rs"
+ 
++[[bin]]
++name = "dobe-video"
++path = "src/main.rs"
++required-features = ["dobe"]
++
+ [features]
+ default = []
++dobe = ["filmcraft-automation/dobe"]
+ # Speech-to-text (Text panel ▸ Transcribe) with Whisper on the CPU, and model downloads.
+ whisper = ["filmcraft-engine/whisper", "filmcraft-engine/speech-download"]
+ 
+diff --git a/apps/filmcraft-cli/src/main.rs b/apps/filmcraft-cli/src/main.rs
+index 41a13062f9ddfd7548ff1f92613c9aca8983bac4..a723f62701ae16959182e5a34fa5c35957783ef0 100644
+--- a/apps/filmcraft-cli/src/main.rs
++++ b/apps/filmcraft-cli/src/main.rs
+@@ -31,6 +31,8 @@ macro_rules! out {
+ }
+ 
+ mod args;
++#[cfg(feature = "dobe")]
++mod owned_decode;
+ mod probe;
+ mod project_lock;
+ 
+@@ -57,10 +59,16 @@ fn stdout_failed(e: std::io::Error) {
+     if STDOUT_GONE.swap(true, Ordering::Relaxed) || e.kind() == std::io::ErrorKind::BrokenPipe {
+         return;
+     }
+-    diag(format_args!("filmcraft-cli: can't write to stdout: {e}"));
++    diag(format_args!("{CLI_NAME}: can't write to stdout: {e}"));
+     STDOUT_ERROR.store(true, Ordering::Relaxed);
+ }
+ 
++#[cfg(not(feature = "dobe"))]
++const CLI_NAME: &str = "filmcraft-cli";
++#[cfg(feature = "dobe")]
++const CLI_NAME: &str = "dobe-video";
++
++#[cfg(not(feature = "dobe"))]
+ const HELP: &str = "\
+ filmcraft-cli: drive FilmCraft from the shell (headless engine, or the live app with --bridge)
+ 
+@@ -124,6 +132,53 @@ EXIT STATUS
+   · 2 usage error
+ ";
+ 
++#[cfg(feature = "dobe")]
++const HELP: &str = "\
++dobe-video: Dobe Video headless production engine
++
++USAGE
++  dobe-video [OPTIONS] <SUBCOMMAND> [ARGS]
++
++SUBCOMMANDS
++  exec <id> '<json params>'     run one native command
++  run <script.jsonl | ->       run ordered {\"id\",\"params\"} commands
++  commands [filter] [--json]   discover native commands and their parameters
++  describe <id>               describe one native command
++  inspect [project|sequence]  inspect the editable project or timeline
++  import <file>...            import media
++  export <out>                export the active sequence; wait for completion
++  render --seconds S --out P  render one PNG frame
++  probe <media>               inspect encoded media
++  mcp                         native MCP server on stdio, without an editor
++  help                        show this reference
++  --version                   print the engine version
++
++OPTIONS
++  --project <p.fcproj>         open an existing native project
++  --save                      save back to the opened project
++  --save-as <p.fcproj>         save to another native project
++  --data-dir <dir>            isolated engine settings and presets
++  --compact                   print compact JSON
++  --keep-going                continue a command script after errors
++  --demo                      load the upstream procedural demo
++
++EXPORT OPTIONS
++  --format h264|hevc|prores|png|wav|aac|mp3 (other formats: native command catalog)
++  --range entire|inOut|workArea, or --start S --end S
++  --preset NAME, --settings JSON, --scale N, --quality 0-100, --no-audio
++  --gpu-rendering auto|off, --queue, --allow-offline
++  export --list-presets [query] lists available presets.
++  Missing media fails export unless --allow-offline is explicitly requested.
++
++Time uses 254016000000 ticks per second. Commands also accept documented frame
++or seconds fields. Native formats and command IDs retain upstream compatibility.
++For durable jobs, portable projects and bounded production contracts, connect to
++DobeCLI's runtime MCP endpoint. This native endpoint is an engine interface.
++
++EXIT STATUS
++  0 success; 1 command failure or offline media; 2 invalid command-line usage.
++";
++
+ /// Writes one diagnostic line to `w`, dropping any write error. `eprintln!` panics (exit 101) when stderr's
+ /// reader is gone, which would turn a usage error, a failure or a finished export into a crash.
+ fn write_diag(w: &mut dyn std::io::Write, msg: std::fmt::Arguments) {
+@@ -135,7 +190,7 @@ fn diag(msg: std::fmt::Arguments) {
+ }
+ 
+ fn usage(msg: impl std::fmt::Display) -> ! {
+-    diag(format_args!("filmcraft-cli: {msg}\nRun `filmcraft-cli help` for usage."));
++    diag(format_args!("{CLI_NAME}: {msg}\nRun `{CLI_NAME} help` for usage."));
+     std::process::exit(2)
+ }
+ 
+@@ -159,7 +214,7 @@ async fn write_file(path: impl Into<std::path::PathBuf>, data: Vec<u8>) -> std::
+ }
+ 
+ fn fail(msg: impl std::fmt::Display) -> ! {
+-    diag(format_args!("filmcraft-cli: {msg}"));
++    diag(format_args!("{CLI_NAME}: {msg}"));
+     std::process::exit(1)
+ }
+ 
+@@ -315,17 +370,33 @@ async fn cli() {
+     }
+     // `--version` anywhere and `-V` as the subcommand, also after global options (`--demo --version`, #710).
+     if a.wants_version() {
+-        outln!("filmcraft-cli {}", env!("CARGO_PKG_VERSION"));
++        outln!("{CLI_NAME} {}", env!("CARGO_PKG_VERSION"));
+         return;
+     }
++    // The Dobe distribution is headless. Never connect this executable to an editor.
++    if cfg!(feature = "dobe") && a.flag("--bridge") {
++        usage("Dobe Video does not support editor bridges");
++    }
+     register_hardware_decoders();
+     register_gpu_frame_renderer();
+     let Some(cmd) = a.pos(0) else { usage("missing subcommand") };
+     match cmd {
+         "help" | "-h" => out!("{HELP}"),
+-        "version" => outln!("filmcraft-cli {}", env!("CARGO_PKG_VERSION")),
++        "version" => outln!("{CLI_NAME} {}", env!("CARGO_PKG_VERSION")),
+         "probe" => cli_probe(&a).await,
+         "bench-decode" => cli_bench_decode(&a).await,
++        #[cfg(feature = "dobe")]
++        "inspect-owned-video" => {
++            if a.positionals.len() != 3 || a.unknown_opt(&["--compact", "--data-dir"]).is_some() {
++                usage("inspect-owned-video <media> <manifest>");
++            }
++            let path = a.pos(1).unwrap_or_else(|| usage("missing owned media"));
++            let manifest = a.pos(2).unwrap_or_else(|| usage("missing owned manifest"));
++            match owned_decode::inspect(path, manifest) {
++                Ok(value) => print(&a, &value),
++                Err(error) => fail(error),
++            }
++        }
+         "commands" | "describe" => cli_commands(&a, cmd).await,
+         "exec" => cli_exec(&a).await,
+         "run" => cli_run(&a).await,
+@@ -370,7 +441,7 @@ async fn cli_commands(a: &Args, cmd: &str) {
+         let id = a.pos(1).unwrap_or_else(|| usage("describe <id>"));
+         match list.iter().find(|c| c["id"] == id) {
+             Some(c) => print(a, c),
+-            None => fail(format!("unknown command `{id}` (try `filmcraft-cli commands {id}`)")),
++            None => fail(format!("unknown command `{id}` (try `{CLI_NAME} commands {id}`)")),
+         }
+         return;
+     }
+@@ -519,7 +590,7 @@ async fn cli_export(a: &Args) {
+             print(a, &v);
+             let written = written_paths(&v, out).join(", ");
+             for warning in v.get("warnings").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
+-                diag(format_args!("filmcraft-cli: warning: {warning} (CLI: --range entire)"));
++                diag(format_args!("{CLI_NAME}: warning: {warning} (CLI: --range entire)"));
+             }
+             check_offline(a, &offline_media(&v), &format!("export: {written}"));
+             diag(format_args!("exported {written} in {:.1}s", t0.elapsed().as_secs_f64()));
+@@ -601,7 +672,7 @@ fn offline_media(result: &Value) -> Vec<Value> {
+ /// One stderr line per offline item that rendered as placeholder frames (#1054).
+ fn offline_warning(offline: &[Value]) -> String {
+     let s = |o: &Value, k: &str| o.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+-    let mut msg = format!("filmcraft-cli: warning: {} offline media item(s) rendered as placeholder frames:", offline.len());
++    let mut msg = format!("{CLI_NAME}: warning: {} offline media item(s) rendered as placeholder frames:", offline.len());
+     for o in offline {
+         let id = o.get("item").and_then(Value::as_u64).map(|i| i.to_string()).unwrap_or_default();
+         msg.push_str(&format!("\n  item {id} {} ({}): {}", s(o, "name"), s(o, "status"), s(o, "path")));
+diff --git a/apps/filmcraft-cli/src/owned_decode.rs b/apps/filmcraft-cli/src/owned_decode.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d816d3910c711dbb4806250a52821c5e5017fae1
+--- /dev/null
++++ b/apps/filmcraft-cli/src/owned_decode.rs
+@@ -0,0 +1,121 @@
++//! Private Dobe runtime protocol for complete owned H.264/AAC decoding.
++use std::fs::File;
++use std::io::Read;
++
++use filmcraft_codecs::owned_decode::{MAX_BYTES, Request, Span, VideoSample};
++use serde_json::{Value, json};
++
++fn read(path: &str, limit: usize) -> Result<Vec<u8>, String> {
++    let metadata = std::fs::symlink_metadata(path).map_err(|e| e.to_string())?;
++    if !metadata.is_file() || metadata.len() > limit as u64 {
++        return Err("owned decode requires a bounded regular file".into());
++    }
++    let file = File::open(path).map_err(|e| e.to_string())?;
++    let before = file.metadata().map_err(|e| e.to_string())?;
++    if !before.is_file() || before.len() > limit as u64 {
++        return Err("owned decode input changed before reading".into());
++    }
++    let mut bytes = Vec::new();
++    (&file).take(limit as u64 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
++    let after = file.metadata().map_err(|e| e.to_string())?;
++    if bytes.len() > limit
++        || before.len() != after.len()
++        || bytes.len() as u64 != before.len()
++        || before.modified().map_err(|e| e.to_string())? != after.modified().map_err(|e| e.to_string())?
++    {
++        return Err("owned decode input changed while reading".into());
++    }
++    Ok(bytes)
++}
++
++fn unsigned(v: &Value) -> Result<u64, String> {
++    v.as_u64().ok_or_else(|| "owned decode requires unsigned integers".into())
++}
++
++fn small(v: &Value) -> Result<u32, String> {
++    u32::try_from(unsigned(v)?).map_err(|_| "owned decode integer exceeds u32".into())
++}
++
++fn signed(v: &Value) -> Result<i64, String> {
++    v.as_i64().ok_or_else(|| "owned decode requires signed integers".into())
++}
++
++fn array(v: &Value, maximum: usize) -> Result<&Vec<Value>, String> {
++    v.as_array().filter(|a| a.len() <= maximum).ok_or_else(|| "owned decode array exceeds its budget".into())
++}
++
++fn request(v: &Value) -> Result<Request, String> {
++    let keys =
++        ["schema", "width", "height", "frames", "rate_num", "rate_den", "media_start", "media_begin", "media_end", "avcc", "video", "audio_frames", "audio"];
++    let object = v.as_object().ok_or("owned decode manifest must be an object")?;
++    if object.len() != keys.len() || object.keys().any(|k| !keys.contains(&k.as_str())) || v["schema"] != 1 {
++        return Err("unsupported owned decode manifest".into());
++    }
++    let avcc = array(&v["avcc"], 65536)?
++        .iter()
++        .map(|b| u8::try_from(unsigned(b)?).map_err(|_| "invalid configuration byte".into()))
++        .collect::<Result<Vec<_>, String>>()?;
++    let mut video = Vec::new();
++    for row in array(&v["video"], 600)? {
++        let fields = array(row, 4)?;
++        if fields.len() != 4 {
++            return Err("invalid owned picture sample".into());
++        }
++        video.push(VideoSample {
++            span: Span { offset: unsigned(&fields[0])?, size: small(&fields[1])? },
++            pts: signed(&fields[2])?,
++            sync: fields[3].as_bool().ok_or("invalid owned sync flag")?,
++        });
++    }
++    let mut audio = Vec::new();
++    for row in array(&v["audio"], 32769)? {
++        let fields = array(row, 2)?;
++        if fields.len() != 2 {
++            return Err("invalid owned audio sample".into());
++        }
++        audio.push(Span { offset: unsigned(&fields[0])?, size: small(&fields[1])? });
++    }
++    Ok(Request {
++        width: small(&v["width"])?,
++        height: small(&v["height"])?,
++        frames: small(&v["frames"])?,
++        rate_num: small(&v["rate_num"])?,
++        rate_den: small(&v["rate_den"])?,
++        media_start: signed(&v["media_start"])?,
++        media_begin: unsigned(&v["media_begin"])?,
++        media_end: unsigned(&v["media_end"])?,
++        avcc,
++        video,
++        audio_frames: if v["audio_frames"].is_null() { None } else { Some(unsigned(&v["audio_frames"])?) },
++        audio,
++    })
++}
++
++pub fn inspect(path: &str, manifest: &str) -> Result<Value, String> {
++    let raw = read(manifest, 4 << 20)?;
++    let value: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
++    let request = request(&value)?;
++    let bytes = read(path, MAX_BYTES)?;
++    let report = filmcraft_codecs::owned_decode::inspect(&bytes, &request).map_err(|e| e.to_string())?;
++    Ok(json!({"schema": 1, "bytes": bytes.len(), "complete_decode_verified": true,
++        "decoder": "native-software-h264-aac", "threads": 2,
++        "pictures": report.pictures.iter().map(|(pts, hash)| json!({"pts": pts, "yuv_fnv1a64": format!("{hash:016x}")})).collect::<Vec<_>>(),
++        "macroblocks": report.macroblocks, "audio_packets": report.audio_packets,
++        "decoded_audio_frames": report.decoded_audio_frames, "presented_audio_frames": report.presented_audio_frames,
++        "audio_fnv1a64": format!("{:016x}", report.audio_fnv1a64), "audio_peak": report.audio_peak}))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn hostile_manifest_shapes_are_errors() {
++        for value in [Value::Null, json!([]), json!({"schema":1}), json!({"schema":2})] {
++            assert!(std::panic::catch_unwind(|| request(&value)).expect("no panic").is_err());
++        }
++        for value in [json!(-1), json!(true), json!("1"), json!(1.5), json!(u64::MAX)] {
++            assert!(small(&value).is_err());
++        }
++    }
++}
+diff --git a/crates/automation/Cargo.toml b/crates/automation/Cargo.toml
+index 29121042e16982b7cf0a19ae134d56e77ad30aca..984c0de0a62b3d5105fbdaa1b4fe51e4ad04b2be 100644
+--- a/crates/automation/Cargo.toml
++++ b/crates/automation/Cargo.toml
+@@ -9,6 +9,9 @@ rust-version.workspace = true
+ [lints]
+ workspace = true
+ 
++[features]
++dobe = []
++
+ [dependencies]
+ filmcraft-engine = { workspace = true }
+ filmcraft-time = { workspace = true }
+diff --git a/crates/automation/src/server.rs b/crates/automation/src/server.rs
+index ebdbe2fac6d7c0cf3c209a6fc1682c6748aa63e3..eb14a2faa9765814ae3e1eb765b08242296ff1f9 100644
+--- a/crates/automation/src/server.rs
++++ b/crates/automation/src/server.rs
+@@ -624,10 +624,23 @@ impl FilmcraftMcp {
+     }
+ }
+ 
++#[cfg(not(feature = "dobe"))]
+ const INSTRUCTIONS: &str = "FilmCraft video editor (Premiere Pro-class). Every edit is an engine command: `command_list` to discover ids/params, `command_run` to execute (undoable; `command_batch` runs several). `doc_inspect` (or `project_inspect`/`sequence_inspect`) returns ids you can pass to commands; `render_preview` shows the result. In bridge mode the `ui_*` tools drive the live app: `ui_elements` lists clickable ids, `ui_click`/`ui_drag`/`ui_key` operate it, `ui_screenshot` shows it. Time is in ticks: 254016000000 per second (commands also accept `seconds`, `frame` or `timecode`).";
+ 
+ /// Resources: the project (as `doc_inspect`) and the command catalog (as `command_list`).
++#[cfg(feature = "dobe")]
++const INSTRUCTIONS: &str = "Dobe Video headless native engine. Use command_list to discover commands, command_run or command_batch to edit, doc_inspect to inspect native identities, and render_preview to see frames. Time is in ticks: 254016000000 per second. The DobeCLI runtime endpoint supplies durable jobs and bounded production contracts.";
++#[cfg(feature = "dobe")]
++const SERVER_NAME: &str = "dobe-video";
++#[cfg(not(feature = "dobe"))]
++const SERVER_NAME: &str = "filmcraft";
++#[cfg(feature = "dobe")]
++const DOCUMENT_URI: &str = "dobe-video://document";
++#[cfg(not(feature = "dobe"))]
+ const DOCUMENT_URI: &str = "filmcraft://document";
++#[cfg(feature = "dobe")]
++const COMMANDS_URI: &str = "dobe-video://commands";
++#[cfg(not(feature = "dobe"))]
+ const COMMANDS_URI: &str = "filmcraft://commands";
+ 
+ /// MCP 2026-07-28 clients (current Claude Code) require `ttlMs` and `cacheScope` on list and read
+@@ -641,7 +654,7 @@ fn cache_hints(context: &rmcp::service::RequestContext<rmcp::RoleServer>, ttl_ms
+ impl ServerHandler for FilmcraftMcp {
+     fn get_info(&self) -> rmcp::model::ServerConfig {
+         rmcp::model::ServerConfig::new(rmcp::model::ServerCapabilities::builder().enable_tools().enable_resources().build())
+-            .with_server_info(rmcp::model::Implementation::new("filmcraft", env!("CARGO_PKG_VERSION")))
++            .with_server_info(rmcp::model::Implementation::new(SERVER_NAME, env!("CARGO_PKG_VERSION")))
+             .with_instructions(INSTRUCTIONS.to_string())
+     }
+ 
+diff --git a/crates/automation/src/server/tests.rs b/crates/automation/src/server/tests.rs
+index 0bbb974e9665766f3b7a29826f52ec0789cd2dfb..24fd8806052cca716c2cd233fbb70e88d87b8a07 100644
+--- a/crates/automation/src/server/tests.rs
++++ b/crates/automation/src/server/tests.rs
+@@ -101,7 +101,7 @@ fn demo() -> Session {
+ async fn tools_are_titled_and_annotated() {
+     let mut c = Client::start(demo());
+     let init = c.init().await;
+-    assert_eq!(init["result"]["serverInfo"]["name"], "filmcraft");
++    assert_eq!(init["result"]["serverInfo"]["name"], if cfg!(feature = "dobe") { "dobe-video" } else { "filmcraft" });
+     let tools = c.ask(json!({"jsonrpc":"2.0","id":1,"method":"tools/list"})).await["result"]["tools"].as_array().cloned().unwrap();
+     for t in &tools {
+         assert!(t["title"].is_string(), "{} has no title", t["name"]);
+diff --git a/crates/codecs/src/lib.rs b/crates/codecs/src/lib.rs
+index 3bf3fc3aa0506c4308aafe778e51a6d30f7ec5c5..1436000ff10df9e6bfe0272a6393dadf42264928 100644
+--- a/crates/codecs/src/lib.rs
++++ b/crates/codecs/src/lib.rs
+@@ -32,6 +32,7 @@ pub mod mp4;
+ pub mod mpeg;
+ pub mod mxf;
+ pub mod ogg;
++pub mod owned_decode;
+ mod stream_color;
+ pub mod video;
+ mod webm_alpha;
+diff --git a/crates/codecs/src/owned_decode.rs b/crates/codecs/src/owned_decode.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..210ac4ca6c8b95d89596caab7c9625222bd376ce
+--- /dev/null
++++ b/crates/codecs/src/owned_decode.rs
+@@ -0,0 +1,302 @@
++//! Complete software decoding of an owned, previously inspected H.264/AAC output.
++//!
++//! The caller supplies bounded sample spans from its container inspector. This
++//! layer independently checks those spans and decodes every packet, including
++//! priming and padding. It must not use playback sources: those conceal failures.
++
++use std::collections::BTreeMap;
++
++use filmcraft_bitstream::unescape_rbsp;
++use filmcraft_h264::{Decoder, Picture, params::Sps};
++
++use crate::{CodecError, Result};
++
++pub const MAX_BYTES: usize = 512 << 20;
++const MAX_SAMPLES: usize = 40000;
++const OFFSET: u64 = 0xcbf29ce484222325;
++const PRIME: u64 = 0x100000001b3;
++
++#[derive(Clone, Debug)]
++pub struct Span {
++    pub offset: u64,
++    pub size: u32,
++}
++
++#[derive(Clone, Debug)]
++pub struct VideoSample {
++    pub span: Span,
++    pub pts: i64,
++    pub sync: bool,
++}
++
++#[derive(Clone, Debug)]
++pub struct Request {
++    pub width: u32,
++    pub height: u32,
++    pub frames: u32,
++    pub rate_num: u32,
++    pub rate_den: u32,
++    pub media_start: i64,
++    pub media_begin: u64,
++    pub media_end: u64,
++    pub avcc: Vec<u8>,
++    pub video: Vec<VideoSample>,
++    pub audio_frames: Option<u64>,
++    pub audio: Vec<Span>,
++}
++
++#[derive(Debug)]
++pub struct Report {
++    /// Presentation-ordered (raw PTS, visible Y/U/V FNV-1a checksum).
++    pub pictures: Vec<(i64, u64)>,
++    pub macroblocks: u64,
++    pub audio_packets: usize,
++    pub decoded_audio_frames: u64,
++    pub presented_audio_frames: u64,
++    /// FNV-1a over interleaved stereo f32 little-endian presentation samples.
++    /// Diagnostic only; the runtime binds the inspected file with SHA-256.
++    pub audio_fnv1a64: u64,
++    pub audio_peak: f32,
++}
++
++fn ensure(ok: bool, message: &str) -> Result<()> {
++    if ok { Ok(()) } else { Err(CodecError::Decode(format!("owned video: {message}"))) }
++}
++
++fn bytes<'a>(file: &'a [u8], span: &Span) -> Result<&'a [u8]> {
++    let begin = usize::try_from(span.offset).map_err(|_| CodecError::Decode("sample offset overflows".into()))?;
++    let end = begin.checked_add(span.size as usize).ok_or_else(|| CodecError::Decode("sample length overflows".into()))?;
++    file.get(begin..end).ok_or_else(|| CodecError::Decode("sample lies outside owned file".into()))
++}
++
++fn validate(file: &[u8], r: &Request) -> Result<()> {
++    ensure((16..=MAX_BYTES).contains(&file.len()), "file byte budget exceeded")?;
++    ensure((2..=32768).contains(&r.width) && (2..=32768).contains(&r.height) && r.width.is_multiple_of(2) && r.height.is_multiple_of(2), "invalid dimensions")?;
++    let pixels = u64::from(r.width) * u64::from(r.height);
++    ensure((1..=600).contains(&r.frames) && pixels <= 16777216 && pixels * u64::from(r.frames) <= 552960000, "pixel/frame budget exceeded")?;
++    ensure(
++        r.rate_den > 0 && r.rate_num <= i32::MAX as u32 && r.rate_num >= r.rate_den && u64::from(r.rate_num) <= 240 * u64::from(r.rate_den),
++        "invalid exact frame rate",
++    )?;
++    ensure(r.video.len() == r.frames as usize && r.audio.len() + r.video.len() <= MAX_SAMPLES, "invalid sample count")?;
++    ensure((0..=1_i64 << 40).contains(&r.media_start) && (7..=65536).contains(&r.avcc.len()), "invalid configuration or media start")?;
++    ensure(r.media_begin < r.media_end && r.media_end <= file.len() as u64, "invalid media extent")?;
++    let mut spans: Vec<&Span> = r.video.iter().map(|s| &s.span).chain(&r.audio).collect();
++    spans.sort_unstable_by_key(|s| s.offset);
++    let mut next = r.media_begin;
++    for span in spans {
++        ensure(span.size > 0 && span.offset == next, "sample bytes overlap or leave gaps")?;
++        next = next.checked_add(u64::from(span.size)).ok_or_else(|| CodecError::Decode("sample extent overflows".into()))?;
++        ensure(next <= r.media_end, "sample exceeds media extent")?;
++    }
++    ensure(next == r.media_end, "unclaimed media tail")?;
++    let mut timestamps: Vec<i64> = r.video.iter().map(|s| s.pts).collect();
++    timestamps.sort_unstable();
++    ensure(timestamps.iter().enumerate().all(|(i, &pts)| pts == r.media_start + i as i64 * i64::from(r.rate_den)), "unexpected picture timestamps")?;
++    match r.audio_frames {
++        None => ensure(r.audio.is_empty(), "unexpected audio samples")?,
++        Some(n) => {
++            ensure((1..=33554432).contains(&n) && r.audio.len() as u64 == n.div_ceil(1024) + 1, "invalid AAC sample count or padding")?;
++            // A native partial-range WAV may end one sample either side of the
++            // floor-rounded picture duration. Preserve that explicit endpoint.
++            let picture_samples = u64::from(r.frames) * u64::from(r.rate_den) * 48000 / u64::from(r.rate_num);
++            ensure(n.abs_diff(picture_samples) <= 1, "audio endpoint disagrees with picture duration")?;
++        }
++    }
++    Ok(())
++}
++
++fn hash(digest: &mut u64, data: &[u8]) {
++    for byte in data {
++        *digest = (*digest ^ u64::from(*byte)).wrapping_mul(PRIME);
++    }
++}
++
++fn picture(p: Picture, r: &Request, expected: &BTreeMap<i64, bool>, seen: &mut BTreeMap<i64, u64>) -> Result<()> {
++    ensure(p.width == r.width && p.height == r.height && !p.draft, "decoder changed picture dimensions or used draft mode")?;
++    ensure(p.chroma_width == r.width / 2 && p.chroma_height == r.height / 2, "decoder changed chroma shape")?;
++    ensure(expected.get(&p.pts) == Some(&p.key) && !seen.contains_key(&p.pts), "decoder repeated or changed a picture timestamp/key flag")?;
++    ensure(!p.color.full_range && p.color.primaries == 1 && p.color.transfer == 1 && p.color.matrix == 1, "decoded color signal is not limited-range Rec.709")?;
++    ensure(matches!(p.sar, (0, 0) | (1, 1)), "decoded pixel aspect is not square")?;
++    let mut digest = OFFSET;
++    for (plane, stride, width, height) in
++        [(&p.y, p.y_stride, p.width, p.height), (&p.u, p.uv_stride, p.chroma_width, p.chroma_height), (&p.v, p.uv_stride, p.chroma_width, p.chroma_height)]
++    {
++        let (width, height) = (width as usize, height as usize);
++        ensure(stride >= width && stride <= width.div_ceil(16) * 16 && plane.len() == stride * height, "decoded plane shape is invalid")?;
++        for row in plane.chunks_exact(stride) {
++            hash(&mut digest, &row[..width]);
++        }
++    }
++    seen.insert(p.pts, digest);
++    Ok(())
++}
++
++pub fn inspect(file: &[u8], r: &Request) -> Result<Report> {
++    validate(file, r)?;
++    let config = filmcraft_isobmff::AvcConfig::parse(&r.avcc).map_err(|e| CodecError::Decode(e.to_string()))?;
++    ensure(config.length_size == 4 && !config.sps.is_empty() && !config.pps.is_empty(), "invalid AVC parameter sets")?;
++    // Bound coded surfaces before configuring the decoder, not after allocation.
++    // In-band parameter changes are refused below, so every picture uses this bound.
++    let mut macroblocks_per_picture = 0;
++    for nal in &config.sps {
++        ensure(nal.first().is_some_and(|h| h & 0x9f == 7), "invalid SPS NAL")?;
++        let rbsp = unescape_rbsp(nal.get(1..).ok_or_else(|| CodecError::Decode("missing SPS".into()))?);
++        let sps = Sps::parse(&rbsp).map_err(|e| CodecError::Decode(e.to_string()))?;
++        sps.check_supported().map_err(|e| CodecError::Decode(e.to_string()))?;
++        let (_, _, width, height) = sps.crop_rect();
++        ensure(
++            width == r.width && height == r.height && sps.width() == r.width.div_ceil(16) * 16 && sps.height() == r.height.div_ceil(16) * 16,
++            "SPS surface differs from requested picture",
++        )?;
++        ensure(!sps.gaps_in_frame_num_allowed, "SPS permits missing reference frames")?;
++        macroblocks_per_picture = u64::from(sps.pic_width_in_mbs) * u64::from(sps.frame_height_in_mbs());
++    }
++    let mut decoder = Decoder::with_threads(2);
++    decoder.configure_avcc(&r.avcc).map_err(|e| CodecError::Decode(e.to_string()))?;
++    let expected: BTreeMap<i64, bool> = r.video.iter().map(|s| (s.pts, s.sync)).collect();
++    let mut seen = BTreeMap::new();
++    let mut nal_count = 0usize;
++    for sample in &r.video {
++        let data = bytes(file, &sample.span)?;
++        let mut vcl = false;
++        let mut idr = false;
++        let mut remaining = data;
++        while !remaining.is_empty() {
++            // Count before the decoder's NAL vector allocation. Empty NALs must
++            // not turn a bounded file into hundreds of millions of entries.
++            nal_count += 1;
++            ensure(nal_count <= 1000000 && remaining.len() >= 5, "NAL budget or framing exceeded")?;
++            let length = u32::from_be_bytes([remaining[0], remaining[1], remaining[2], remaining[3]]) as usize;
++            remaining = &remaining[4..];
++            ensure(length > 0 && length <= remaining.len(), "NAL payload exceeds its sample")?;
++            let nal = &remaining[..length];
++            remaining = &remaining[length..];
++            let header = nal.first().copied().ok_or_else(|| CodecError::Decode("empty NAL".into()))?;
++            ensure(header & 128 == 0, "forbidden NAL bit")?;
++            match header & 31 {
++                1 | 5 => {
++                    vcl = true;
++                    idr |= header & 31 == 5;
++                }
++                7 => ensure(config.sps.iter().any(|s| s == nal), "in-band SPS changed")?,
++                8 => ensure(config.pps.iter().any(|s| s == nal), "in-band PPS changed")?,
++                6 | 9 | 12 => {}
++                _ => return Err(CodecError::Decode("unsupported owned NAL type".into())),
++            }
++        }
++        ensure(vcl && idr == sample.sync, "picture and sync metadata disagree")?;
++        for p in decoder.decode(data, sample.pts).map_err(|e| CodecError::Decode(e.to_string()))? {
++            picture(p, r, &expected, &mut seen)?;
++        }
++    }
++    for p in decoder.flush() {
++        picture(p, r, &expected, &mut seen)?;
++    }
++    if let Some(error) = decoder.take_error() {
++        return Err(CodecError::Decode(error.to_string()));
++    }
++    let stats = decoder.stats();
++    let macroblocks =
++        stats.mb_i4x4 + stats.mb_i8x8 + stats.mb_i16x16 + stats.mb_pcm + stats.mb_p_skip + stats.mb_b_skip + stats.mb_b_direct16x16 + stats.mb_inter;
++    ensure(
++        seen.len() == r.frames as usize && stats.pictures == u64::from(r.frames) && stats.frame_num_gaps == 0 && stats.draft_pictures == 0,
++        "incomplete or concealed picture decoding",
++    )?;
++    ensure(macroblocks == macroblocks_per_picture * u64::from(r.frames), "incomplete decoded macroblocks")?;
++    drop(decoder);
++
++    let mut decoded = 0u64;
++    let mut presented = 0u64;
++    let mut audio_hash = OFFSET;
++    let mut peak = 0.0f32;
++    if let Some(frames) = r.audio_frames {
++        // Fixed AAC-LC stereo/48 kHz configuration, already checked in the container.
++        // Use the raw native decoder, never a fallback or a playback concealment path.
++        let mut audio = craft_audio::aac::Decoder::new(&[0x11, 0x90]).map_err(|e| CodecError::Decode(e.to_string()))?;
++        for span in &r.audio {
++            let channels = audio.decode(bytes(file, span)?).map_err(|e| CodecError::Decode(e.to_string()))?;
++            ensure(
++                channels.len() == 2 && channels.iter().all(|c| c.len() == 1024 && c.iter().all(|v| v.is_finite())),
++                "AAC output shape or samples are invalid",
++            )?;
++            ensure(audio.sample_rate() == 48000 && audio.channels() == 2 && !audio.sbr(), "AAC changed its declared configuration")?;
++            // Shape was checked above; index only the complete bounded output.
++            for i in 0..1024 {
++                if (1024..1024 + frames).contains(&(decoded + i as u64)) {
++                    for channel in &channels {
++                        let value = channel[i];
++                        hash(&mut audio_hash, &value.to_le_bytes());
++                        peak = peak.max(value.abs());
++                    }
++                    presented += 1;
++                }
++            }
++            decoded += 1024;
++        }
++        ensure(presented == frames, "AAC presentation is incomplete")?;
++    }
++    Ok(Report {
++        pictures: seen.into_iter().collect(),
++        macroblocks,
++        audio_packets: r.audio.len(),
++        decoded_audio_frames: decoded,
++        presented_audio_frames: presented,
++        audio_fnv1a64: audio_hash,
++        audio_peak: peak,
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn request() -> Request {
++        Request {
++            width: 2,
++            height: 2,
++            frames: 1,
++            rate_num: 24,
++            rate_den: 1,
++            media_start: 0,
++            media_begin: 8,
++            media_end: 16,
++            avcc: vec![0; 7],
++            video: vec![VideoSample { span: Span { offset: 8, size: 8 }, pts: 0, sync: true }],
++            audio_frames: None,
++            audio: vec![],
++        }
++    }
++
++    #[test]
++    fn hostile_manifest_limits_precede_codec_configuration() {
++        let file = [0; 16];
++        for field in 0..9 {
++            let mut r = request();
++            match field {
++                0 => r.width = u32::MAX,
++                1 => r.height = 1,
++                2 => r.frames = 601,
++                3 => r.rate_den = 0,
++                4 => r.media_start = i64::MAX,
++                5 => r.video[0].span.offset = u64::MAX,
++                6 => r.video[0].span.size = u32::MAX,
++                7 => r.video[0].pts = i64::MIN,
++                _ => r.audio_frames = Some(u64::MAX),
++            }
++            assert!(std::panic::catch_unwind(|| inspect(&file, &r)).expect("must not panic").is_err());
++        }
++    }
++
++    #[test]
++    fn complete_span_ownership_is_required() {
++        let file = [0; 16];
++        assert!(validate(&file, &request()).is_ok());
++        let mut r = request();
++        r.video[0].span.offset = 9;
++        assert!(validate(&file, &r).is_err());
++        r = request();
++        r.video[0].span.size = 7;
++        assert!(validate(&file, &r).is_err());
++    }
++}
+diff --git a/crates/export/src/audio_out.rs b/crates/export/src/audio_out.rs
+index 21ab56a89bdcfe3a1e061c92af8812e373c10265..478ffcb1336b59ba532840b14686e81f3cd7c083 100644
+--- a/crates/export/src/audio_out.rs
++++ b/crates/export/src/audio_out.rs
+@@ -30,6 +30,8 @@ pub(crate) struct AudioOut {
+     seq: Sequence,
+     pub sr: u32,
+     pub channels: usize,
++    /// Complete requested range, before any audio is pulled or encoder padding is added.
++    pub sample_frames: u64,
+     gain: f32,
+     limiter: Option<Limiter>,
+     latency: i64,
+@@ -50,7 +52,15 @@ impl AudioOut {
+         seq.settings.sample_rate = r.sample_rate;
+         let sr = r.sample_rate;
+         let start = range.start.to_units_floor(sr as i64);
+-        let end = range.end().to_units_floor(sr as i64);
++        let mut end = range.end().to_units_floor(sr as i64);
++        if let Some(samples) = settings.audio_sample_frames {
++            let original = u64::try_from(end.saturating_sub(start)).map_err(|_| ExportError::Unsupported("invalid audio sample range".into()))?;
++            if samples.abs_diff(original) > 1 {
++                return Err(ExportError::Unsupported("audioSampleFrames may adjust the range by at most one sample".into()));
++            }
++            let samples = i64::try_from(samples).map_err(|_| ExportError::Unsupported("audio sample range overflows".into()))?;
++            end = start.checked_add(samples).ok_or_else(|| ExportError::Unsupported("audio sample endpoint overflows".into()))?;
++        }
+         let ln = &settings.effects.loudness;
+         let limiter = ln.enabled.then(|| {
+             let mut l = Limiter::new(sr as f32, r.channels as usize);
+@@ -61,7 +71,20 @@ impl AudioOut {
+             l
+         });
+         let latency = limiter.as_ref().map(|l| l.latency() as i64).unwrap_or(0);
+-        Ok(AudioOut { project, seq, sr, channels: r.channels as usize, gain: 1.0, limiter, latency, next_in: start, out: start, end, loudness: None })
++        Ok(AudioOut {
++            project,
++            seq,
++            sr,
++            channels: r.channels as usize,
++            sample_frames: end.saturating_sub(start).max(0) as u64,
++            gain: 1.0,
++            limiter,
++            latency,
++            next_in: start,
++            out: start,
++            end,
++            loudness: None,
++        })
+     }
+ 
+     /// The loudness pass: measure the integrated loudness of the whole range and set the gain
+@@ -222,6 +245,28 @@ pub(crate) fn interleave(planar: &[Vec<f32>]) -> Vec<f32> {
+ 
+ #[cfg(test)]
+ mod bounds_tests {
++    use super::*;
++
++    #[test]
++    fn explicit_sample_endpoint_preserves_the_complete_handoff() {
++        let (project, sequence, sources) = crate::tests::project();
++        let range = filmcraft_time::TimeRange::new(filmcraft_time::Tick::ZERO, filmcraft_time::FrameRate::FPS_24.tick_of(13));
++        for samples in [25_999, 26_000, 26_001] {
++            let settings = ExportSettings { audio_sample_frames: Some(samples), ..Default::default() };
++            let mut output = AudioOut::new(project.clone(), sequence, &settings, range).unwrap();
++            assert_eq!(output.sample_frames, samples);
++            assert_eq!(output.remaining(), samples);
++            let planes = output.rest(&sources).unwrap();
++            assert!(planes.iter().all(|p| p.len() as u64 == samples));
++            assert_eq!(output.remaining(), 0);
++        }
++        for samples in [25_998, 26_002, u64::MAX] {
++            let settings = ExportSettings { audio_sample_frames: Some(samples), ..Default::default() };
++            assert!(AudioOut::new(project.clone(), sequence, &settings, range).is_err());
++        }
++        assert_eq!(AudioOut::new(project, sequence, &ExportSettings::default(), range).unwrap().sample_frames, 26_000);
++    }
++
+     #[test]
+     fn ragged_audio_planes_keep_channel_positions_without_panicking() {
+         assert_eq!(super::interleave(&[vec![1.0, 2.0], vec![3.0]]), vec![1.0, 3.0, 2.0, 0.0]);
+diff --git a/crates/export/src/format.rs b/crates/export/src/format.rs
+index 39756d3f3b66ee745dc783a1fb74e83457ac0726..ab2b15f5d44009a5465f6828531fa8fe7db015f8 100644
+--- a/crates/export/src/format.rs
++++ b/crates/export/src/format.rs
+@@ -268,6 +268,10 @@ pub struct ExportSettings {
+     /// Output scale (1.0 = sequence frame size).
+     pub scale: f32,
+     pub include_audio: bool,
++    /// Explicit audio length for frame-to-sample handoffs. It may differ from the
++    /// range's floor-rounded sample count by at most one sample. Picture timing
++    /// stays unchanged; None preserves the existing floor-rounded behavior.
++    pub audio_sample_frames: Option<u64>,
+     /// Quality 0–100 for lossy codecs (Motion-JPEG, JPEG sequences).
+     pub quality: u8,
+     /// Target video bitrate (kbps) for bitrate-driven encoders.
+@@ -437,6 +441,7 @@ impl Default for ExportSettings {
+             range: None,
+             scale: 1.0,
+             include_audio: true,
++            audio_sample_frames: None,
+             quality: 90,
+             bitrate_kbps: 20_000,
+             burn_captions: false,
+diff --git a/crates/export/src/job.rs b/crates/export/src/job.rs
+index 4068a05186e43d1d0b59c78d81cca8bf6cb24f8c..62d64f61ae9979bf9471ec5119078a8e876b8817 100644
+--- a/crates/export/src/job.rs
++++ b/crates/export/src/job.rs
+@@ -63,7 +63,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
+ use std::sync::Arc;
+ use std::sync::atomic::{AtomicBool, Ordering};
+ 
+-use filmcraft_isobmff::{Brand, Mp4Writer, PcmConfig, SampleEntry, TrackConfig, WriteSample, WriterOptions};
++use filmcraft_isobmff::{Brand, Edit, Mp4Writer, PcmConfig, SampleEntry, TrackConfig, WriteSample, WriterOptions};
+ use filmcraft_project::{ItemId, Project};
+ use filmcraft_render::SourceProvider;
+ use filmcraft_time::FrameRate;
+@@ -87,6 +87,36 @@ pub const INTERLEAVE: i64 = 16;
+ /// the one being rendered), see [`overlap_batch`].
+ pub const IN_FLIGHT_BUDGET: u64 = 1 << 29;
+ 
++/// Keep video presentation boundaries exact. A millisecond movie timebase truncates
++/// fractional-rate edit lists even when every media sample has the right duration.
++/// Prefer a common audio/video timebase. If its LCM exceeds a signed 32-bit value,
++/// use the largest video multiple, keeping audio rounding below one nanosecond.
++/// The container field is unsigned, but common players read it as signed.
++fn presentation_timescale(video: u32, audio: Option<u32>) -> Result<u32> {
++    const LIMIT: u32 = i32::MAX as u32;
++    if video == 0 || video > LIMIT {
++        return Err(ExportError::Unsupported("encoded video timebase exceeds interoperable MP4 timing".into()));
++    }
++    let Some(audio) = audio.filter(|rate| *rate > 0) else { return Ok(video) };
++    let (mut a, mut b) = (video, audio);
++    while b != 0 {
++        (a, b) = (b, a % b);
++    }
++    let lcm = u64::from(video / a) * u64::from(audio);
++    Ok(if lcm <= u64::from(LIMIT) { lcm as u32 } else { (LIMIT / video) * video })
++}
++
++/// Trim encoder flush padding from presentation, without dropping its coded
++/// samples. The decoder still needs those samples to reconstruct the audible tail.
++fn audio_edit(samples: u64, rate: u32, movie_rate: u32, priming: i64) -> Result<Edit> {
++    if rate == 0 || movie_rate == 0 || priming < 0 {
++        return Err(ExportError::Unsupported("invalid encoded audio presentation timebase".into()));
++    }
++    let duration = (u128::from(samples) * u128::from(movie_rate) + u128::from(rate / 2)) / u128::from(rate);
++    let segment_duration = u64::try_from(duration).map_err(|_| ExportError::Unsupported("encoded audio presentation duration overflows".into()))?;
++    Ok(Edit { segment_duration, media_time: priming, media_rate: 0x10000 })
++}
++
+ /// One rendered picture: straight RGBA8, or for HDR exports the encoded R'G'B' floats.
+ type Frame = (Vec<u8>, Vec<f32>);
+ 
+@@ -430,6 +460,8 @@ impl Exporter {
+         }
+         let file = Out::create(&self.settings)?;
+         let mut opts = WriterOptions::new(self.brand);
++        opts.movie_timescale = presentation_timescale(self.venc.timescale(), self.audio.as_ref().map(|a| a.sr))?;
++        let movie_rate = opts.movie_timescale;
+         opts.metadata = self.settings.metadata.udta();
+         let mut mux = Mp4Writer::new(file, opts).map_err(|e| ExportError::Io(e.to_string()))?;
+         let mut vcfg = TrackConfig::new(self.venc.sample_entry(), self.venc.timescale());
+@@ -439,7 +471,7 @@ impl Exporter {
+             (None, _) => None,
+             (Some(a), Some(enc)) => {
+                 let mut c = TrackConfig::new(enc.sample_entry(), a.sr);
+-                c.media_start = Some(enc.priming() as i64);
++                c.edits = vec![audio_edit(a.sample_frames, a.sr, movie_rate, i64::from(enc.priming()))?];
+                 Some(mux.add_track(c).map_err(|e| ExportError::Io(e.to_string()))?)
+             }
+             (Some(a), None) => {
+@@ -452,7 +484,9 @@ impl Exporter {
+                     channels: a.channels as _,
+                     sample_rate: a.sr as f64,
+                 };
+-                Some(mux.add_track(TrackConfig::new(SampleEntry::pcm(pcm), a.sr)).map_err(|e| ExportError::Io(e.to_string()))?)
++                let mut c = TrackConfig::new(SampleEntry::pcm(pcm), a.sr);
++                c.edits = vec![audio_edit(a.sample_frames, a.sr, movie_rate, 0)?];
++                Some(mux.add_track(c).map_err(|e| ExportError::Io(e.to_string()))?)
+             }
+         };
+         self.mux = Some(mux);
+@@ -676,6 +710,30 @@ impl Exporter {
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn presentation_timebase_preserves_fractional_video_and_audio_samples() {
++        for video in [1, 24, 240, 30_000, 15_712_911, 4_917_297, i32::MAX as u32] {
++            let scale = presentation_timescale(video, Some(48_000)).unwrap();
++            assert_eq!(scale % video, 0);
++            assert!(scale >= video);
++            assert!(scale <= i32::MAX as u32);
++            let edit = audio_edit(26_000, 48_000, scale, 1024).unwrap();
++            let error = (i128::from(edit.segment_duration) * 48_000 - 26_000 * i128::from(scale)).abs();
++            assert!(error <= 24_000, "at most half a movie tick");
++            assert_eq!(edit.media_time, 1024);
++        }
++        assert_eq!(presentation_timescale(24, Some(48_000)).unwrap(), 48_000);
++        assert_eq!(presentation_timescale(30_000, Some(48_000)).unwrap(), 240_000);
++        assert_eq!(presentation_timescale(15_712_911, None).unwrap(), 15_712_911);
++        assert!(presentation_timescale(0, None).is_err());
++        assert!(presentation_timescale(u32::MAX, Some(48_000)).is_err());
++        assert_eq!(audio_edit(26_000, 48_000, 48_000, 1024).unwrap().segment_duration, 26_000);
++        assert!(audio_edit(1, 0, 48_000, 0).is_err());
++        assert!(audio_edit(1, 48_000, 0, 0).is_err());
++        assert!(audio_edit(1, 48_000, 48_000, -1).is_err());
++        assert!(audio_edit(u64::MAX, 1, u32::MAX, 0).is_err());
++    }
++
+     const MIB: u64 = 1 << 20;
+ 
+     /// A factory that answers as it is told, so the walk can be exercised without a driver.
+diff --git a/crates/engine/src/graphics.rs b/crates/engine/src/graphics.rs
+--- a/crates/engine/src/graphics.rs
++++ b/crates/engine/src/graphics.rs
+@@ -462,6 +462,73 @@
+     )
+ }
+ 
++/// Inspect the exact renderer layout for the supported static title profile.
++/// Animated text must be inspected across its timeline; one snapshot cannot qualify it.
++fn text_diagnostics(s: &Session, clip: ClipId) -> Result<Value> {
++    let cmd = "graphics.textDiagnostics";
++    let seq = s.active_sequence().ok_or(EngineError::NoSequence)?;
++    let (_, it) = seq.find_item(clip).ok_or_else(|| bad(cmd, "no such clip"))?;
++    if it.duration.0 <= 0 || it.effects.len() > 32 {
++        return Err(bad(cmd, "invalid title duration or excessive effects"));
++    }
++    let size = match s.project.item(it.item).map(|p| &p.kind) {
++        Some(ItemKind::Graphic { width, height, .. }) => (*width, *height),
++        _ => return Err(bad(cmd, "requires a graphic clip")),
++    };
++    let indices = layer_indices(&it.effects);
++    if indices.len() != 1 {
++        return Err(bad(cmd, "requires exactly one static text layer"));
++    }
++    let effect = it.effects.get(indices[0]).ok_or_else(|| bad(cmd, "missing layer"))?;
++    if effect.params.values().any(Param::is_animated) {
++        return Err(bad(cmd, "animated title parameters are not qualified"));
++    }
++    let specs = item_layer_specs(it, it.source_in, size);
++    let (_, spec) = specs.first().ok_or_else(|| bad(cmd, "missing evaluated layer"))?;
++    let LayerContent::Text(t) = &spec.content else {
++        return Err(bad(cmd, "requires a text layer"));
++    };
++    if t.text.is_empty() || t.text.chars().count() > 4000 || !t.runs.is_empty() {
++        return Err(bad(cmd, "requires 1 to 4000 characters without per-character styles"));
++    }
++    let layout = text_layout(t);
++    if layout.glyphs.len() > 16000 {
++        return Err(bad(cmd, "title layout exceeds glyph inspection bounds"));
++    }
++    let resolved = filmcraft_text::fonts::resolve(&t.font, &t.style);
++    let face_ids: std::collections::BTreeSet<_> = layout.glyphs.iter().map(|g| g.face).chain([resolved.face]).collect();
++    let faces: Vec<Value> = face_ids
++        .into_iter()
++        .map(|id| {
++            let face = filmcraft_text::fonts::face(id);
++            // Byte equality binds the used face to the pinned font embedded in this binary.
++            // Family labels alone would admit fallback or same-name replacement fonts.
++            let exact = face.data().is_some_and(|data| data.as_slice() == filmcraft_text::fonts::INTER_REGULAR);
++            json!({"id": id, "family": face.info.family, "style": face.info.style,
++            "index": face.info.index, "origin": face.info.origin, "matchesBundledInterRegular": exact})
++        })
++        .collect();
++    let glyphs: Vec<Value> = layout
++        .glyphs
++        .iter()
++        .map(|g| {
++            json!({
++                "face": g.face, "id": g.id, "cluster": g.cluster, "run": g.run,
++                "syntheticBold": g.synth_bold, "syntheticItalic": g.synth_italic,
++            })
++        })
++        .collect();
++    Ok(json!({"schemaVersion": 1, "clip": clip.0, "text": t.text,
++        "font": t.font, "style": t.style, "missingFamily": resolved.missing,
++        "resolvedFace": resolved.face, "faces": faces, "glyphs": glyphs,
++        "missingGlyphs": layout.glyphs.iter().filter(|g| g.id == 0).count(),
++        "overflow": layout.overflow, "staticText": true,
++        "simpleInterProfile": t.font == "Inter" && t.style == "Regular" && t.caps == 0
++            && !t.faux_bold && !t.faux_italic && !resolved.synth_bold && !resolved.synth_italic
++            && t.box_width == 0.0 && t.box_height == 0.0 && !t.vertical,
++    }))
++}
++
+ fn quad_bounds(q: &[Vec2; 4]) -> [f64; 4] {
+     let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+     for p in q {
+@@ -1231,6 +1298,10 @@
+             let clip = target_clip(s, p).ok_or_else(|| bad("graphics.list", "no graphic clip"))?;
+             list_layers(s, clip)
+         }),
++        query("graphics.textDiagnostics", "Inspect Static Title Glyphs", r#"{"clip":id}"#, |s, p| {
++            let clip = target_clip(s, p).ok_or_else(|| bad("graphics.textDiagnostics", "no graphic clip"))?;
++            text_diagnostics(s, clip)
++        }),
+         query("fonts.list", "List Fonts", r#"{"system":bool=true (scan the system font folders)}"#, |_, p| {
+             if p.get("system").and_then(Value::as_bool).unwrap_or(true) {
+                 filmcraft_text::fonts::scan_system();
+diff --git a/crates/engine/src/graphics/tests.rs b/crates/engine/src/graphics/tests.rs
+--- a/crates/engine/src/graphics/tests.rs
++++ b/crates/engine/src/graphics/tests.rs
+@@ -945,4 +945,30 @@
+         s.execute("effects.setParam", json!({"clip": clip, "effect": effect, "param": param, "value": value})).unwrap();
+     }
+     check(s, clip, "video clip");
++}
++
++#[test]
++fn dobe_text_diagnostics_use_rendered_glyphs_and_reject_animation() {
++    let mut s = Session::default();
++    s.execute("file.newSequence", json!({"name": "Glyphs", "width": 640, "height": 240, "fps": 24})).unwrap();
++    let made = s.execute("graphics.newText", json!({"text": "Åäö / Ω / Ж — ffi", "font": "Inter", "fontStyle": "Regular"})).unwrap();
++    let id = made["clip"].clone();
++    let before = serde_json::to_value(&s.project).unwrap();
++    let d = s.execute("graphics.textDiagnostics", json!({"clip": id})).unwrap();
++    assert_eq!(d["missingGlyphs"], 0);
++    assert_eq!(d["simpleInterProfile"], true);
++    assert!(d["glyphs"].as_array().unwrap().len() > 5);
++    assert!(d["faces"].as_array().unwrap().iter().all(|f| f["matchesBundledInterRegular"] == true));
++    assert_eq!(serde_json::to_value(&s.project).unwrap(), before);
++    s.execute("graphics.setText", json!({"clip": id, "layer": 0, "text": "Missing \u{10ffff}"})).unwrap();
++    let missing = s.execute("graphics.textDiagnostics", json!({"clip": id})).unwrap();
++    assert!(missing["missingGlyphs"].as_u64().unwrap() > 0);
++    let clip = ClipId(id.as_u64().unwrap());
++    let sid = s.state.active_sequence.unwrap();
++    let seq = std::sync::Arc::make_mut(&mut s.project).sequence_mut(sid).unwrap();
++    let (_, item) = seq.find_item_mut(clip).unwrap();
++    let effect = item.effects.iter_mut().find(|e| e.effect == "graphic_text").unwrap();
++    let p = effect.params.get_mut("text").unwrap();
++    p.keyframes.push(filmcraft_project::Keyframe::new(Tick::ZERO, p.value.clone()));
++    assert!(s.execute("graphics.textDiagnostics", json!({"clip": id})).is_err());
+ }
+diff --git a/crates/h264/src/decoder.rs b/crates/h264/src/decoder.rs
+--- a/crates/h264/src/decoder.rs
++++ b/crates/h264/src/decoder.rs
+@@ -17,7 +17,7 @@
+ use filmcraft_bitstream::{BitReader, annexb_nals, length_prefixed_nals, unescape_rbsp};
+ use std::collections::VecDeque;
+ use std::sync::atomic::{AtomicBool, Ordering};
+-use std::sync::{Arc, Mutex};
++use std::sync::{Arc, Condvar, Mutex};
+ 
+ /// Most pictures one `decode` call may start: a chunk is an access unit, or a few in a transport
+ /// stream packet. Each picture is a full frame, and small slices make them cheap to ask for.
+@@ -85,6 +85,37 @@
+     pool: Mutex<Vec<PicState>>,
+     /// Set by [`Decoder::reset`]: jobs still running stop at the next macroblock row.
+     cancel: Arc<AtomicBool>,
++    // Row publication releases picture/reference readers before the worker has
++    // committed its statistics and error. Track whole jobs separately.
++    jobs: Mutex<usize>,
++    jobs_done: Condvar,
++}
++
++impl Shared {
++    fn wait_for_jobs(&self) {
++        let jobs = self.jobs.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++        drop(self.jobs_done.wait_while(jobs, |count| *count != 0).unwrap_or_else(|poisoned| poisoned.into_inner()));
++    }
++}
++
++/// A job remains active through statistics, error publication and buffer reuse.
++struct JobCompletion(Arc<Shared>);
++
++impl JobCompletion {
++    fn new(shared: Arc<Shared>) -> Self {
++        *shared.jobs.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) += 1;
++        Self(shared)
++    }
++}
++
++impl Drop for JobCompletion {
++    fn drop(&mut self) {
++        let mut jobs = self.0.jobs.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++        *jobs -= 1;
++        if *jobs == 0 {
++            self.0.jobs_done.notify_all();
++        }
++    }
+ }
+ 
+ /// H.264 decoder.
+@@ -297,6 +328,7 @@
+         while let Some(f) = self.in_flight.pop_front() {
+             f.wait_complete();
+         }
++        self.shared.wait_for_jobs();
+         pics
+     }
+ 
+@@ -529,6 +561,7 @@
+ 
+     fn dispatch(&mut self, frame: FrameRef, slices: Vec<SliceJob>, draft: bool) {
+         let shared = self.shared.clone();
++        let completion = JobCompletion::new(shared.clone());
+         #[cfg(feature = "threads")]
+         if let Some(pool) = &self.pool {
+             self.in_flight.retain(|f| !f.is_published(f.mb_h() - 1));
+@@ -538,9 +571,13 @@
+                 }
+             }
+             self.in_flight.push_back(frame.clone());
+-            pool.spawn_fifo(move || run_job(frame, slices, &shared, draft));
++            pool.spawn_fifo(move || {
++                let _completion = completion;
++                run_job(frame, slices, &shared, draft);
++            });
+             return;
+         }
++        let _completion = completion;
+         run_job(frame, slices, &shared, draft);
+     }
+ 
+@@ -677,3 +714,73 @@
+         draft: o.meta.draft,
+     }
+ }
++
++#[cfg(all(test, feature = "threads"))]
++mod job_completion_regression {
++    use super::*;
++    use std::sync::mpsc;
++    use std::time::Duration;
++
++    #[test]
++    fn flush_waits_for_stats_after_rows_are_published() {
++        let mut decoder = Decoder::with_threads(2);
++        let shared = decoder.shared.clone();
++        // Hold exactly the lock acquired after the last decoded row is visible.
++        // This forces the real run_job to pause before its result is committed.
++        let stats_lock = shared.stats.lock().unwrap();
++        let frame = Arc::new(Frame::new(1, 0, 1, 1));
++        decoder.dispatch(frame.clone(), Vec::new(), false);
++        frame.wait_complete();
++        let (sent, received) = mpsc::channel();
++        let worker = std::thread::spawn(move || {
++            decoder.flush();
++            sent.send(()).unwrap();
++            decoder
++        });
++        let premature = received.recv_timeout(Duration::from_millis(100)).is_ok();
++        drop(stats_lock);
++        let decoder = worker.join().unwrap();
++        assert!(!premature, "flush returned after row publication but before picture statistics were committed");
++        assert_eq!(decoder.stats().pictures, 1);
++    }
++
++    #[test]
++    fn flush_waits_for_untracked_job_and_preserves_late_error() {
++        let mut decoder = Decoder::with_threads(2);
++        let shared = decoder.shared.clone();
++        let completion = JobCompletion::new(shared.clone());
++        let (release, wait) = mpsc::channel();
++        let job = std::thread::spawn(move || {
++            wait.recv().unwrap();
++            *shared.error.lock().unwrap() = Some(Error::Invalid("late decode failure".into()));
++            drop(completion);
++        });
++        // Completed rows can already have removed the frame from in_flight.
++        assert!(decoder.in_flight.is_empty());
++        let (sent, received) = mpsc::channel();
++        let worker = std::thread::spawn(move || {
++            decoder.flush();
++            sent.send(()).unwrap();
++            decoder
++        });
++        let premature = received.recv_timeout(Duration::from_millis(100)).is_ok();
++        release.send(()).unwrap();
++        job.join().unwrap();
++        let mut decoder = worker.join().unwrap();
++        assert!(!premature, "flush ignored a job whose rows were no longer in flight");
++        assert!(decoder.take_error().unwrap().to_string().contains("late decode failure"));
++    }
++
++    #[test]
++    fn job_completion_is_released_on_unwind() {
++        let mut decoder = Decoder::with_threads(1);
++        let shared = decoder.shared.clone();
++        let caught = std::panic::catch_unwind(|| {
++            let _completion = JobCompletion::new(shared);
++            panic!("synthetic job panic");
++        });
++        assert!(caught.is_err());
++        decoder.flush();
++        assert_eq!(*decoder.shared.jobs.lock().unwrap(), 0);
++    }
++}

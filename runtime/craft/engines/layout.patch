@@ -1,0 +1,483 @@
+diff --git a/ROADMAP.md b/ROADMAP.md
+index 006396b..45fc28c 100644
+--- a/ROADMAP.md
++++ b/ROADMAP.md
+@@ -387,6 +387,12 @@ list) · [roadmap.md](docs/roadmap.md) (milestones, plan) · [parity-checklist.m
+ 
+ ## Progress log
+ 
++- **2026-11-15 — maintained headless build:** the opt-in `dobe` feature provides
++  `dobe-layout`, Dobe MCP identity and resource addresses, refuses editor
++  connections, and uses bundled or explicitly supplied document fonts instead
++  of scanning host font catalogs. The default upstream build is unchanged.
++  This source feature does not change the application readiness assessment.
++
+ - **2026-11-04** · Striped strokes retain out-and-back cubic segments whose second control point is away from the coincident endpoints and first control point. A geometry regression checks the offset extent and both stripe bands. No readiness percentage change.
+ - **2026-11-04** · Esperanto is a text language (Character › Language, `type.char {language: "Esperanto"}`, IDML `$ID/Esperanto`): tag `eo`, English-style quotes; not hyphenated yet (#1201). No readiness percentage change.
+ 
+diff --git a/apps/designcraft-cli/Cargo.toml b/apps/designcraft-cli/Cargo.toml
+index ab24641..6883147 100644
+--- a/apps/designcraft-cli/Cargo.toml
++++ b/apps/designcraft-cli/Cargo.toml
+@@ -12,6 +12,15 @@ workspace = true
+ name = "designcraft-cli"
+ path = "src/main.rs"
+ 
++[[bin]]
++name = "dobe-layout"
++path = "src/main.rs"
++required-features = ["dobe"]
++
++[features]
++default = []
++dobe = ["designcraft-mcp/dobe"]
++
+ [dependencies]
+ designcraft-engine = { workspace = true }
+ designcraft-render = { workspace = true }
+diff --git a/apps/designcraft-cli/src/main.rs b/apps/designcraft-cli/src/main.rs
+index 79997e0..afb6a7b 100644
+--- a/apps/designcraft-cli/src/main.rs
++++ b/apps/designcraft-cli/src/main.rs
+@@ -41,6 +41,26 @@ mod perf;
+ use designcraft_engine::Session;
+ use serde_json::{Value, json};
+ 
++const CLI_NAME: &str = if cfg!(feature = "dobe") { "dobe-layout" } else { "designcraft-cli" };
++
++#[cfg(feature = "dobe")]
++const USAGE: &str = "Dobe Layout headless production engine\n\n\
++usage: dobe-layout run [--in FILE | --sample] [--cmd ID[=JSON]]... [--page N] [--scale S] [--pdf-options JSON] [--export OUT] [--all-pages DIR]\n\
++       dobe-layout commands [FILTER]\n\
++       dobe-layout describe COMMAND\n\
++       dobe-layout script [FILE|-] [--in FILE | --sample] [--save OUT] [--export OUT] [--keep-going]\n\
++       dobe-layout mcp [--sample] [--automation-read-root DIR]... [--automation-write-root DIR]...\n\
++       dobe-layout perf [--pages N] [--runs N] [--strict]\n\
++       dobe-layout bench FILE [--runs N]\n\
++       dobe-layout validate-pdf FILE.pdf [--standard x4|x1a]\n\
++       dobe-layout thumbnail FILE.designcraft OUT.png [SIZE]\n\
++       dobe-layout --version | --help\n\n\
++Editable native page layouts, PDF and IDML exports, and CPU page previews.\n\
++Editor connections are unavailable. Use dobe mcp for durable product jobs.\n\
++MCP roots confine file reads and writes; repeat either flag to grant more folders.\n\
++With either root flag present, omitted read or write authority grants no access.";
++
++#[cfg(not(feature = "dobe"))]
+ /// The usage block. Shared by `--help` (stdout, success) and an unknown command (stderr, failure).
+ const USAGE: &str = "usage: designcraft-cli run [--in FILE | --sample] [--cmd ID[=JSON]]... [--page N] [--scale S] [--pdf-options JSON] [--export OUT] [--all-pages DIR]\n         (--page, --scale and --pdf-options apply to the exports that follow them)\n       designcraft-cli commands [FILTER]\n       designcraft-cli describe COMMAND\n       designcraft-cli script [FILE|-] [--in FILE | --sample] [--connect PORT] [--save OUT] [--export OUT] [--keep-going]\n       designcraft-cli app [--port PORT] COMMAND [JSON] | --method METHOD [JSON]\n       designcraft-cli mcp [--connect PORT] [--sample] [--automation-read-root DIR]... [--automation-write-root DIR]...\n         the roots confine every file the agent's commands read (open, placed images, data sources, libraries) and\n         write (save, export, package) to those folders, links followed. Each may be given more than once; a kind\n         left out grants none of its access.\n         They run the in-process server, so they conflict with --connect (a running app is not confined by them).\n       designcraft-cli perf [--pages N] [--runs N] [--strict]\n       designcraft-cli bench FILE [--runs N]\n       designcraft-cli validate-pdf FILE.pdf [--standard x4|x1a]  # built-in PDF/X checks (including visible unembedded fonts; the standard defaults to the file's own)\n       designcraft-cli thumbnail FILE.designcraft OUT.png [SIZE]  # the saved first-page preview, at most SIZE px\n       designcraft-cli links\n       designcraft-cli --version";
+ 
+@@ -78,8 +98,22 @@ Options:
+ Prints {"completed": n, "results": [...]}, plus failedIndex / failedCommand / error and a
+ non-zero exit when a step fails."#;
+ 
++fn script_help() -> String {
++    if cfg!(feature = "dobe") {
++        SCRIPT_HELP
++            .replace("designcraft-cli", CLI_NAME)
++            .replace(" [--connect PORT]", "")
++            .replace("headless or, with\n--connect PORT, in the running app (designcraft --control PORT).", "headless, without opening an editor.")
++    } else {
++        SCRIPT_HELP.to_string()
++    }
++}
++
+ /// The links line under the usage block.
+ fn usage_footer() -> String {
++    if cfg!(feature = "dobe") {
++        return "\nDobe Layout; maintained native engine. Source attribution is included in the engine notices.".into();
++    }
+     format!(
+         "\nCommunity: {}  ·  {}  ·  {}",
+         designcraft_engine::links::DISCORD,
+@@ -94,7 +128,7 @@ fn stdout_failed(e: std::io::Error) -> ! {
+     if e.kind() == std::io::ErrorKind::BrokenPipe {
+         std::process::exit(0);
+     }
+-    eprintln!("designcraft-cli: can't write to stdout: {e}");
++    eprintln!("{CLI_NAME}: can't write to stdout: {e}");
+     std::process::exit(1);
+ }
+ 
+@@ -134,8 +168,10 @@ fn is_subcommand(sub: &str) -> bool {
+ fn usage_subcommand(line: &str) -> Option<&str> {
+     let trimmed = line.trim_start();
+     trimmed
+-        .strip_prefix("usage: designcraft-cli ")
+-        .or_else(|| trimmed.strip_prefix("designcraft-cli "))
++        .strip_prefix("usage: ")
++        .unwrap_or(trimmed)
++        .strip_prefix(CLI_NAME)
++        .and_then(|rest| rest.strip_prefix(' '))
+         .and_then(|rest| rest.split_whitespace().next())
+ }
+ 
+@@ -165,11 +201,19 @@ fn main() -> ExitCode {
+         match arg.into_string() {
+             Ok(a) => args.push(a),
+             Err(bad) => {
+-                eprintln!("designcraft-cli: `{}` is not valid UTF-8, so it cannot be used as an argument", bad.to_string_lossy());
++                eprintln!("{CLI_NAME}: `{}` is not valid UTF-8, so it cannot be used as an argument", bad.to_string_lossy());
+                 return ExitCode::FAILURE;
+             }
+         }
+     }
++    // Refuse editor access before parsing commands or reading scripts. Production engines
++    // must not attach to an existing user's document, even through a hidden connection.
++    if cfg!(feature = "dobe")
++        && (args.first().is_some_and(|arg| arg == "app") || args.iter().any(|arg| arg == "--connect" || arg.starts_with("--connect=")))
++    {
++        eprintln!("{CLI_NAME}: editor connections are unavailable; use headless commands or dobe mcp");
++        return ExitCode::FAILURE;
++    }
+     // `<sub> --help` asks about that subcommand, which every parser but `script`'s read as an
+     // unknown option (photocraft#423). It goes to stdout and succeeds, as `--help` does.
+     //
+@@ -188,7 +232,7 @@ fn main() -> ExitCode {
+     }
+     match args.first().map(String::as_str) {
+         Some("--version" | "-V" | "version") => {
+-            outln!("designcraft-cli {}", env!("CARGO_PKG_VERSION"));
++            outln!("{CLI_NAME} {}", env!("CARGO_PKG_VERSION"));
+             ExitCode::SUCCESS
+         }
+         Some("run") => report(run(&args[1..])),
+@@ -237,7 +281,7 @@ fn report(r: Result<(), String>) -> ExitCode {
+     match r {
+         Ok(()) => ExitCode::SUCCESS,
+         Err(e) => {
+-            eprintln!("designcraft-cli: {e}");
++            eprintln!("{CLI_NAME}: {e}");
+             ExitCode::FAILURE
+         }
+     }
+@@ -379,13 +423,13 @@ so drop --connect (or use --connect without the roots)"
+             if let Some(roots) = roots {
+                 // Every thread of this process, not only the server's: nothing reaches past the roots.
+                 file_access::confine_process(roots.clone());
+-                eprintln!("designcraft-cli: files confined: {}", roots.describe());
++                eprintln!("{CLI_NAME}: files confined: {}", roots.describe());
+                 h = h.with_automation_roots(Some(roots));
+             }
+             Box::new(h)
+         }
+     };
+-    eprintln!("designcraft-cli: MCP server on stdio ({})", backend.describe());
++    eprintln!("{CLI_NAME}: MCP server on stdio ({})", backend.describe());
+     let stdin = std::io::stdin();
+     let stdout = std::io::stdout();
+     Server::new(backend).serve(stdin.lock(), stdout.lock()).map_err(|e| e.to_string())
+@@ -657,7 +701,7 @@ fn script(args: &[String]) -> Result<(), String> {
+             }
+             "--keep-going" => keep_going = true,
+             "--help" | "-h" => {
+-                outln!("{SCRIPT_HELP}");
++                outln!("{}", script_help());
+                 return Ok(());
+             }
+             f if !f.starts_with("--") && file.is_none() => file = Some(f.to_string()),
+diff --git a/apps/designcraft-cli/tests/it/dobe.rs b/apps/designcraft-cli/tests/it/dobe.rs
+new file mode 100644
+index 0000000..4ec692b
+--- /dev/null
++++ b/apps/designcraft-cli/tests/it/dobe.rs
+@@ -0,0 +1,27 @@
++//! Product identity and editor isolation of the maintained headless binary.
++use std::process::Command;
++
++#[test]
++fn identity_and_headless_help() {
++    for args in [vec!["--version"], vec!["--help"], vec!["script", "--help"], vec!["mcp", "--help"]] {
++        let output = Command::new(env!("CARGO_BIN_EXE_dobe-layout")).args(&args).output().unwrap();
++        assert!(output.status.success(), "{args:?}");
++        let text = String::from_utf8(output.stdout).unwrap();
++        assert!(text.contains("dobe-layout"), "{text}");
++        assert!(!text.contains("--connect") && !text.contains("designcraft-cli") && !text.contains("--control"), "{text}");
++    }
++}
++
++#[test]
++fn editor_modes_are_refused_even_before_help_or_missing_script() {
++    for args in [
++        vec!["app", "--help"],
++        vec!["mcp", "--connect", "7979"],
++        vec!["mcp", "--connect=7979", "--help"],
++        vec!["script", "/no/such/script", "--connect", "7979"],
++    ] {
++        let output = Command::new(env!("CARGO_BIN_EXE_dobe-layout")).args(&args).output().unwrap();
++        assert!(!output.status.success(), "{args:?}");
++        assert!(String::from_utf8(output.stderr).unwrap().contains("editor connections are unavailable"));
++    }
++}
+diff --git a/apps/designcraft-cli/tests/it/main.rs b/apps/designcraft-cli/tests/it/main.rs
+index 26710c1..db0232a 100644
+--- a/apps/designcraft-cli/tests/it/main.rs
++++ b/apps/designcraft-cli/tests/it/main.rs
+@@ -1 +1,4 @@
+ mod cli;
++
++#[cfg(feature = "dobe")]
++mod dobe;
+diff --git a/crates/engine/Cargo.toml b/crates/engine/Cargo.toml
+index c1c0f1d..6fcd441 100644
+--- a/crates/engine/Cargo.toml
++++ b/crates/engine/Cargo.toml
+@@ -8,6 +8,10 @@ description = "DesignCraft engine: session, documents, history, selection, comma
+ [lints]
+ workspace = true
+ 
++[features]
++default = []
++dobe = ["designcraft-fonts/dobe"]
++
+ [dependencies]
+ craft-print = { workspace = true }
+ craft-docpath = { workspace = true }
+diff --git a/crates/engine/src/cmd/paths.rs b/crates/engine/src/cmd/paths.rs
+index 7800b31..0beb5b7 100644
+--- a/crates/engine/src/cmd/paths.rs
++++ b/crates/engine/src/cmd/paths.rs
+@@ -80,10 +80,9 @@ fn spread_xf(d: &Document, id: ItemId) -> Option<(SpreadRef, Affine)> {
+ fn orient_holes(path: &mut PathData) {
+     let beziers: Vec<BezPath> = path.subpaths.iter().map(|s| PathData::single(s.clone()).to_bezpath()).collect();
+     let n = path.subpaths.len();
+-    for i in 0..n {
+-        let Some(p) = path.subpaths[i].anchors.first().map(|a| a.p) else { continue };
++    for (i, sp) in path.subpaths.iter_mut().enumerate() {
++        let Some(p) = sp.anchors.first().map(|a| a.p) else { continue };
+         let depth = (0..n).filter(|&j| j != i && designcraft_geom::hit::fill_contains(&beziers[j], designcraft_geom::FillRule::NonZero, p)).count();
+-        let sp = &mut path.subpaths[i];
+         let cw = sp.area() > 0.0;
+         if cw == (depth % 2 == 1) {
+             sp.reverse();
+diff --git a/crates/fonts/Cargo.toml b/crates/fonts/Cargo.toml
+index 84e4aed..6aa00c9 100644
+--- a/crates/fonts/Cargo.toml
++++ b/crates/fonts/Cargo.toml
+@@ -9,6 +9,8 @@ description = "DesignCraft fonts: font database (bundled OFL + system), metrics,
+ workspace = true
+ 
+ [features]
++# Production jobs use bundled fonts or explicitly confined document fonts.
++dobe = []
+ # Synthetic fonts for other crates' tests (`designcraft_fonts::testing`).
+ testing = []
+ 
+diff --git a/crates/fonts/src/fontdb/db.rs b/crates/fonts/src/fontdb/db.rs
+index 224098a..d726d9b 100644
+--- a/crates/fonts/src/fontdb/db.rs
++++ b/crates/fonts/src/fontdb/db.rs
+@@ -84,7 +84,17 @@ impl FontDb {
+     /// [`FontDb::scan_in_background`]).
+     pub fn global() -> &'static FontDb {
+         static DB: std::sync::OnceLock<FontDb> = std::sync::OnceLock::new();
+-        DB.get_or_init(|| FontDb { font_files: platform_font_files, ..FontDb::with_font_dirs(system_font_dirs()) })
++        DB.get_or_init(|| {
++            if cfg!(feature = "dobe") {
++                // Host font managers must not silently change a portable production job.
++                // Document font scopes still load explicitly admitted fonts through read roots.
++                let db = FontDb::with_font_dirs(Vec::new());
++                db.set_system_fallback(false);
++                db
++            } else {
++                FontDb { font_files: platform_font_files, ..FontDb::with_font_dirs(system_font_dirs()) }
++            }
++        })
+     }
+ 
+     pub(super) fn read_faces(&self) -> std::sync::RwLockReadGuard<'_, Vec<Arc<FontFace>>> {
+@@ -249,3 +259,16 @@ impl FontDb {
+         p
+     }
+ }
++
++#[cfg(all(test, feature = "dobe"))]
++mod dobe_tests {
++    #[test]
++    fn global_database_never_scans_host_fonts() {
++        let database = super::FontDb::global();
++        assert!(database.font_dirs.is_empty());
++        assert!((database.font_files)().is_empty());
++        #[cfg(not(target_arch = "wasm32"))]
++        assert!(!database.sys.lock().unwrap().enabled);
++        assert!(!database.families().is_empty(), "bundled fonts remain available");
++    }
++}
+diff --git a/crates/mcp/Cargo.toml b/crates/mcp/Cargo.toml
+index fa863aa..89f490f 100644
+--- a/crates/mcp/Cargo.toml
++++ b/crates/mcp/Cargo.toml
+@@ -8,6 +8,10 @@ description = "DesignCraft MCP server: JSON-RPC 2.0 over stdio, driving a runnin
+ [lints]
+ workspace = true
+ 
++[features]
++default = []
++dobe = ["designcraft-engine/dobe"]
++
+ [dependencies]
+ designcraft-engine = { workspace = true }
+ designcraft-render = { workspace = true }
+diff --git a/crates/mcp/src/backend.rs b/crates/mcp/src/backend.rs
+index 4f6ea5a..fd2b404 100644
+--- a/crates/mcp/src/backend.rs
++++ b/crates/mcp/src/backend.rs
+@@ -33,6 +33,9 @@ pub struct Remote {
+ impl Remote {
+     /// Connect to `addr` (`127.0.0.1:7979`), failing fast when nothing is listening.
+     pub fn connect(addr: &str) -> std::io::Result<Self> {
++        if cfg!(feature = "dobe") {
++            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "Dobe Layout editor connections are unavailable"));
++        }
+         let mut r = Self { addr: addr.to_string(), conn: None, next_id: 1 };
+         r.reconnect()?;
+         Ok(r)
+@@ -129,7 +132,7 @@ impl Backend for Remote {
+     }
+ }
+ 
+-#[cfg(test)]
++#[cfg(all(test, not(feature = "dobe")))]
+ mod tests {
+     use super::*;
+     use std::net::TcpListener;
+@@ -273,3 +276,14 @@ mod tests {
+         assert_eq!(next, Ok(json!({"applied": 1})), "the next explicit request must reconnect successfully");
+     }
+ }
++
++#[cfg(all(test, feature = "dobe"))]
++mod dobe_tests {
++    #[test]
++    fn editor_connect_is_refused_before_address_resolution() {
++        match super::Remote::connect("invalid address without a port") {
++            Ok(_) => panic!("the production engine must never connect to an editor"),
++            Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied),
++        }
++    }
++}
+diff --git a/crates/mcp/src/headless.rs b/crates/mcp/src/headless.rs
+index a81aba1..7e2d783 100644
+--- a/crates/mcp/src/headless.rs
++++ b/crates/mcp/src/headless.rs
+@@ -25,6 +25,10 @@ impl Default for Headless {
+ }
+ 
+ /// Hint appended to errors for methods that need a window.
++#[cfg(feature = "dobe")]
++pub(crate) const NEEDS_APP: &str = "this operation needs an editor and is unavailable in Dobe Layout; use headless commands";
++
++#[cfg(not(feature = "dobe"))]
+ pub(crate) const NEEDS_APP: &str = "it needs the desktop app: start `designcraft --control 7979` and run the MCP server \
+ with `designcraft-cli mcp --connect 7979`";
+ 
+diff --git a/crates/mcp/src/server.rs b/crates/mcp/src/server.rs
+index a652892..c955c81 100644
+--- a/crates/mcp/src/server.rs
++++ b/crates/mcp/src/server.rs
+@@ -26,8 +26,16 @@ execute type.char / style.paragraph.apply → render_page to look at the result.
+ (ids, bounds), stories (overset) and styles. place_image puts a picture on the page.";
+ 
+ /// Resource URIs.
+-pub const DOC_URI: &str = "designcraft://document";
+-pub const COMMANDS_URI: &str = "designcraft://commands";
++pub const DOC_URI: &str = if cfg!(feature = "dobe") { "dobe-layout://document" } else { "designcraft://document" };
++pub const COMMANDS_URI: &str = if cfg!(feature = "dobe") { "dobe-layout://commands" } else { "designcraft://commands" };
++
++fn server_info() -> Value {
++    if cfg!(feature = "dobe") {
++        json!({"name": "dobe-layout", "title": "Dobe Layout", "version": env!("CARGO_PKG_VERSION")})
++    } else {
++        json!({"name": "designcraft", "title": "DesignCraft", "version": env!("CARGO_PKG_VERSION"), "websiteUrl": designcraft_engine::links::APP_PAGE})
++    }
++}
+ 
+ /// An MCP server bound to one backend.
+ pub struct Server {
+@@ -141,14 +149,12 @@ impl Server {
+                 Ok(json!({
+                     "protocolVersion": version,
+                     "capabilities": {"tools": {}, "resources": {}},
+-                    "serverInfo": {"name": "designcraft", "title": "DesignCraft", "version": env!("CARGO_PKG_VERSION"), "websiteUrl": designcraft_engine::links::APP_PAGE},
+-                    "instructions": format!(
+-                        "{INSTRUCTIONS} Backend: {}. Community: {} (Discord), {} (app page), {} (source). The `app.links` command returns these links.",
+-                        self.backend.describe(),
+-                        designcraft_engine::links::DISCORD,
+-                        designcraft_engine::links::APP_PAGE,
+-                        designcraft_engine::links::GITHUB
+-                    ),
++                    "serverInfo": server_info(),
++                    "instructions": if cfg!(feature = "dobe") {
++                        format!("Dobe Layout native headless page-layout engine. Use dobe mcp for durable production jobs. Coordinates are points in spread space, y down. Discover command parameters with list_commands. Save editable .designcraft sources and export PDF, IDML and page previews. Inspect stories for overset before publishing. Backend: {}.", self.backend.describe())
++                    } else {
++                        format!("{INSTRUCTIONS} Backend: {}. Community: {} (Discord), {} (app page), {} (source). The `app.links` command returns these links.", self.backend.describe(), designcraft_engine::links::DISCORD, designcraft_engine::links::APP_PAGE, designcraft_engine::links::GITHUB)
++                    },
+                 }))
+             }
+             "ping" => Ok(json!({})),
+diff --git a/crates/mcp/src/tests.rs b/crates/mcp/src/tests.rs
+index 82bbc0f..c166663 100644
+--- a/crates/mcp/src/tests.rs
++++ b/crates/mcp/src/tests.rs
+@@ -1,3 +1,4 @@
++#[cfg(not(feature = "dobe"))]
+ use std::io::{BufRead, BufReader, Write};
+ 
+ use designcraft_engine::cmd::{base64_decode, base64_encode};
+@@ -107,7 +108,7 @@ fn protocol_round_trip_over_serve() {
+         json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
+         json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_commands","arguments":{"filter":"frame.create"}}}),
+         json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"execute","arguments":{"command":"frame.create","params":{"rect":[36,36,300,200],"content":"text","text":"Hi"}}}}),
+-        json!({"jsonrpc":"2.0","id":5,"method":"resources/read","params":{"uri":"designcraft://document"}}),
++        json!({"jsonrpc":"2.0","id":5,"method":"resources/read","params":{"uri":crate::server::DOC_URI}}),
+     ]
+     .map(|v| v.to_string())
+     .join("\n");
+@@ -116,7 +117,7 @@ fn protocol_round_trip_over_serve() {
+     let lines: Vec<Value> = String::from_utf8(out).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+     assert_eq!(lines.len(), 5, "one reply per request, none for the notification");
+     assert_eq!(lines[0]["result"]["protocolVersion"], PROTOCOL_VERSION);
+-    assert_eq!(lines[0]["result"]["serverInfo"]["name"], "designcraft");
++    assert_eq!(lines[0]["result"]["serverInfo"]["name"], if cfg!(feature = "dobe") { "dobe-layout" } else { "designcraft" });
+     assert!(lines[0]["result"]["capabilities"]["tools"].is_object());
+     assert!(lines[0]["result"]["instructions"].as_str().unwrap().contains("headless"));
+     let tools = lines[1]["result"]["tools"].as_array().unwrap();
+@@ -326,7 +327,7 @@ fn ui_only_tools_explain_how_to_connect() {
+     ] {
+         let r = call(&mut s, name, args);
+         assert_eq!(r["isError"], true, "{name}");
+-        assert!(text_of(&r).contains("--connect"), "{name}: {}", text_of(&r));
++        assert!(text_of(&r).contains(if cfg!(feature = "dobe") { "unavailable in Dobe Layout" } else { "--connect" }), "{name}: {}", text_of(&r));
+     }
+     let r = call(&mut s, "execute", json!({"command": "view.zoomIn"}));
+     assert_eq!(r["isError"], true);
+@@ -394,6 +395,7 @@ fn list_commands_filters() {
+ // ---------- connect mode ----------
+ 
+ /// A fake app on a loopback port answering a few control methods, recording what it got.
++#[cfg(not(feature = "dobe"))]
+ fn fake_app() -> (String, std::sync::mpsc::Receiver<Value>) {
+     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+     let addr = listener.local_addr().unwrap().to_string();
+@@ -424,6 +426,7 @@ fn fake_app() -> (String, std::sync::mpsc::Receiver<Value>) {
+     (addr, rx)
+ }
+ 
++#[cfg(not(feature = "dobe"))]
+ #[test]
+ fn connect_mode_forwards_to_the_app() {
+     let (addr, seen) = fake_app();
+diff --git a/crates/mcp/src/tools.rs b/crates/mcp/src/tools.rs
+index 08659f2..d80877d 100644
+--- a/crates/mcp/src/tools.rs
++++ b/crates/mcp/src/tools.rs
+@@ -95,6 +95,10 @@ fn tool(name: &str, title: &str, desc: &str, schema: Value, read_only: bool) ->
+     })
+ }
+ 
++#[cfg(feature = "dobe")]
++const APP_ONLY: &str = " Unavailable in the Dobe Layout headless engine.";
++
++#[cfg(not(feature = "dobe"))]
+ const APP_ONLY: &str = " Desktop app only (`designcraft-cli mcp --connect PORT`).";
+ 
+ /// All tools, in `tools/list` order.

@@ -1,0 +1,37 @@
+{
+  "cargo_lock_sha256": "254dc96bd08bfd8a79e265e9c5291e6be631d19dd63cbd83cf0d88df92ca7584",
+  "engine_version": "0.20.1",
+  "fonts": {
+    "revision": "b076417b5880bd4154bd22f00695b1d28c6bea83",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "layout.patch",
+    "sha256": "4c95ca6e05367ed9225aec3b474d4be1a53a74f0db3e44e41468cfe319c56a1e"
+  },
+  "patched_files": {
+    "ROADMAP.md": "c5c8a36543c806a3d30c4610f55fcfe1eb568a3eeccdd2e921b1e0c295de1a03",
+    "apps/designcraft-cli/Cargo.toml": "7ea192b0d274b3bb75594a5e4405aabbba1ee3c224109ab814d070ee2fb9dab5",
+    "apps/designcraft-cli/src/main.rs": "b78f01e988c50ee5dbd6d3c17af99e9e3a0eb08c014633b57a729d65efb95545",
+    "apps/designcraft-cli/tests/it/dobe.rs": "0a1f8e4a55c46ae3018a26d54c19c8612ced993615eaa7af2dc09f0848d835cb",
+    "apps/designcraft-cli/tests/it/main.rs": "db6b35c0a9ececd1afb17a2448e70251a3eae828e606120c086b2224f50d8dae",
+    "crates/engine/Cargo.toml": "447ba2d09c3479d995a8b303a7992a73350aeebe1da00ce1a99a3d28f0b0ca27",
+    "crates/engine/src/cmd/paths.rs": "7390a7d06093a4b29cb0acb37cca8fc2888a7509654f1bc8075f04e1ccd85c3b",
+    "crates/fonts/Cargo.toml": "a716442bb2f7f835d7e372d68cb3722f3f5597964898bd723affbe39beab93ce",
+    "crates/fonts/src/fontdb/db.rs": "b2e0d34245268d29f89c2834a75fb0d1a700e9ee95453c83946e0c33c2db8bad",
+    "crates/mcp/Cargo.toml": "f60bbc0b2fe748daa1aebd206cfc4d45704525011e57f3340782064e8ebfd6ad",
+    "crates/mcp/src/backend.rs": "3490393bd056d911ab7dbf5d98f0e261dc19a2182e2118e04df259a0ac28730a",
+    "crates/mcp/src/headless.rs": "aff8e81a50df1f04d52fc36c547d42112b5d472ef66bbcc8f43a2fd5713bccce",
+    "crates/mcp/src/server.rs": "a81fa677d78e87e16e2023e2fdae689e52ea14ac5068e676977ac31c0bf40ace",
+    "crates/mcp/src/tests.rs": "0685536da5883f9463dd922600eb9fbc00c58d2d9475ca4e30d2cc50804fb164",
+    "crates/mcp/src/tools.rs": "1e008135e2cf26a32429dd094c46b13689ea466522447070184096032e6d54f7"
+  },
+  "product": "dobe-layout",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "33a467872268c98536231491865b4011b0275b17",
+    "url": "https://github.com/storytold/designcraft"
+  },
+  "source_date_epoch": 1794440252
+}

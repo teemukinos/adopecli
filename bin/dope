@@ -1,0 +1,27 @@
+#!/bin/bash
+# Run A dope CLI from this checkout. "bin/dope mcp" serves MCP over stdio.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+PYTHON="$ROOT/.venv/bin/python"
+if [ ! -x "$PYTHON" ]; then
+  echo "dope: this checkout is not set up yet. Run: $ROOT/scripts/setup" >&2
+  exit 78
+fi
+for engine_bin in "$ROOT"/.engines/*/bin; do
+  if [ -d "$engine_bin" ]; then PATH="$engine_bin:$PATH"; fi
+done
+export PATH PYTHONPATH="$ROOT/runtime/craft/runtime"
+# Every command runs under the same network-deny profile as the packaged
+# launcher, so engines and jobs cannot reach the network.
+PROFILE='(version 1) (allow default) (deny network*)'
+if ! /usr/bin/sandbox-exec -p "$PROFILE" /usr/bin/true 2>/dev/null; then
+  echo "dope: this command is already running inside a sandbox, so it cannot apply its own network-deny sandbox." >&2
+  echo "Nothing ran. Use dope mcp to connect your agent, or run the command with the sandbox off." >&2
+  exit 78
+fi
+SANDBOX=(/usr/bin/sandbox-exec -p "$PROFILE")
+STATE="${DOPE_STATE_DIR:-$HOME/.local/share/a-dope-cli/state}"
+export DOPE_STATE_DIR="$STATE"
+# A submit or retry starts a job worker if none is running (see
+# runtime/craft/runtime/studio_runtime/on_demand_worker.py).
+exec "${SANDBOX[@]}" "$PYTHON" -B -m studio_runtime.checkout "$@"

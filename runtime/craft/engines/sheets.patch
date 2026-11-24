@@ -1,0 +1,426 @@
+diff --git a/apps/gridcraft-cli/Cargo.toml b/apps/gridcraft-cli/Cargo.toml
+index 83c45d0..d6fccf9 100644
+--- a/apps/gridcraft-cli/Cargo.toml
++++ b/apps/gridcraft-cli/Cargo.toml
+@@ -22,3 +22,12 @@ log = { workspace = true }
+ # `check`: validating the packages GridCraft writes (content types, relationships).
+ zip = { workspace = true }
+ quick-xml = { workspace = true }
++
++[features]
++default = []
++dobe = []
++
++[[bin]]
++name = "dobe-sheets"
++path = "src/dobe_main.rs"
++required-features = ["dobe"]
+diff --git a/apps/gridcraft-cli/src/dobe_main.rs b/apps/gridcraft-cli/src/dobe_main.rs
+new file mode 100644
+index 0000000..7158c7d
+--- /dev/null
++++ b/apps/gridcraft-cli/src/dobe_main.rs
+@@ -0,0 +1,210 @@
++//! Private, bounded workbook transport. No editor, macro interpreter, Python,
++//! external link resolver, ambient preferences or network command is dispatched.
++#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
++#![forbid(unsafe_code)]
++use gridcraft_engine::{
++    calc::Calc,
++    core::{CellRef, Value},
++    model::{Cell, Formula, NumFmt, Workbook},
++};
++use serde_json::Value as Json;
++use std::io::{Read, Write};
++
++mod dobe_profile;
++type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
++const MAX_BYTES: usize = 8 * 1024 * 1024;
++
++fn read(path: &str) -> Result<Json> {
++    let file = std::fs::File::open(path)?;
++    if !file.metadata()?.is_file() {
++        return Err("private input must be a regular file".into());
++    }
++    let mut bytes = Vec::new();
++    file.take(MAX_BYTES as u64 + 1).read_to_end(&mut bytes)?;
++    if bytes.len() > MAX_BYTES {
++        return Err("private input exceeds 8 MiB".into());
++    }
++    let raw: Json = serde_json::from_slice(&bytes)?;
++    let mut pending = vec![&raw];
++    let mut count = 0;
++    while let Some(v) = pending.pop() {
++        count += 1;
++        if count > 200_000 {
++            return Err("private JSON exceeds node budget".into());
++        }
++        match v {
++            Json::String(s) if s.len() > 16_384 => return Err("private text exceeds 16384 bytes".into()),
++            Json::Array(a) => pending.extend(a),
++            Json::Object(o) => {
++                if o.keys().any(|k| k.len() > 256) {
++                    return Err("private JSON key exceeds 256 bytes".into());
++                }
++                // Bound formula parsing before native deserialization constructs an AST.
++                if o.get("text").and_then(Json::as_str).is_some_and(|s| s.len() > 2048) && o.contains_key("array") {
++                    return Err("formula exceeds 2048 bytes".into());
++                }
++                pending.extend(o.values());
++            }
++            _ => {}
++        }
++    }
++    Ok(raw)
++}
++fn write(path: &str, bytes: &[u8]) -> Result<()> {
++    if bytes.len() > MAX_BYTES {
++        return Err("private output exceeds 8 MiB".into());
++    }
++    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
++    file.write_all(bytes)?;
++    file.sync_all()?;
++    Ok(())
++}
++fn model(path: &str) -> Result<Workbook> {
++    let raw = read(path)?;
++    let mut wb: Workbook = serde_json::from_value(raw.clone())?;
++    // Native f32 serialization uses its shortest decimal; to_value promotes to f64.
++    // Compare the JSON produced by native bytes, so an engine-created file reopens.
++    if serde_json::from_slice::<Json>(&serde_json::to_vec(&wb)?)? != raw {
++        return Err("JSON is not the complete native workbook model".into());
++    }
++    wb.styles.rebuild_index();
++    dobe_profile::validate(&wb)?;
++    Ok(wb)
++}
++fn snapshot(wb: &Workbook, output: &str) -> Result<()> {
++    dobe_profile::validate(wb)?;
++    let bytes = serde_json::to_vec(wb)?;
++    let cold: Workbook = serde_json::from_slice(&bytes)?;
++    dobe_profile::validate(&cold)?;
++    if serde_json::to_vec(&cold)? != bytes {
++        return Err("cold reopen changed native workbook state".into());
++    }
++    write(output, &bytes)
++}
++fn without_values(wb: &Workbook) -> Result<Json> {
++    let mut copy = wb.clone();
++    for sheet in &mut copy.sheets {
++        let sheet = std::sync::Arc::make_mut(sheet);
++        let cells: Vec<_> = sheet.cells.iter().map(|(c, v)| (c, v.clone())).collect();
++        for (c, mut cell) in cells {
++            if cell.formula.is_some() {
++                cell.value = Value::Empty;
++                sheet.cells.set(c, cell);
++            }
++        }
++    }
++    Ok(serde_json::to_value(copy)?)
++}
++fn recalc(wb: &mut Workbook) -> Result<()> {
++    dobe_profile::validate(wb)?;
++    let before = without_values(wb)?;
++    Calc::new().recalc_all(wb);
++    dobe_profile::validate(wb)?;
++    if without_values(wb)? != before {
++        return Err("recalculation changed source state beyond cached formula values".into());
++    }
++    Ok(())
++}
++fn object<'a>(v: &'a Json, allowed: &[&str]) -> Result<&'a serde_json::Map<String, Json>> {
++    let o = v.as_object().ok_or("request must be an object")?;
++    if o.keys().any(|k| !allowed.contains(&k.as_str())) {
++        return Err("unknown edit field".into());
++    }
++    Ok(o)
++}
++fn edit(wb: &mut Workbook, request: &Json) -> Result<()> {
++    let edits = request.as_array().ok_or("edits must be an array")?;
++    if edits.is_empty() || edits.len() > 1024 {
++        return Err("expected 1..1024 cell edits".into());
++    }
++    for item in edits {
++        let o = object(item, &["sheet", "cell", "value", "formula", "format"])?;
++        let sheet = usize::try_from(o.get("sheet").and_then(Json::as_u64).ok_or("sheet index required")?)?;
++        let address = o.get("cell").and_then(Json::as_str).ok_or("cell address required")?;
++        let c = CellRef::parse(address).ok_or("invalid cell address")?;
++        if c.row >= 512 || c.col >= 64 {
++            return Err("cell exceeds supported 512 by 64 grid".into());
++        }
++        let sh = wb.sheet(sheet).ok_or("sheet index outside workbook")?;
++        let mut cell = sh.cell(c).cloned().unwrap_or_default();
++        if o.contains_key("value") && o.contains_key("formula") {
++            return Err("value and formula are mutually exclusive".into());
++        }
++        if !["value", "formula", "format"].iter().any(|k| o.contains_key(*k)) {
++            return Err("edit has no change".into());
++        }
++        if let Some(v) = o.get("value") {
++            cell.value = match v {
++                Json::Null => Value::Empty,
++                Json::Bool(b) => Value::Bool(*b),
++                Json::Number(n) => Value::Number(n.as_f64().ok_or("finite numeric value required")?),
++                Json::String(s) => Value::Text(s.as_str().into()),
++                _ => return Err("cell value must be null, boolean, number or text".into()),
++            };
++            cell.formula = None;
++        }
++        if let Some(v) = o.get("formula") {
++            let text = v.as_str().ok_or("formula must be text")?;
++            if text.len() > 2048 {
++                return Err("formula exceeds 2048 bytes".into());
++            }
++            let f = Formula::new(text);
++            dobe_profile::formula(&f, wb)?;
++            cell = Cell { style: cell.style, ..Cell::formula(f) };
++        }
++        if let Some(v) = o.get("format") {
++            let fields = object(v, &["bold", "italic", "number_format"])?;
++            if fields.is_empty() {
++                return Err("format must include a supported change".into());
++            }
++            let mut style = wb.styles.get(cell.style).clone();
++            for (k, v) in fields {
++                match k.as_str() {
++                    "bold" => style.font.bold = v.as_bool().ok_or("bold must be boolean")?,
++                    "italic" => style.font.italic = v.as_bool().ok_or("italic must be boolean")?,
++                    "number_format" => style.num_fmt = NumFmt::new(v.as_str().ok_or("number_format must be text")?),
++                    _ => return Err("unsupported format change".into()),
++                }
++            }
++            dobe_profile::style(&style)?;
++            cell.style = wb.styles.intern(style);
++        }
++        wb.sheet_mut(sheet).ok_or("sheet index outside workbook")?.set_cell(c, cell);
++    }
++    recalc(wb)
++}
++fn run() -> Result<()> {
++    let args: Vec<String> =
++        std::env::args_os().skip(1).map(|a| a.into_string().map_err(|_| "arguments must be Unicode")).collect::<std::result::Result<_, _>>()?;
++    match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
++        ["--version"] => { println!("dobe-sheets {}", env!("CARGO_PKG_VERSION")); Ok(()) }
++        ["new", output] => snapshot(&Workbook::new(), output),
++        ["encode", input, output] => snapshot(&model(input)?, output),
++        ["recalc", input, output] => {
++            let mut wb = model(input)?; recalc(&mut wb)?; snapshot(&wb, output)
++        }
++        ["edit", input, request, output] => {
++            let mut wb = model(input)?; edit(&mut wb, &read(request)?)?; snapshot(&wb, output)
++        }
++        ["export", format, input, output] if matches!(*format, "csv" | "html") => {
++            let wb = model(input)?;
++            let mut checked = wb.clone(); recalc(&mut checked)?;
++            if serde_json::to_value(&checked)? != serde_json::to_value(&wb)? {
++                return Err("formula caches are stale; recalculate and save before export".into());
++            }
++            let bytes = match *format {
++                "csv" => gridcraft_engine::io::csv_values_bytes(&wb)?,
++                "html" => gridcraft_engine::io::to_html(&wb, wb.active_sheet())?.into_bytes(),
++                _ => return Err("unsupported export".into()),
++            };
++            write(output, &bytes)
++        }
++        _ => Err("usage: dobe-sheets --version | new OUTPUT | encode INPUT OUTPUT | recalc INPUT OUTPUT | edit INPUT REQUEST OUTPUT | export csv|html INPUT OUTPUT".into()),
++    }
++}
++fn main() {
++    if let Err(error) = run() {
++        eprintln!("dobe-sheets: {error}");
++        std::process::exit(2);
++    }
++}
+diff --git a/apps/gridcraft-cli/src/dobe_profile.rs b/apps/gridcraft-cli/src/dobe_profile.rs
+new file mode 100644
+index 0000000..caad34c
+--- /dev/null
++++ b/apps/gridcraft-cli/src/dobe_profile.rs
+@@ -0,0 +1,147 @@
++//! Explicit initial native workbook profile. Unsupported state is refused rather
++//! than projected into a smaller model. Full native JSON remains the source.
++use crate::{Json, Result};
++use gridcraft_engine::{
++    core::Value,
++    formula::{BinOp, Expr, RefKind, SheetSel, UnOp},
++    model::{Formula, Sheet, Style, Workbook},
++};
++
++fn same_except(mut actual: Json, mut base: Json, fields: &[&str]) -> Result<()> {
++    let a = actual.as_object_mut().ok_or("native object required")?;
++    let b = base.as_object_mut().ok_or("native baseline required")?;
++    for k in fields {
++        a.remove(*k);
++        b.remove(*k);
++    }
++    if a != b {
++        return Err("workbook state is outside the bounded cells-and-formulas-v1 profile".into());
++    }
++    Ok(())
++}
++pub(super) fn style(s: &Style) -> Result<()> {
++    if !matches!(s.num_fmt.as_str(), "General" | "0" | "0.00" | "#,##0" | "#,##0.00" | "0%" | "0.00%") {
++        return Err("number format is outside the supported profile".into());
++    }
++    let mut allowed = Style::default();
++    allowed.font.bold = s.font.bold;
++    allowed.font.italic = s.font.italic;
++    allowed.num_fmt = s.num_fmt.clone();
++    if &allowed != s {
++        return Err("style is outside the supported bold/italic/number-format profile".into());
++    }
++    Ok(())
++}
++fn scalar(value: &Value) -> Result<()> {
++    match value {
++        Value::Empty | Value::Bool(_) | Value::Error(_) => Ok(()),
++        Value::Number(n) if n.is_finite() => Ok(()),
++        Value::Text(s) if s.len() <= 16384 => Ok(()),
++        _ => Err("cell value is outside the bounded scalar profile".into()),
++    }
++}
++fn expression(e: &Expr, wb: &Workbook, depth: usize, nodes: &mut usize, area: &mut u64, range_allowed: bool) -> Result<()> {
++    *nodes += 1;
++    if depth > 32 || *nodes > 128 {
++        return Err("formula exceeds expression budget".into());
++    }
++    match e {
++        Expr::Number(n) if n.is_finite() => {}
++        Expr::Text(s) if s.len() <= 2048 => {}
++        Expr::Bool(_) | Expr::Error(_) => {}
++        Expr::Ref(r) => {
++            match &r.sheet {
++                SheetSel::Current => {}
++                SheetSel::Named(name) if wb.sheet_index(name).is_some() => {}
++                _ => return Err("external, missing or three-dimensional sheet reference is unsupported".into()),
++            }
++            match r.kind {
++                RefKind::Cell(_) => {}
++                RefKind::Range(_, _) if range_allowed => {}
++                _ => return Err("only bounded cell references and aggregate ranges are supported".into()),
++            }
++            let r = r.range();
++            let cells = u64::from(r.height()) * u64::from(r.width());
++            if r.end.row >= 512 || r.end.col >= 64 || cells > 4096 {
++                return Err("formula reference exceeds grid/range budget".into());
++            }
++            *area += cells;
++        }
++        Expr::Unary(UnOp::Neg | UnOp::Plus | UnOp::Percent, inner) => expression(inner, wb, depth + 1, nodes, area, false)?,
++        Expr::Paren(inner) => expression(inner, wb, depth + 1, nodes, area, range_allowed)?,
++        Expr::Binary(
++            BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Pow | BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge,
++            left,
++            right,
++        ) => {
++            expression(left, wb, depth + 1, nodes, area, false)?;
++            expression(right, wb, depth + 1, nodes, area, false)?;
++        }
++        Expr::Call(name, args) => {
++            let aggregate = matches!(name.as_str(), "SUM" | "AVERAGE" | "MIN" | "MAX" | "COUNT" | "COUNTA");
++            if (!aggregate && !matches!(name.as_str(), "IF" | "IFERROR" | "ROUND" | "ABS")) || args.is_empty() || args.len() > 64 {
++                return Err("formula function or argument count is outside the supported profile".into());
++            }
++            for arg in args {
++                expression(arg, wb, depth + 1, nodes, area, aggregate)?;
++            }
++        }
++        _ => return Err("formula expression is outside the supported scalar profile".into()),
++    }
++    Ok(())
++}
++pub(super) fn formula(f: &Formula, wb: &Workbook) -> Result<u64> {
++    if f.text.len() > 2048 || f.array.is_some() || f.dynamic {
++        return Err("array/dynamic formulas or oversized formula text are unsupported".into());
++    }
++    let expr = f.expr.as_ref().ok_or("formula is not parseable")?;
++    let mut area = 0;
++    expression(expr, wb, 0, &mut 0, &mut area, false)?;
++    Ok(area)
++}
++pub(super) fn validate(wb: &Workbook) -> Result<()> {
++    if wb.sheets.is_empty() || wb.sheets.len() > 8 || wb.active_sheet() >= wb.sheets.len() {
++        return Err("expected 1..8 sheets and a valid active sheet".into());
++    }
++    same_except(serde_json::to_value(wb)?, serde_json::to_value(Workbook::new())?, &["sheets", "styles", "active_sheet"])?;
++    if wb.styles.is_empty() || wb.styles.len() > 256 {
++        return Err("expected 1..256 native styles".into());
++    }
++    for (_, s) in wb.styles.iter() {
++        style(s)?;
++    }
++    let mut cells = 0;
++    let mut formulas = 0;
++    let mut reference_area = 0u64;
++    for (index, sh) in wb.sheets.iter().enumerate() {
++        wb.check_sheet_name(&sh.name, Some(index))?;
++        same_except(serde_json::to_value(sh)?, serde_json::to_value(Sheet::new(&sh.name))?, &["cells"])?;
++        // Rebuild is not a repair operation here: a wrong length, band location or
++        // out-of-grid cell must fail instead of disappearing on import.
++        let mut rebuilt = sh.cells.clone();
++        if rebuilt.rebuild() != 0 || serde_json::to_value(&rebuilt)? != serde_json::to_value(&sh.cells)? {
++            return Err("noncanonical native cell storage".into());
++        }
++        if !sh.spill.is_empty() || !sh.spill_ranges.is_empty() {
++            return Err("dynamic spill state is not portable in this profile".into());
++        }
++        for (c, cell) in sh.cells.iter() {
++            cells += 1;
++            if cells > 10_000 || c.row >= 512 || c.col >= 64 {
++                return Err("workbook exceeds 10000 cells or 512 by 64 grid".into());
++            }
++            if cell.py.is_some() || cell.style.0 as usize >= wb.styles.len() {
++                return Err("Python cells or invalid style references are unsupported".into());
++            }
++            scalar(&cell.value)?;
++            if let Some(f) = &cell.formula {
++                formulas += 1;
++                reference_area += formula(f, wb)?;
++                if formulas > 1024 || reference_area > 1_000_000 {
++                    return Err("workbook exceeds formula/reference budget".into());
++                }
++            }
++        }
++    }
++    Ok(())
++}
+diff --git a/crates/ui-egui/tests/it/ref_edit.rs b/crates/ui-egui/tests/it/ref_edit.rs
+index fb3bf0c..3ddc14e 100644
+--- a/crates/ui-egui/tests/it/ref_edit.rs
++++ b/crates/ui-egui/tests/it/ref_edit.rs
+@@ -1064,8 +1064,8 @@ fn the_windows_cancel_with_an_unsavable_draft_closes_the_dialog_and_says_why() {
+     assert_eq!(draft_text(&h).as_deref(), Some("Picked note"), "the draft is kept");
+     assert_eq!(selection(&h).0, 2, "the selection stays where it is");
+     let wb = &h.state().session.active().unwrap().wb;
+-    for sheet in 0..3 {
+-        assert!(wb.sheets[sheet].value(CellRef::parse("H1").unwrap()).is_empty(), "nothing ran on sheet {sheet}");
++    for (sheet, model) in wb.sheets[..3].iter().enumerate() {
++        assert!(model.value(CellRef::parse("H1").unwrap()).is_empty(), "nothing ran on sheet {sheet}");
+     }
+ }
+ 
+diff --git a/docs/dobe-private-transport.md b/docs/dobe-private-transport.md
+new file mode 100644
+index 0000000..c97a0f6
+--- /dev/null
++++ b/docs/dobe-private-transport.md
+@@ -0,0 +1,19 @@
++# Dobe Sheets private transport
++
++The opt-in `dobe` feature builds `dobe-sheets`, a file-only entry point. It does not start the editor, upstream MCP server, script interpreter, macro runner, Python runner or external-link resolver. The ordinary upstream entry point is unchanged.
++
++The first supported profile, `cells-and-formulas-v1`, uses the complete native Workbook JSON model, including its native style table and sparse cell storage. Inputs must match native serialization exactly at the JSON-value level. Unknown fields, omitted defaults, malformed cell storage, unsupported workbook features and invalid style references fail rather than being repaired or discarded. Output files must not exist. JSON transport does not promise XLSX preservation or Office round-trip compatibility.
++
++Commands:
++
++- `new OUTPUT` writes the complete native default workbook.
++- `encode INPUT OUTPUT` validates and cold-reopens a complete workbook without recalculating it.
++- `recalc INPUT OUTPUT` uses the native dependency and calculation engine. Only cached formula values may change.
++- `edit INPUT REQUEST OUTPUT` applies a JSON array of cell changes, recalculates, validates and saves. Each change requires zero-based `sheet` and A1 `cell`; `value` (null, boolean, finite number or text) and `formula` are mutually exclusive. Optional `format` supports `bold`, `italic` and `number_format`. A failed batch creates no output.
++- `export csv|html INPUT OUTPUT` exports the active sheet through the native exporter. It checks all cached formula values against a fresh calculation first and refuses stale caches. CSV is a values export; the native workbook retains formulas and formatting. HTML is a structural, styled preview with browser-dependent fonts; it is not a pinned-font raster fidelity claim.
++
++Limits: 8 MiB JSON, 200,000 JSON nodes, 1–8 sheets, 10,000 occupied cells, 512 rows by 64 columns per sheet, 256 styles, 1,024 formulas and 1,000,000 total referenced cells across formula trees. Formula text is at most 2,048 bytes, 128 AST nodes, depth 32; a range has at most 4,096 cells. Edits contain 1–1,024 operations. Text cells support Unicode up to 16,384 UTF-8 bytes.
++
++Supported formulas are scalar arithmetic/comparison, unary plus/minus/percent, same-sheet or named-sheet cell references, and SUM, AVERAGE, MIN, MAX, COUNT, COUNTA, IF, IFERROR, ROUND and ABS. Bounded ranges are admitted only as aggregate arguments. Constants and native error results are retained. Dynamic arrays, Python, macros, external workbooks, defined names, volatile functions, concatenation, whole-column/row references and other expressions are refused. Number formats are General, 0, 0.00, #,##0, #,##0.00, 0% and 0.00%. Other workbook and sheet state must equal native defaults, except sheet names, active sheet, cells and the admitted styles.
++
++This private engine is not public runtime registration or distribution qualification. Durable jobs, portable project history, installed execution, Linux evidence and full release gates must be qualified separately. No editor window or remote operation is needed to build or exercise this transport.

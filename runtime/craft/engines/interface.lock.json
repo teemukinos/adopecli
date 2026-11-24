@@ -1,0 +1,45 @@
+{
+  "cargo_lock_sha256": "536ded7281c485bef7c8b6d1cee39f44931344b84eaf01b1128689f510471c7a",
+  "engine_version": "0.18.1",
+  "fonts": {
+    "revision": "37827adc41fd165f9a9234ac40f94dbad353aa69",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "interface.patch",
+    "sha256": "276b90044867f40d67f0339b110dbc4f3542a070f1e142607066c19da5ef4f3a"
+  },
+  "patched_files": {
+    "ROADMAP.md": "54a23335294f2cb00549b2b90913131bf9aa15ab2d2be70a23bffb9b663c7909",
+    "apps/figcraft-cli/Cargo.toml": "bb119616b44bfc5a79fc7a73639df4a8a1d3c537438887273fb21e7e0e7d8cb7",
+    "apps/figcraft-cli/src/args.rs": "f465bafe6be967d14b9f4b0e55930fe4aa60fe39e7a5ae152b8cd48752945974",
+    "apps/figcraft-cli/src/main.rs": "f16717725cb4a08464ac9421cde475598d9830742fe9bb977375dfab6a141812",
+    "apps/figcraft-cli/tests/it/dobe.rs": "d28183e22d85345411d6a2272c78db658b8ef9b22c4cab371a21f765aa987953",
+    "apps/figcraft-cli/tests/it/main.rs": "a99b8230b52feab9095266a333be1db290f84a7c1cea2b448de39939d84e2d3b",
+    "crates/engine/Cargo.toml": "57bbda96d0ada0ccead5feaedf81dd10726d97dcbcad8c35079b448a25024052",
+    "crates/engine/src/cmd.rs": "b02c4d73fa197a50a6129597fc042cd57a0d8cf029ff037909dd7d9a59ad83f8",
+    "crates/engine/src/cmd/dobe_text.rs": "384927839b0eead0edf2ea4fa66da776acb04f58fe537a7f2ec675d68fb071d6",
+    "crates/engine/src/cmd/file.rs": "5a13d8729519410aabd149c7364676fed40b124517842d42f7224f88fcfb6485",
+    "crates/engine/src/cmd/file/dobe_export_tests.rs": "c886b3f9181c7ee06922f398abb1a094cebd9426715f55af55a48ebaf3051398",
+    "crates/mcp/Cargo.toml": "5668859d6803f8e4fa28e88e6c5595b6c350e2de9eb946379c29b645656cfd0f",
+    "crates/mcp/src/backend.rs": "c32a5af730d84dfedaa4696e724dc115904c229284b9e29280bdaee7c7707fce",
+    "crates/mcp/src/headless.rs": "d49555983568b58e4c0d76ff9baceed254cdac0cb0da63cd32961c621d481c26",
+    "crates/mcp/src/resources.rs": "05a0d95e4c9384883c2e2fdfe251257bcbf8cd2361b6095e95f9297c85e39516",
+    "crates/mcp/src/server.rs": "80be8b66391d1e0fbe1b3bffa898ec55866e2fe0768c9a79255f964b6fd427c1",
+    "crates/mcp/tests/it/main.rs": "106c5e4fedc23a5066c22e07c1224ff4debfff9936744324d38cc9416fc85831",
+    "crates/mcp/tests/it/protocol.rs": "a925852e6318418e38ac67344433002125a7e22b71673008146d808a55267831",
+    "crates/render/src/layer_budget.rs": "4ea30b703421b032afb641ff170857ccf7d08dc772b49fcb2bbc6faaa332f7c2",
+    "crates/render/src/lib.rs": "77e45ee38d57d1a4499d4d80d7cba7447d2c2d46afe7fc87a2a1c467f5b0af05",
+    "crates/text/Cargo.toml": "543c236d8b0b12c3e6cf3998e8e270ea4b02b90da830fb6a8141fabb1d7cf262",
+    "crates/text/build.rs": "6129a6d9f99afefd7d5da4c47ee888d90586d209dc4407b3d85d2b2d41ee4d57",
+    "crates/text/src/fontdb.rs": "2ba2559c2292c1f9f027085acd456ae49dc1e6713629dd30f5ced0d3ee8cfa2a"
+  },
+  "product": "dobe-interface",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "4acc293c2ec941ac1400837ee7e3ab51780399f8",
+    "url": "https://github.com/storytold/figcraft"
+  },
+  "source_date_epoch": 1794443938
+}

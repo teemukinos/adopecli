@@ -1,0 +1,1398 @@
+diff --git a/apps/materialcraft-cli/Cargo.toml b/apps/materialcraft-cli/Cargo.toml
+index c46ca73..1a57f9c 100644
+--- a/apps/materialcraft-cli/Cargo.toml
++++ b/apps/materialcraft-cli/Cargo.toml
+@@ -6,6 +6,14 @@ edition.workspace = true
+ license.workspace = true
+ build = "build.rs"
+ 
++[features]
++dobe = ["materialcraft-automation/dobe", "materialcraft-engine/dobe"]
++
++[[bin]]
++name = "dobe-material"
++path = "src/dobe_main.rs"
++required-features = ["dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/apps/materialcraft-cli/src/dobe_help.txt b/apps/materialcraft-cli/src/dobe_help.txt
+new file mode 100644
+index 0000000..b93b88f
+--- /dev/null
++++ b/apps/materialcraft-cli/src/dobe_help.txt
+@@ -0,0 +1,13 @@
++dobe-material: private headless CPU material engine
++
++Commands: snapshot, evaluate, maps, preview, info, commands, nodes, run, batch, new, cook, export, render.
++snapshot <input> reads editable state without cooking; it requires prior runtime admission.
++evaluate <input> <graph-index> cooks one admitted full graph with shared raster budgets and no save.
++maps <input> <graph-index> <options-json-file> <new-dir> exports admitted maps from one bounded cook.
++preview <input> <graph-index> <options-json-file> <new-dir> renders one bounded CPU preview.
++Native editable formats: .sbs and .mcraft. Portable material export: .mcmat.
++Use the Dobe CLI or product MCP for durable customer jobs.
++No editor connection, standalone MCP or network server is available.
++Automatic library discovery and external package/resource loading are disabled.
++The upstream converted function library is not embedded: redistribution rights are unverified.
++This private executable is not an untrusted-document sandbox or a release-qualified application.
+diff --git a/apps/materialcraft-cli/src/dobe_main.rs b/apps/materialcraft-cli/src/dobe_main.rs
+new file mode 100644
+index 0000000..c73f676
+--- /dev/null
++++ b/apps/materialcraft-cli/src/dobe_main.rs
+@@ -0,0 +1,16 @@
++//! Private CPU engine. Customer operations belong to the durable Dobe runtime.
++#![forbid(unsafe_code)]
++#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
++#[path = "main.rs"]
++mod cli;
++fn main() {
++    // Refuse before token lookup or any connection; never attach to an editor.
++    let args: Vec<String> = std::env::args().skip(1).collect();
++    if args.first().is_some_and(|arg| matches!(arg.as_str(), "mcp" | "serve"))
++        || args.iter().any(|arg| matches!(arg.split('=').next(), Some("--bridge" | "--port" | "--token")))
++    {
++        eprintln!("dobe-material: private engine has no editor connection or network server; use the product MCP");
++        std::process::exit(2);
++    }
++    cli::main();
++}
+diff --git a/apps/materialcraft-cli/src/main.rs b/apps/materialcraft-cli/src/main.rs
+index fa7a15e..d48aaee 100644
+--- a/apps/materialcraft-cli/src/main.rs
++++ b/apps/materialcraft-cli/src/main.rs
+@@ -8,6 +8,10 @@ use materialcraft_automation::security::{client_token, server_token};
+ use materialcraft_automation::{AuthorizedWorkspace, BridgeClient, Filesystem, Headless, MaterialCraftMcp, RenderOptions, rpc};
+ use serde_json::{Value, json};
+ 
++#[cfg(feature = "dobe")]
++const USAGE: &str = include_str!("dobe_help.txt");
++
++#[cfg(not(feature = "dobe"))]
+ const USAGE: &str = "\
+ materialcraft-cli: headless MaterialCraft
+ 
+@@ -50,6 +54,14 @@ USAGE:
+ /// (name, flags taking a value, bare flags)
+ const SUBCOMMANDS: &[(&str, &[&str], &[&str])] = &[
+     ("info", &[], &[]),
++    #[cfg(feature = "dobe")]
++    ("snapshot", &[], &[]),
++    #[cfg(feature = "dobe")]
++    ("evaluate", &[], &[]),
++    #[cfg(feature = "dobe")]
++    ("maps", &[], &[]),
++    #[cfg(feature = "dobe")]
++    ("preview", &[], &[]),
+     ("commands", &["--filter"], &[]),
+     ("nodes", &["--filter", "--category"], &[]),
+     ("run", &["-o"], &[]),
+@@ -106,6 +118,12 @@ fn parse(cmd: &str, raw: &[String]) -> Result<Args, String> {
+     Ok(a)
+ }
+ 
++#[cfg(feature = "dobe")]
++fn version() -> String {
++    format!("dobe-material {} ({})", materialcraft_engine::VERSION, env!("MATERIALCRAFT_BUILD_SHA"))
++}
++
++#[cfg(not(feature = "dobe"))]
+ fn version() -> String {
+     let sha = env!("MATERIALCRAFT_BUILD_SHA");
+     let short = sha.get(..7).unwrap_or(sha);
+@@ -143,7 +161,7 @@ fn select_graph(h: &mut Headless, a: &Args) -> Result<(), String> {
+     Ok(())
+ }
+ 
+-fn main() {
++pub(crate) fn main() {
+     let raw: Vec<String> = std::env::args().skip(1).collect();
+     let code = match raw.first().map(String::as_str) {
+         None | Some("-h" | "--help" | "help") => {
+@@ -157,7 +175,7 @@ fn main() {
+         Some(cmd) => match parse(cmd, raw.get(1..).unwrap_or(&[])).and_then(|a| run(cmd, &a)) {
+             Ok(()) => 0,
+             Err(e) => {
+-                eprintln!("materialcraft-cli: {e}");
++                eprintln!("{}: {e}", if cfg!(feature = "dobe") { "dobe-material" } else { "materialcraft-cli" });
+                 1
+             }
+         },
+@@ -167,9 +185,80 @@ fn main() {
+ 
+ fn run(cmd: &str, a: &Args) -> Result<(), String> {
+     match cmd {
++        #[cfg(feature = "dobe")]
++        "snapshot" => {
++            if a.pos.len() != 1 {
++                return Err("snapshot requires exactly one input path".into());
++            }
++            // Managed calls have no ambient disk-path package alias.
++            // Loading a document must not cook it before the runtime compares
++            // its complete editable state and decides the execution budget.
++            let input = a.pos(0, "<input>")?;
++            let bytes = std::fs::read(input).map_err(|error| error.to_string())?;
++            let mut session = materialcraft_engine::Session::new(materialcraft_engine::core::Package::new("Dobe"));
++            materialcraft_engine::file_cmds::open_bytes(&mut session, &bytes, None).map_err(|error| error.to_string())?;
++            if !session.cooked.nodes.is_empty() || !session.dirty {
++                return Err("snapshot unexpectedly cooked the document".into());
++            }
++            let mut report = json!({"nativePackage":session.pkg, "loadWarnings":session.load_warnings,
++                          "cookedNodeCount":session.cooked.nodes.len(), "pendingCook":session.dirty});
++            materialcraft_engine::dobe_evaluate::archived_packages(&session, &mut report);
++            print(&report);
++        }
++        #[cfg(feature = "dobe")]
++        "evaluate" => {
++            if a.pos.len() != 2 {
++                return Err("evaluate requires exactly an input path and graph index".into());
++            }
++            let input = a.pos(0, "<input>")?;
++            let index = a.pos(1, "<graph>")?.parse::<usize>().map_err(|_| "evaluate graph index is invalid")?;
++            let bytes = std::fs::read(input).map_err(|error| error.to_string())?;
++            let mut session = materialcraft_engine::Session::new(materialcraft_engine::core::Package::new("Dobe"));
++            materialcraft_engine::file_cmds::open_bytes(&mut session, &bytes, None).map_err(|error| error.to_string())?;
++            print(&materialcraft_engine::dobe_evaluate::evaluate(&session, index)?);
++        }
++        #[cfg(feature = "dobe")]
++        "maps" => {
++            if a.pos.len() != 4 {
++                return Err("maps requires input, graph index, options file and new output directory".into());
++            }
++            let input = a.pos(0, "<input>")?;
++            let index = a.pos(1, "<graph>")?.parse::<usize>().map_err(|_| "maps graph index is invalid")?;
++            let options = std::fs::read(a.pos(2, "<options>")?).map_err(|error| error.to_string())?;
++            if options.len() > 1 << 20 {
++                return Err("maps options exceed their byte budget".into());
++            }
++            let options = serde_json::from_slice(&options).map_err(|error| format!("maps options: {error}"))?;
++            let bytes = std::fs::read(input).map_err(|error| error.to_string())?;
++            let mut session = materialcraft_engine::Session::new(materialcraft_engine::core::Package::new("Dobe"));
++            materialcraft_engine::file_cmds::open_bytes(&mut session, &bytes, None).map_err(|error| error.to_string())?;
++            print(&materialcraft_engine::dobe_maps::export(&session, index, options, std::path::Path::new(a.pos(3, "<output>")?))?);
++        }
++        #[cfg(feature = "dobe")]
++        "preview" => {
++            if a.pos.len() != 4 {
++                return Err("preview requires input, graph index, options file and new output directory".into());
++            }
++            let input = a.pos(0, "<input>")?;
++            let index = a.pos(1, "<graph>")?.parse::<usize>().map_err(|_| "preview graph index is invalid")?;
++            let options = std::fs::read(a.pos(2, "<options>")?).map_err(|e| e.to_string())?;
++            if options.len() > 1 << 20 {
++                return Err("preview options exceed their byte budget".into());
++            }
++            let options = serde_json::from_slice(&options).map_err(|e| format!("preview options: {e}"))?;
++            let bytes = std::fs::read(input).map_err(|e| e.to_string())?;
++            let mut session = materialcraft_engine::Session::new(materialcraft_engine::core::Package::new("Dobe"));
++            materialcraft_engine::file_cmds::open_bytes(&mut session, &bytes, None).map_err(|e| e.to_string())?;
++            print(&materialcraft_automation::dobe_preview::render(&session, index, options, std::path::Path::new(a.pos(3, "<output>")?))?);
++        }
+         "info" => {
+             let mut h = open(a.pos(0, "<input>")?)?;
+-            print(&h.inspect());
++            let mut inspection = h.inspect();
++            #[cfg(feature = "dobe")]
++            {
++                inspection["nativePackage"] = serde_json::to_value(&h.session.pkg).map_err(|error| error.to_string())?;
++            }
++            print(&inspection);
+         }
+         "commands" => {
+             let h = open("sample")?;
+diff --git a/crates/automation/Cargo.toml b/crates/automation/Cargo.toml
+index d56a4fb..748c770 100644
+--- a/crates/automation/Cargo.toml
++++ b/crates/automation/Cargo.toml
+@@ -5,6 +5,9 @@ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
++[features]
++dobe = ["materialcraft-engine/dobe", "materialcraft-formats/dobe", "materialcraft-render/dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/automation/src/dobe_preview.rs b/crates/automation/src/dobe_preview.rs
+new file mode 100644
+index 0000000..9c3a18e
+--- /dev/null
++++ b/crates/automation/src/dobe_preview.rs
+@@ -0,0 +1,240 @@
++//! Bounded CPU previews from one qualified cook, without editor or preview state.
++use image::ImageEncoder;
++use materialcraft_engine::{Session, dobe_evaluate, eval, image::linear_to_srgb};
++use materialcraft_render::{Lighting, Maps, Relief, Scene, Settings};
++use serde::{Deserialize, Serialize};
++use serde_json::{Value, json};
++use std::collections::BTreeMap;
++use std::io::Write;
++use std::path::Path;
++
++const MAX_PIXELS: u64 = 16_777_216;
++const MAX_SAMPLES: u64 = 67_108_864;
++const MAX_RAY_WORK: u64 = 1_073_741_824;
++const MAX_BYTES: usize = 64 << 20;
++const CHANNELS: [&str; 8] = ["baseColor", "normal", "roughness", "metallic", "height", "ambientOcclusion", "emissive", "opacity"];
++
++#[derive(Deserialize, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct Request {
++    view: String,
++    width: u32,
++    height: u32,
++    output: Option<String>,
++    look: Option<Look>,
++}
++
++#[derive(Deserialize, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct Look {
++    scene: String,
++    environment: String,
++    yaw: f32,
++    pitch: f32,
++    distance: f32,
++    target: [f32; 3],
++    tiling: f32,
++    exposure: f32,
++    environment_rotation: f32,
++    normal_y_flip: bool,
++    show_environment: bool,
++    supersample: u32,
++    ao_rays: u32,
++    key_light: f32,
++    transparency: bool,
++    alpha_view: bool,
++    displacement: f32,
++    displacement_level: f32,
++    triangles: usize,
++    channels: BTreeMap<String, String>,
++}
++fn bounded(v: f32, lo: f32, hi: f32) -> bool {
++    v.is_finite() && lo <= v && v <= hi
++}
++
++pub fn render(session: &Session, index: usize, request: Request, destination: &Path) -> Result<Value, String> {
++    let pixels = u64::from(request.width) * u64::from(request.height);
++    if !(1..=4096).contains(&request.width) || !(1..=4096).contains(&request.height) || pixels > MAX_PIXELS {
++        return Err("Dobe preview dimensions exceed their budget".into());
++    }
++    let (samples, ray_work) = match (request.view.as_str(), request.output.as_ref(), request.look.as_ref()) {
++        ("2d", Some(name), None) if !name.is_empty() && name.len() <= 4096 => (pixels, 0),
++        ("3d", None, Some(o)) => {
++            if !["material_ball", "sphere", "cube", "rounded_cube", "cylinder", "torus", "plane", "crate", "udim_plane"].contains(&o.scene.as_str())
++                || !["studio", "contrast", "overcast", "sunset", "warehouse", "night"].contains(&o.environment.as_str())
++            {
++                return Err("Dobe preview scene or environment is unknown".into());
++            }
++            if !bounded(o.yaw, -360., 360.)
++                || !bounded(o.pitch, -89., 89.)
++                || !bounded(o.distance, 1.05, 50.)
++                || o.target.iter().any(|v| !bounded(*v, -10., 10.))
++                || !bounded(o.tiling, 0.1, 64.)
++                || !bounded(o.exposure, -16., 16.)
++                || !bounded(o.environment_rotation, -360., 360.)
++                || !bounded(o.key_light, 0., 16.)
++                || !bounded(o.displacement, 0., 0.5)
++                || !bounded(o.displacement_level, 0., 1.)
++                || !(1..=4).contains(&o.supersample)
++                || o.ao_rays > 32
++                || !(64..=2_000_000).contains(&o.triangles)
++                || o.channels.keys().any(|k| !CHANNELS.contains(&k.as_str()))
++                || o.channels.values().any(|v| v.is_empty() || v.len() > 4096)
++            {
++                return Err("Dobe preview settings are invalid or exceed their budget".into());
++            }
++            let samples = pixels * u64::from(o.supersample).pow(2);
++            // Eight transparent surfaces; each sample can cast AO and key rays.
++            let rays = samples * 8 * (1 + u64::from(o.ao_rays) + u64::from(o.key_light > 0.));
++            if samples > MAX_SAMPLES || rays > MAX_RAY_WORK {
++                return Err("Dobe preview sample or ray-work budget exceeded".into());
++            }
++            (samples, rays)
++        }
++        _ => return Err("Dobe preview requires exactly a 2d output or 3d look".into()),
++    };
++    let (cooked, evaluation) = dobe_evaluate::cook(session, index)?;
++    let graph = session.pkg.graphs.get(index).ok_or("Dobe preview graph is absent")?;
++    let outputs = eval::outputs(graph, &cooked);
++    let mut by_name = BTreeMap::new();
++    for (id, usage, name, image) in &outputs {
++        if by_name.insert(name.as_str(), (*id, *usage, *image)).is_some() {
++            return Err("Dobe preview output names are ambiguous".into());
++        }
++    }
++    let (rgba, selection, geometry) = if let Some(name) = request.output.as_ref() {
++        let (id, usage, image) = by_name.get(name.as_str()).ok_or("Dobe preview output is absent")?;
++        let image = image.ok_or("Dobe preview output is not a raster")?;
++        let resized = image.resize(request.width, request.height, true);
++        for pixel in resized.data.chunks_exact(if resized.is_gray() { 1 } else { 4 }) {
++            for (i, v) in pixel.iter().enumerate() {
++                if !v.is_finite() || (!resized.is_gray() && i < 3 && !linear_to_srgb(*v).is_finite()) {
++                    return Err("Dobe 2d preview contains nonfinite resized/display samples".into());
++                }
++            }
++        }
++        (resized.to_rgba8_display(), json!([{"identifier":name,"node":id.0,"usage":usage,"width":image.w,"height":image.h}]), Value::Null)
++    } else {
++        let o = request.look.as_ref().ok_or("Dobe preview look is absent")?;
++        let mut assigned = BTreeMap::new();
++        for channel in CHANNELS {
++            if let Some(name) = o.channels.get(channel) {
++                let (id, _, image) = by_name.get(name.as_str()).ok_or("Dobe preview channel output is absent")?;
++                assigned.insert(channel, (*id, name.as_str(), image.ok_or("Dobe preview channel output is not a raster")?));
++            } else {
++                let matches: Vec<_> = outputs
++                    .iter()
++                    .filter(|(_, usage, _, image)| {
++                        materialcraft_engine::core::MaterialChannel::from_id(usage).is_some_and(|c| c.id() == channel) && image.is_some()
++                    })
++                    .collect();
++                if matches.len() > 1 {
++                    return Err("Dobe preview usage is ambiguous; select an explicit channel output".into());
++                }
++                if let Some((id, _, name, Some(image))) = matches.first() {
++                    assigned.insert(channel, (*id, name.as_str(), *image));
++                }
++            }
++        }
++        if assigned.is_empty() {
++            return Err("Dobe preview has no assigned material channels".into());
++        }
++        // The native normal-map shader interprets encoded XYZ in [0,1].
++        if let Some((_, _, image)) = assigned.get("normal") {
++            if image
++                .data
++                .chunks_exact(if image.is_gray() { 1 } else { 4 })
++                .any(|pixel| pixel.iter().take(if image.is_gray() { 1 } else { 3 }).any(|v| !bounded(*v, 0., 1.)))
++            {
++                return Err("Dobe preview normal map must use encoded samples in [0,1]".into());
++            }
++        }
++        let maps = Maps::from_usages(assigned.iter().map(|(usage, (_, _, image))| (*usage, *image)));
++        let mesh = materialcraft_render::builtin_mesh(&o.scene);
++        if mesh.triangle_count() > o.triangles {
++            return Err("Dobe preview base mesh exceeds the triangle budget".into());
++        }
++        let base_triangles = mesh.triangle_count();
++        let scene = Scene::new(mesh);
++        if o.displacement > 0. {
++            let height = maps.height.as_ref().ok_or("Dobe preview displacement requires a height channel")?;
++            if height.data.chunks_exact(if height.is_gray() { 1 } else { 4 }).any(|pixel| {
++                pixel
++                    .iter()
++                    .take(if height.is_gray() { 1 } else { 3 })
++                    .any(|v| ((f64::from(*v) - f64::from(o.displacement_level)) * f64::from(o.displacement)).abs() > 8.)
++            }) {
++                return Err("Dobe preview displacement exceeds eight scene radii".into());
++            }
++            // Shared seam vertices accumulate height before dividing and
++            // scaling. Bound that intermediate even for a tiny depth value.
++            let sum_limit = f64::from(f32::MAX) / (o.triangles * 3) as f64 / 4.0;
++            if height
++                .data
++                .chunks_exact(if height.is_gray() { 1 } else { 4 })
++                .any(|pixel| pixel.iter().take(if height.is_gray() { 1 } else { 3 }).any(|v| f64::from(*v).abs() > sum_limit))
++            {
++                return Err("Dobe preview height exceeds finite displacement working range".into());
++            }
++        }
++        let displaced = scene.with_relief(&maps, Relief { depth: o.displacement, level: o.displacement_level }, o.tiling, o.triangles);
++        let selected = displaced.as_ref().unwrap_or(&scene);
++        if selected.mesh.triangle_count() > o.triangles
++            || !selected.radius.is_finite()
++            || selected.mesh.positions.iter().any(|v| !v.is_finite())
++            || selected.mesh.normals.iter().any(|v| !v.is_finite())
++            || selected.mesh.tangents.iter().any(|v| !v.is_finite())
++        {
++            return Err("Dobe preview geometry is nonfinite or oversized".into());
++        }
++        let settings = Settings {
++            yaw: o.yaw,
++            pitch: o.pitch,
++            distance: o.distance,
++            target: o.target,
++            tiling: o.tiling,
++            exposure: o.exposure,
++            env_rotation: o.environment_rotation,
++            normal_y_flip: o.normal_y_flip,
++            show_env: o.show_environment,
++            supersample: o.supersample,
++            ao_rays: o.ao_rays,
++            key_light: o.key_light,
++            transparency: o.transparency,
++            alpha_view: o.alpha_view,
++        };
++        let light = Lighting::new(&o.environment);
++        let rgba = materialcraft_render::preview::render_checked(selected, &maps, &light, &settings, request.width, request.height)?;
++        let selection: Vec<_> = assigned
++            .iter()
++            .map(|(channel, (id, name, image))| json!({"channel":channel,"identifier":name,"node":id.0,"width":image.w,"height":image.h}))
++            .collect();
++        (
++            rgba,
++            json!(selection),
++            json!({"baseTriangles":base_triangles,"triangles":selected.mesh.triangle_count(),"vertices":selected.mesh.positions.len(),"displaced":displaced.is_some()}),
++        )
++    };
++    if rgba.len() != pixels as usize * 4 {
++        return Err("Dobe preview pixel buffer has an unexpected size".into());
++    }
++    let mut png = Vec::new();
++    image::codecs::png::PngEncoder::new(&mut png)
++        .write_image(&rgba, request.width, request.height, image::ExtendedColorType::Rgba8)
++        .map_err(|e| e.to_string())?;
++    if png.len() > MAX_BYTES {
++        return Err("Dobe preview encoded image exceeds its budget".into());
++    }
++    std::fs::create_dir(destination).map_err(|e| format!("Dobe preview destination must be new: {e}"))?;
++    let write = || -> Result<(), String> {
++        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(destination.join("preview.png")).map_err(|e| e.to_string())?;
++        file.write_all(&png).and_then(|_| file.sync_all()).map_err(|e| e.to_string())
++    };
++    if let Err(error) = write() {
++        let _ = std::fs::remove_dir_all(destination);
++        return Err(error);
++    }
++    Ok(json!({"evaluation":evaluation,"request":request,"selection":selection,"geometry":geometry,"file":"preview.png","bytes":png.len(),
++        "pixels":pixels,"samples":samples,"rayWork":ray_work,"finiteDisplaySamples":true,
++        "limits":{"pixels":MAX_PIXELS,"samples":MAX_SAMPLES,"rayWork":MAX_RAY_WORK,"bytes":MAX_BYTES}}))
++}
+diff --git a/crates/automation/src/lib.rs b/crates/automation/src/lib.rs
+index 56aa9f4..25bed73 100644
+--- a/crates/automation/src/lib.rs
++++ b/crates/automation/src/lib.rs
+@@ -1,6 +1,9 @@
+ #![forbid(unsafe_code)]
+ #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+ 
++#[cfg(feature = "dobe")]
++pub mod dobe_preview;
++
+ pub mod bridge;
+ pub mod budgets;
+ pub mod headless;
+diff --git a/crates/engine/Cargo.toml b/crates/engine/Cargo.toml
+index 5eb7c48..ef45b1e 100644
+--- a/crates/engine/Cargo.toml
++++ b/crates/engine/Cargo.toml
+@@ -5,6 +5,9 @@ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
++[features]
++dobe = ["materialcraft-formats/dobe", "materialcraft-nodes/dobe", "materialcraft-eval/dobe"]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/engine/src/dobe_evaluate.rs b/crates/engine/src/dobe_evaluate.rs
+new file mode 100644
+index 0000000..fce53ea
+--- /dev/null
++++ b/crates/engine/src/dobe_evaluate.rs
+@@ -0,0 +1,63 @@
++//! Evaluate one admitted graph without preview cooks, recovery images or saves.
++use crate::Session;
++use materialcraft_eval::{Cooked, DobeBudget, NodeOutput, Options};
++use serde_json::{Value, json};
++
++pub fn evaluate(session: &Session, graph_index: usize) -> Result<Value, String> {
++    cook(session, graph_index).map(|(_, report)| report)
++}
++
++pub fn cook(session: &Session, graph_index: usize) -> Result<(Cooked, Value), String> {
++    let graph = session.pkg.graphs.get(graph_index).ok_or("Dobe evaluation graph is absent")?;
++    if graph.function.is_some() {
++        return Err("Dobe evaluation requires a material graph".into());
++    }
++    if !session.load_warnings.is_empty() || !session.cooked.nodes.is_empty() || !session.dirty {
++        return Err("Dobe evaluation requires an unrecovered, uncooked source".into());
++    }
++    let decoder = session.resource_decoder();
++    let budget = DobeBudget::default();
++    let mut options = Options::new(&decoder);
++    options.environment = session.environment;
++    options.dobe_budget = Some(&budget);
++    let cooked = materialcraft_eval::cook(&session.pkg, graph_index, &options, &session.cache);
++    if cooked.cancelled {
++        return Err("Dobe evaluation cancelled".into());
++    }
++    if let Some((identity, error)) = cooked.nodes.iter().find_map(|(id, result)| result.error.as_ref().map(|error| (id, error))) {
++        return Err(format!("Dobe evaluation node {}: {error}", identity.0));
++    }
++    if cooked.nodes.len() != graph.nodes.len() {
++        return Err("Dobe evaluation omitted graph nodes".into());
++    }
++    let nodes: Vec<_> = graph
++        .nodes
++        .iter()
++        .filter_map(|node| {
++            cooked.nodes.get(&node.id).map(|result| {
++                json!({
++                    "id":node.id.0, "base":result.base, "baseValues":result.base_values, "parameters":result.parameters,
++                    "cached":result.cached, "outputs":result.outputs.iter().map(|output| match output {
++                        NodeOutput::Value(value) => json!({"value":value}),
++                        NodeOutput::Image(image) => json!({"width":image.w,"height":image.h,"channels":if image.is_gray(){1}else{4},
++                            "minimum":image.data.iter().copied().fold(f32::INFINITY,f32::min),
++                            "maximum":image.data.iter().copied().fold(f32::NEG_INFINITY,f32::max)})
++                    }).collect::<Vec<_>>()
++                })
++            })
++        })
++        .collect();
++    let mut report = json!({"nativePackage":session.pkg,"graph":graph_index,"nodes":nodes,"usage":budget.usage(),
++        "limits":{"node_visits":DobeBudget::MAX_NODE_VISITS,"node_texels":DobeBudget::MAX_NODE_TEXELS,"output_texels":DobeBudget::MAX_OUTPUT_TEXELS},
++        "fullSize":true,"finiteOutputs":true,"sourceSaved":false});
++    archived_packages(session, &mut report);
++    Ok((cooked, report))
++}
++
++/// Expose every admitted archive package; Package serialization omits this map.
++/// Single-package replies retain their existing envelope.
++pub fn archived_packages(session: &Session, report: &mut Value) {
++    if session.pkg.dependencies.len() > 1 {
++        report["archivedPackages"] = json!(session.pkg.dependencies);
++    }
++}
+diff --git a/crates/engine/src/dobe_maps.rs b/crates/engine/src/dobe_maps.rs
+new file mode 100644
+index 0000000..5c8306d
+--- /dev/null
++++ b/crates/engine/src/dobe_maps.rs
+@@ -0,0 +1,140 @@
++//! Fixed-file map delivery from the same bounded cook used by evaluation.
++use crate::{ColorSpace, Session, dobe_evaluate};
++use materialcraft_formats::Depth;
++use materialcraft_image::linear_to_srgb;
++use serde::Deserialize;
++use serde_json::{Value, json};
++use std::collections::{BTreeMap, BTreeSet};
++use std::io::Write;
++use std::path::Path;
++
++const MAX_MAPS: usize = 256;
++const MAX_TEXELS: u64 = 33_554_432;
++const MAX_FILE_BYTES: usize = 64 << 20;
++const MAX_TOTAL_BYTES: usize = 512 << 20;
++
++#[derive(Deserialize)]
++#[serde(deny_unknown_fields)]
++pub struct Request {
++    format: String,
++    depth: u8,
++    #[serde(default)]
++    outputs: Option<Vec<String>>,
++    #[serde(default)]
++    color_spaces: BTreeMap<String, String>,
++    #[serde(default)]
++    discard_alpha: bool,
++}
++
++pub fn export(session: &Session, index: usize, request: Request, destination: &Path) -> Result<Value, String> {
++    let depth = match (request.format.as_str(), request.depth) {
++        ("png", 16) => Depth::U16,
++        ("png" | "jpg" | "tga" | "bmp" | "webp", 8) => Depth::U8,
++        ("exr" | "hdr", 32) => Depth::F32,
++        _ => return Err("Dobe map format/depth combination is unsupported".into()),
++    };
++    let selected: Option<BTreeSet<_>> = request.outputs.as_ref().map(|items| items.iter().collect());
++    if request.outputs.as_ref().is_some_and(|items| items.is_empty() || items.len() > MAX_MAPS || selected.as_ref().is_none_or(|set| set.len() != items.len()))
++    {
++        return Err("Dobe map selection is empty, duplicated or oversized".into());
++    }
++    if request.color_spaces.len() > MAX_MAPS || request.color_spaces.values().any(|v| !matches!(v.as_str(), "srgb" | "linear" | "raw")) {
++        return Err("Dobe map color-space overrides are invalid".into());
++    }
++    let (cooked, evaluation) = dobe_evaluate::cook(session, index)?;
++    let graph = session.pkg.graphs.get(index).ok_or("Dobe map graph is absent")?;
++    let outputs = materialcraft_eval::outputs(graph, &cooked);
++    let mut names = BTreeSet::new();
++    for (_, _, name, _) in &outputs {
++        if name.is_empty() || name.len() > 4096 || !names.insert(name) {
++            return Err("Dobe map output identifiers are empty, duplicated or oversized".into());
++        }
++    }
++    if selected.as_ref().is_some_and(|set| set.iter().any(|name| !names.contains(name))) {
++        return Err("Dobe map selection contains an absent output".into());
++    }
++    let mut plan = Vec::new();
++    let mut skipped = Vec::new();
++    let mut texels = 0u64;
++    for (id, usage, name, image) in outputs {
++        if selected.as_ref().is_some_and(|set| !set.contains(&name)) {
++            continue;
++        }
++        let Some(image) = image else {
++            if selected.is_some() {
++                return Err("Dobe selected map has no raster output".into());
++            }
++            skipped.push(json!({"node":id.0,"identifier":name,"reason":"non-raster-output"}));
++            continue;
++        };
++        let space = if let Some(value) = request.color_spaces.get(&name) {
++            ColorSpace::from_id(value).ok_or("Dobe map color space is invalid")?
++        } else if image.is_gray() {
++            ColorSpace::Raw
++        } else if matches!(request.format.as_str(), "exr" | "hdr") {
++            ColorSpace::Linear
++        } else {
++            ColorSpace::for_usage(usage)
++        };
++        if image.is_gray() && space == ColorSpace::Srgb {
++            return Err("Dobe grayscale maps do not apply an sRGB transform".into());
++        }
++        let drops_alpha = matches!(request.format.as_str(), "jpg" | "exr" | "hdr");
++        let nonopaque = !image.is_gray() && image.data.chunks_exact(4).any(|p| p[3] != 1.0);
++        if drops_alpha && nonopaque && !request.discard_alpha {
++            return Err("Dobe map would discard nonopaque alpha; explicit discard_alpha is required".into());
++        }
++        // Check the actual transfer curve before the encoder can quantize away
++        // nonfinite values. RGBE's exponent conversion must never wrap.
++        for pixel in image.data.chunks_exact(if image.is_gray() { 1 } else { 4 }) {
++            let mut peak = 0.0f32;
++            for value in pixel.iter().take(if image.is_gray() { 1 } else { 3 }) {
++                let value = if space.encodes_srgb() { linear_to_srgb(*value) } else { *value };
++                if !value.is_finite() {
++                    return Err("Dobe map transfer produced a nonfinite sample".into());
++                }
++                if request.format == "hdr" && value < 0.0 {
++                    return Err("Dobe RGBE cannot preserve negative samples".into());
++                }
++                peak = peak.max(value);
++            }
++            if request.format == "hdr" && peak > 0.0 && !(-127..=127).contains(&(peak.log2().floor() as i32 + 1)) {
++                return Err("Dobe RGBE exponent is outside its nonzero finite range".into());
++            }
++        }
++        texels += u64::from(image.w) * u64::from(image.h);
++        plan.push((id, usage, name, image, space, drops_alpha && nonopaque));
++    }
++    if plan.is_empty() || plan.len() > MAX_MAPS || texels > MAX_TEXELS {
++        return Err("Dobe map count or aggregate raster budget is invalid".into());
++    }
++    if request.color_spaces.keys().any(|name| !plan.iter().any(|(_, _, planned, _, _, _)| planned == name)) {
++        return Err("Dobe color-space override does not name a selected raster map".into());
++    }
++    std::fs::create_dir(destination).map_err(|e| format!("Dobe map destination must be new: {e}"))?;
++    let write = || -> Result<Value, String> {
++        let mut total_bytes = 0usize;
++        let mut maps = Vec::new();
++        for (id, usage, name, image, space, alpha_discarded) in plan {
++            let bytes = materialcraft_formats::encode(image, &request.format, depth, space.encodes_srgb()).map_err(|e| e.to_string())?;
++            total_bytes += bytes.len();
++            if bytes.is_empty() || bytes.len() > MAX_FILE_BYTES || total_bytes > MAX_TOTAL_BYTES {
++                return Err("Dobe encoded maps exceed their byte budget".into());
++            }
++            let file = format!("map-{}.{}", id.0, request.format);
++            let mut output = std::fs::OpenOptions::new().write(true).create_new(true).open(destination.join(&file)).map_err(|e| e.to_string())?;
++            output.write_all(&bytes).and_then(|_| output.sync_all()).map_err(|e| e.to_string())?;
++            maps.push(json!({"node":id.0,"identifier":name,"usage":usage,"file":file,"width":image.w,"height":image.h,
++                "sourceChannels":if image.is_gray(){1}else{4},"colorSpace":space.id(),"bytes":bytes.len(),"alphaDiscarded":alpha_discarded,
++                "encoding":match request.format.as_str(){"hdr"=>"rgbe-shared-exponent","exr"=>"float32-rgb","jpg"=>"lossy-unorm8",_=>if request.depth==16{"unorm16"}else{"unorm8"}},
++                "integerClamping":!matches!(request.format.as_str(),"exr"|"hdr")}));
++        }
++        Ok(json!({"evaluation":evaluation,"maps":maps,"skipped":skipped,"format":request.format,"depth":request.depth,
++            "texels":texels,"bytes":total_bytes,"limits":{"maps":MAX_MAPS,"texels":MAX_TEXELS,"fileBytes":MAX_FILE_BYTES,"totalBytes":MAX_TOTAL_BYTES}}))
++    };
++    let result = write();
++    if result.is_err() {
++        let _ = std::fs::remove_dir_all(destination);
++    }
++    result
++}
+diff --git a/crates/engine/src/file_cmds.rs b/crates/engine/src/file_cmds.rs
+index 76213fd..96f714c 100644
+--- a/crates/engine/src/file_cmds.rs
++++ b/crates/engine/src/file_cmds.rs
+@@ -153,6 +153,11 @@ pub fn open_bytes_linked(session: &mut Session, bytes: &[u8], name: Option<Strin
+         return session.activate_document(id);
+     }
+ 
++    #[cfg(feature = "dobe")]
++    if materialcraft_formats::material::is_material(bytes) {
++        return Err(bad("file.open", "Dobe Material requires explicit portable-material source admission"));
++    }
++
+     if materialcraft_formats::material::is_material(bytes) {
+         let (manifest, source) = materialcraft_formats::material::read_material(bytes)?;
+         session.open_package(materialcraft_formats::sbs::read_sbs(&source, "source.sbs", &|_| None)?.pkg, None)?;
+@@ -161,7 +166,36 @@ pub fn open_bytes_linked(session: &mut Session, bytes: &[u8], name: Option<Strin
+         return Ok(());
+     }
+ 
++    // Dobe snapshots contain admitted embedded resources; source references
++    // cannot authorize reads, including through a headless caller's callback.
++    #[cfg(feature = "dobe")]
++    let mut read = {
++        let _ = linked;
++        read_package_bytes(bytes, name.as_deref().unwrap_or(""), &|_| None)?
++    };
++    #[cfg(not(feature = "dobe"))]
+     let mut read = read_package_bytes(bytes, name.as_deref().unwrap_or(""), linked)?;
++    #[cfg(feature = "dobe")]
++    {
++        if !read.warnings.is_empty() {
++            return Err(bad("file.open", format!("Dobe Material refuses recovered or unsupported content: {}", read.warnings.join("; "))));
++        }
++        if read.pkg.resources.iter().chain(read.pkg.dependencies.values().flat_map(|package| &package.resources)).any(|resource| resource.bytes.is_empty()) {
++            return Err(bad("file.open", "Dobe Material requires every resource to be embedded"));
++        }
++        if std::iter::once(&read.pkg)
++            .chain(read.pkg.dependencies.values().map(AsRef::as_ref))
++            .flat_map(|package| &package.graphs)
++            .flat_map(|graph| graph.instances())
++            .any(|instance| {
++                !instance.package.is_empty()
++                    && (!instance.package.starts_with("mcraft://dobe-archive!/") || !read.pkg.dependencies.contains_key(&instance.package))
++            })
++        {
++            return Err(bad("file.open", "Dobe Material requires an explicitly admitted external package dependency"));
++        }
++    }
++    #[cfg(not(feature = "dobe"))]
+     for (path, source) in &session.pkg.dependencies {
+         read.pkg.dependencies.entry(path.clone()).or_insert_with(|| source.clone());
+     }
+diff --git a/crates/engine/src/lib.rs b/crates/engine/src/lib.rs
+index 7557cc8..ac3d237 100644
+--- a/crates/engine/src/lib.rs
++++ b/crates/engine/src/lib.rs
+@@ -4,6 +4,11 @@
+ #[cfg(test)]
+ extern crate self as materialcraft_engine;
+ 
++#[cfg(feature = "dobe")]
++pub mod dobe_evaluate;
++#[cfg(feature = "dobe")]
++pub mod dobe_maps;
++
+ mod document_path;
+ mod evaluation_environment_commands;
+ mod explorer_clipboard;
+diff --git a/crates/engine/src/linked_files.rs b/crates/engine/src/linked_files.rs
+index 2ea6e57..836856a 100644
+--- a/crates/engine/src/linked_files.rs
++++ b/crates/engine/src/linked_files.rs
+@@ -37,6 +37,7 @@ impl crate::Session {
+     }
+ }
+ 
++#[cfg(not(feature = "dobe"))]
+ pub(crate) fn load(package: &mut Package) -> Vec<String> {
+     use std::{collections::BTreeSet, sync::Arc};
+     let references = |package: &Package| {
+@@ -89,3 +90,11 @@ pub(crate) fn load(package: &mut Package) -> Vec<String> {
+     }
+     warnings
+ }
++
++/// External references remain unresolved until a managed dependency contract exists.
++#[cfg(feature = "dobe")]
++pub(crate) fn load(package: &mut Package) -> Vec<String> {
++    package.graphs.iter().flat_map(|graph| graph.instances())
++        .filter(|instance| !instance.package.is_empty() && !package.dependencies.contains_key(&instance.package))
++        .map(|_| "Dobe Material refuses automatic external package loading".to_string()).collect()
++}
+diff --git a/crates/engine/src/linked_resource.rs b/crates/engine/src/linked_resource.rs
+index 7a0939c..94cec3e 100644
+--- a/crates/engine/src/linked_resource.rs
++++ b/crates/engine/src/linked_resource.rs
+@@ -1,4 +1,5 @@
+ /// Read resource paths relative to an SBS package, including portable library aliases.
++#[cfg(not(feature = "dobe"))]
+ pub fn reader(path: &str) -> impl Fn(&str) -> Option<Vec<u8>> + use<> {
+     let owner = path.to_string();
+     #[cfg(not(target_arch = "wasm32"))]
+@@ -38,3 +39,9 @@ pub fn reader(path: &str) -> impl Fn(&str) -> Option<Vec<u8>> + use<> {
+         None
+     }
+ }
++
++/// Dobe jobs must embed admitted resources; saved references never grant reads.
++#[cfg(feature = "dobe")]
++pub fn reader(_path: &str) -> impl Fn(&str) -> Option<Vec<u8>> + use<> {
++    |_| None
++}
+diff --git a/crates/engine/src/material_cmds.rs b/crates/engine/src/material_cmds.rs
+index d262c67..1e683ec 100644
+--- a/crates/engine/src/material_cmds.rs
++++ b/crates/engine/src/material_cmds.rs
+@@ -183,7 +183,7 @@ pub fn texturecraft_library() -> std::path::PathBuf {
+     std::path::Path::new(&home).join("Documents").join("TextureCraft").join("library")
+ }
+ 
+-#[cfg(not(target_arch = "wasm32"))]
++#[cfg(all(not(target_arch = "wasm32"), not(feature = "dobe")))]
+ fn send_to_texturecraft(s: &mut Session, p: &J) -> Result<J> {
+     const CMD: &str = "file.sendToTextureCraft";
+     let gi = graph_param(s, p)?;
+@@ -359,3 +359,9 @@ mod tests {
+         }
+     }
+ }
++
++/// Shared home-folder publication must be owned by a managed Dobe job.
++#[cfg(all(not(target_arch = "wasm32"), feature = "dobe"))]
++fn send_to_texturecraft(_: &mut Session, _: &J) -> Result<J> {
++    Err(bad("file.sendToTextureCraft", "Dobe Material requires managed cross-application publication"))
++}
+diff --git a/crates/eval/Cargo.toml b/crates/eval/Cargo.toml
+index e30a1ef..413e9ef 100644
+--- a/crates/eval/Cargo.toml
++++ b/crates/eval/Cargo.toml
+@@ -5,6 +5,9 @@ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/eval/src/dobe_budget.rs b/crates/eval/src/dobe_budget.rs
+new file mode 100644
+index 0000000..6f9c501
+--- /dev/null
++++ b/crates/eval/src/dobe_budget.rs
+@@ -0,0 +1,63 @@
++//! Shared, fail-closed raster counters across one full graph and its instances.
++//! These counters bound requested output pixels, not every temporary allocation.
++//! The durable worker additionally enforces process, memory, disk and time limits.
++use crate::NodeOutput;
++use materialcraft_core::Value;
++use std::sync::Mutex;
++
++#[derive(Default, Clone, serde::Serialize)]
++pub struct DobeUsage {
++    pub node_visits: u64,
++    pub output_texels: u64,
++}
++
++#[derive(Default)]
++pub struct DobeBudget {
++    usage: Mutex<DobeUsage>,
++}
++
++impl DobeBudget {
++    pub const MAX_NODE_TEXELS: u64 = 16_777_216;
++    pub const MAX_OUTPUT_TEXELS: u64 = 67_108_864;
++    pub const MAX_NODE_VISITS: u64 = 16_384;
++
++    pub fn usage(&self) -> DobeUsage {
++        self.usage.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
++    }
++
++    pub(crate) fn admit(&self, width: u32, height: u32, images: usize) -> Result<(), String> {
++        let pixels = u64::from(width).checked_mul(u64::from(height)).ok_or("Dobe raster budget overflow")?;
++        if images > 0 && pixels > Self::MAX_NODE_TEXELS {
++            return Err("Dobe node raster budget exceeded".into());
++        }
++        let charge = pixels.checked_mul(images as u64).ok_or("Dobe raster budget overflow")?;
++        let mut usage = self.usage.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
++        let visits = usage.node_visits.checked_add(1).ok_or("Dobe node budget overflow")?;
++        let total = usage.output_texels.checked_add(charge).ok_or("Dobe raster budget overflow")?;
++        if visits > Self::MAX_NODE_VISITS || total > Self::MAX_OUTPUT_TEXELS {
++            return Err("Dobe aggregate evaluation budget exceeded".into());
++        }
++        usage.node_visits = visits;
++        usage.output_texels = total;
++        Ok(())
++    }
++
++    pub fn finite_value(value: &Value) -> bool {
++        match value {
++            Value::Float(v) => v.is_finite(),
++            Value::Float2(v) => v.iter().all(|v| v.is_finite()),
++            Value::Float3(v) => v.iter().all(|v| v.is_finite()),
++            Value::Float4(v) | Value::Color(v) => v.iter().all(|v| v.is_finite()),
++            // Structured values are already admitted immutable authoring data;
++            // evaluated scalar/vector results use the cases above.
++            _ => true,
++        }
++    }
++
++    pub(crate) fn finite_output(output: &NodeOutput) -> bool {
++        match output {
++            NodeOutput::Image(image) => image.data.iter().all(|value| value.is_finite()),
++            NodeOutput::Value(value) => Self::finite_value(value),
++        }
++    }
++}
+diff --git a/crates/eval/src/graph_execution.rs b/crates/eval/src/graph_execution.rs
+index 9f1b364..a59625b 100644
+--- a/crates/eval/src/graph_execution.rs
++++ b/crates/eval/src/graph_execution.rs
+@@ -50,7 +50,13 @@ pub fn cook(package: &Package, graph_index: usize, options: &Options, cache: &Mu
+         let Some(node) = prepared.index.node(id) else { continue };
+ 
+         let result = cook_node(package, graph_index, &prepared, node, &cooked, &variables, options, cache);
++        #[cfg(feature = "dobe")]
++        let stop = options.dobe_budget.is_some() && result.error.is_some();
+         cooked.nodes.insert(id, result);
++        #[cfg(feature = "dobe")]
++        if stop {
++            break;
++        }
+     }
+     cooked.ms = (now_ms() - started_ms) as f32;
+     cooked
+diff --git a/crates/eval/src/graph_instance.rs b/crates/eval/src/graph_instance.rs
+index db0fd83..f1fabbd 100644
+--- a/crates/eval/src/graph_instance.rs
++++ b/crates/eval/src/graph_instance.rs
+@@ -70,6 +70,10 @@ pub(crate) fn cook_instance(
+         _ => (opts.resource)(name),
+     };
+     let mut o = Options::new(&resource);
++    #[cfg(feature = "dobe")]
++    {
++        o.dobe_budget = opts.dobe_budget;
++    }
+     o.environment = opts.environment;
+     o.parent_tiling = Some(base.tiling);
+     o.parent_pixel_ratio = Some(base.pixel_ratio);
+diff --git a/crates/eval/src/lib.rs b/crates/eval/src/lib.rs
+index cc1cfdf..185aef1 100644
+--- a/crates/eval/src/lib.rs
++++ b/crates/eval/src/lib.rs
+@@ -1,6 +1,11 @@
+ #![forbid(unsafe_code)]
+ #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+ 
++#[cfg(feature = "dobe")]
++mod dobe_budget;
++#[cfg(feature = "dobe")]
++pub use dobe_budget::DobeBudget;
++
+ mod cache;
+ mod cache_key;
+ mod cooked;
+diff --git a/crates/eval/src/node_execution.rs b/crates/eval/src/node_execution.rs
+index f94f790..fbbbee3 100644
+--- a/crates/eval/src/node_execution.rs
++++ b/crates/eval/src/node_execution.rs
+@@ -97,12 +97,37 @@ pub(crate) fn cook_node(
+         base,
+         base_values: base_values.clone(),
+         parameters: BTreeMap::new(),
+-        outputs: Arc::new(vec![NodeOutput::Image(error_image(w, h)); output_ports.len().max(1)]),
++        outputs: {
++            #[cfg(feature = "dobe")]
++            if options.dobe_budget.is_some() {
++                return NodeResult {
++                    base,
++                    base_values: base_values.clone(),
++                    parameters: BTreeMap::new(),
++                    outputs: Arc::new(Vec::new()),
++                    error: Some(message),
++                    ms: 0.0,
++                    key,
++                    cached: false,
++                };
++            }
++            Arc::new(vec![NodeOutput::Image(error_image(w, h)); output_ports.len().max(1)])
++        },
+         error: Some(message),
+         ms: 0.0,
+         key,
+         cached: false,
+     };
++    #[cfg(feature = "dobe")]
++    if let Some(budget) = options.dobe_budget {
++        let images = output_ports.iter().filter(|port| port.kind != materialcraft_nodes::PortKind::Value).count().max(usize::from(output_ports.is_empty()));
++        if let Err(error) = budget.admit(w, h, images) {
++            return fail(error, 0);
++        }
++        if base_values.values().any(|value| !crate::DobeBudget::finite_value(value)) {
++            return fail("Dobe evaluation produced a nonfinite base parameter".into(), 0);
++        }
++    }
+     if let Some(error) = base_error {
+         return fail(error, 0);
+     }
+@@ -122,6 +147,10 @@ pub(crate) fn cook_node(
+         Err(error) => return fail(error, 0),
+     };
+ 
++    #[cfg(feature = "dobe")]
++    if options.dobe_budget.is_some() && parameters.values().any(|value| !crate::DobeBudget::finite_value(value)) {
++        return fail("Dobe evaluation produced a nonfinite node parameter".into(), 0);
++    }
+     let tile = base.tiling[0] && base.tiling[1];
+ 
+     // Input nodes read the caller's image for their identifier
+@@ -193,6 +222,10 @@ pub(crate) fn cook_node(
+     parameters.retain(|_, value| materialcraft_core::ValueType::of(value).is_some());
+     match result {
+         Ok(outputs) if outputs.len() == output_ports.len().max(1) || output_ports.is_empty() => {
++            #[cfg(feature = "dobe")]
++            if options.dobe_budget.is_some() && outputs.iter().any(|output| !crate::DobeBudget::finite_output(output)) {
++                return fail("Dobe evaluation produced nonfinite pixels or values".into(), key);
++            }
+             let outputs = Arc::new(outputs);
+             lock(cache).put(key, outputs.clone());
+             NodeResult { base, base_values, parameters, outputs, error: None, ms: (now_ms() - started_ms) as f32, key, cached: false }
+diff --git a/crates/eval/src/options.rs b/crates/eval/src/options.rs
+index 8505d4d..cd74da6 100644
+--- a/crates/eval/src/options.rs
++++ b/crates/eval/src/options.rs
+@@ -5,6 +5,8 @@ use std::sync::atomic::AtomicBool;
+ 
+ /// What to cook and how
+ pub struct Options<'a> {
++    #[cfg(feature = "dobe")]
++    pub dobe_budget: Option<&'a crate::DobeBudget>,
+     pub environment: materialcraft_core::EvaluationEnvironment,
+     pub parent_tiling: Option<[bool; 2]>,
+     pub parent_pixel_ratio: Option<i32>,
+@@ -32,6 +34,8 @@ pub struct Options<'a> {
+ impl<'a> Options<'a> {
+     pub fn new(resource: &'a crate::ResourceDecoder<'a>) -> Options<'a> {
+         Options {
++            #[cfg(feature = "dobe")]
++            dobe_budget: None,
+             environment: Default::default(),
+             parent_tiling: None,
+             parent_pixel_ratio: None,
+diff --git a/crates/formats/Cargo.toml b/crates/formats/Cargo.toml
+index 37f3339..c703780 100644
+--- a/crates/formats/Cargo.toml
++++ b/crates/formats/Cargo.toml
+@@ -5,6 +5,9 @@ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/formats/src/image.rs b/crates/formats/src/image.rs
+index 3f84054..b38d7c7 100644
+--- a/crates/formats/src/image.rs
++++ b/crates/formats/src/image.rs
+@@ -121,6 +121,16 @@ pub fn encode(img: &Image, ext: &str, depth: Depth, srgb: bool) -> Result<Vec<u8
+     };
+ 
+     let mut out = Cursor::new(Vec::new());
++    // The upstream RLE writer can span scanlines. Pillow rejects those packets.
++    // Dobe emits uncompressed TGA so independent readers can consume every row.
++    #[cfg(feature = "dobe")]
++    if fmt == image::ImageFormat::Tga {
++        image::codecs::tga::TgaEncoder::new(&mut out)
++            .disable_rle()
++            .encode(dynimg.as_bytes(), w, h, dynimg.color().into())
++            .map_err(|e| FormatError::Image(e.to_string()))?;
++        return Ok(out.into_inner());
++    }
+     dynimg.write_to(&mut out, fmt).map_err(|e| FormatError::Image(e.to_string()))?;
+     Ok(out.into_inner())
+ }
+diff --git a/crates/formats/src/project.rs b/crates/formats/src/project.rs
+index 0cc4b59..faa56ce 100644
+--- a/crates/formats/src/project.rs
++++ b/crates/formats/src/project.rs
+@@ -105,9 +105,28 @@ pub fn read(bytes: &[u8], identity: &str) -> Result<sbs::SbsRead> {
+     }
+ 
+     let root = roots.first().ok_or_else(|| bad("Missing SBS entry"))?.clone();
++    #[cfg(not(feature = "dobe"))]
+     let prefix = format!("mcraft://{identity}!/");
++    // A managed archive is immutable and self-contained. Its identity must not
++    // depend on an attempt path, which changes on every durable revision.
++    #[cfg(feature = "dobe")]
++    let prefix = {
++        let _ = identity;
++        "mcraft://dobe-archive!/".to_string()
++    };
+     let mut packages = BTreeMap::new();
++    #[cfg(not(feature = "dobe"))]
+     let mut pending = vec![root.clone()];
++    #[cfg(feature = "dobe")]
++    let mut pending = {
++        // Include declared but unused packages: editable source state must be
++        // compared even when no current graph reaches that package.
++        let paths: Vec<_> = files.keys().filter(|path| path.to_ascii_lowercase().ends_with(".sbs")).cloned().collect();
++        if paths.len() > 64 {
++            return Err(bad("Dobe archive exceeds its package budget"));
++        }
++        paths
++    };
+     let mut warnings = Vec::new();
+     while let Some(file) = pending.pop() {
+         if packages.contains_key(&file) {
+@@ -122,6 +141,9 @@ pub fn read(bytes: &[u8], identity: &str) -> Result<sbs::SbsRead> {
+         let mut names = BTreeMap::new();
+         for reference in references(&read.pkg) {
+             if reference.starts_with("sbs://") {
++                #[cfg(feature = "dobe")]
++                return Err(bad("Dobe archive refuses ambient library references"));
++                #[cfg(not(feature = "dobe"))]
+                 continue;
+             }
+ 
+diff --git a/crates/formats/src/sbs/library_dobe.rs b/crates/formats/src/sbs/library_dobe.rs
+new file mode 100644
+index 0000000..10254fc
+--- /dev/null
++++ b/crates/formats/src/sbs/library_dobe.rs
+@@ -0,0 +1,57 @@
++//! Resolve the portable SBS library alias against the application's asset directory.
++
++/// Validate alias paths before joining a filesystem root. No package may escape the library.
++pub fn relative_path(uri: &str) -> Result<&str, String> {
++    let path = uri.strip_prefix("sbs://").ok_or("not an SBS library alias")?;
++    if path.is_empty()
++        || path.len() > 4096
++        || path.contains(['\\', ':', '?', '#', '%', '\0'])
++        || path.split('/').any(|part| part.is_empty() || matches!(part, "." | ".."))
++    {
++        return Err("invalid SBS library path".into());
++    }
++
++    Ok(path)
++}
++
++/// Resolve a package-relative resource or dependency without leaving the library root.
++pub fn resolve(owner: &str, reference: &str) -> Result<String, String> {
++    let owner = relative_path(owner)?;
++    if reference.starts_with("sbs://") {
++        relative_path(reference)?;
++        return Ok(reference.into());
++    }
++
++    let reference = reference.trim().replace('\\', "/");
++    if reference.is_empty() || reference.len() > 4096 || reference.starts_with('/') || reference.contains([':', '?', '#', '%', '\0']) {
++        return Err("invalid relative SBS library path".into());
++    }
++
++    let mut parts: Vec<_> = owner.split('/').collect();
++    parts.pop();
++    for part in reference.split('/') {
++        match part {
++            "" | "." => {}
++            ".." => {
++                if parts.pop().is_none() {
++                    return Err("SBS reference escapes its library directory".into());
++                }
++            }
++            part => parts.push(part),
++        }
++    }
++
++    let uri = format!("sbs://{}", parts.join("/"));
++    relative_path(&uri)?;
++    Ok(uri)
++}
++
++// Do not embed the upstream converted function package: its source-body
++// redistribution rights are explicitly unverified in the pinned documentation.
++// No environment variable or neighboring source checkout may substitute it.
++pub const BUNDLED: &[&str] = &[];
++pub fn files() -> Vec<String> { Vec::new() }
++pub fn read(uri: &str) -> Result<Vec<u8>, String> {
++    relative_path(uri)?;
++    Err("Dobe Material requires an explicitly admitted library dependency; automatic libraries are disabled".into())
++}
+diff --git a/crates/formats/src/sbs/mod.rs b/crates/formats/src/sbs/mod.rs
+index 5493f83..972de9c 100644
+--- a/crates/formats/src/sbs/mod.rs
++++ b/crates/formats/src/sbs/mod.rs
+@@ -13,6 +13,10 @@ mod image_input;
+ mod input_bridge;
+ mod layout_frame;
+ mod layout_item;
++#[cfg(not(feature = "dobe"))]
++pub mod library;
++#[cfg(feature = "dobe")]
++#[path = "library_dobe.rs"]
+ pub mod library;
+ mod library_layout;
+ mod node_identifiers;
+diff --git a/crates/formats/src/sbs/sbs_reader.rs b/crates/formats/src/sbs/sbs_reader.rs
+index d95d183..2f3efc8 100644
+--- a/crates/formats/src/sbs/sbs_reader.rs
++++ b/crates/formats/src/sbs/sbs_reader.rs
+@@ -38,8 +38,17 @@ impl<'text> SbsReader<'text, '_> {
+         graphs: &mut Vec<(String, XmlNode<'a, 'text>)>,
+         linked: &dyn Fn(&str) -> Option<Vec<u8>>,
+     ) {
+-        let mut pending = vec![(folder.to_string(), content)];
+-        while let Some((folder, content)) = pending.pop() {
++        let mut pending = std::collections::VecDeque::from([(folder.to_string(), content)]);
++        while let Some((folder, content)) = {
++            #[cfg(feature = "dobe")]
++            {
++                pending.pop_front()
++            }
++            #[cfg(not(feature = "dobe"))]
++            {
++                pending.pop_back()
++            }
++        } {
+             for item in content.children().filter(|child| child.is_element()) {
+                 let identifier = child_value(item, "identifier").unwrap_or("").trim().to_string();
+                 let path = if folder.is_empty() { identifier.clone() } else { format!("{folder}/{identifier}") };
+@@ -50,7 +59,7 @@ impl<'text> SbsReader<'text, '_> {
+                         if identifier.is_empty() || identifier.contains('/') {
+                             self.warnings.add(format!("invalid folder `{path}` was flattened"));
+                             if let Some(group_content) = child_element(item, "content") {
+-                                pending.push((folder.clone(), group_content));
++                                pending.push_back((folder.clone(), group_content));
+                             }
+                             continue;
+                         }
+@@ -65,7 +74,7 @@ impl<'text> SbsReader<'text, '_> {
+                             pkg.folder_descriptions.insert(path.clone(), description.into());
+                         }
+                         if let Some(group_content) = child_element(item, "content") {
+-                            pending.push((path, group_content));
++                            pending.push_back((path, group_content));
+                         }
+                     }
+                     "resource" => self.read_resource(item, &identifier, &path, pkg, linked),
+@@ -352,7 +361,7 @@ impl<'text> SbsReader<'text, '_> {
+         graph: &mut Graph,
+         comp_node: XmlNode<'_, 'text>,
+         image_inputs: &HashMap<String, InputBridge>,
+-        outputs: &HashMap<String, (String, u32)>,
++        outputs: &HashMap<String, (String, u32, String)>,
+     ) -> ReadNode {
+         let gpos = child_element(comp_node, "GUILayout").and_then(|l| child_value(l, "gpos")).map(parse_floats).unwrap_or_default();
+         let pos = [gpos.first().copied().unwrap_or(0.0) - NODE_HALF_SIZE[0], gpos.get(1).copied().unwrap_or(0.0) - NODE_HALF_SIZE[1]];
+@@ -398,9 +407,15 @@ impl<'text> SbsReader<'text, '_> {
+             }
+             "compOutputBridge" => {
+                 let output = child_value(implementation, "output").unwrap_or("");
+-                let (identifier, usage) = outputs.get(output).cloned().unwrap_or_else(|| ("output".into(), ComponentUsage::ANY_INDEX));
++                let (identifier, usage, label) = outputs.get(output).cloned().unwrap_or_else(|| ("output".into(), ComponentUsage::ANY_INDEX, String::new()));
++                #[cfg(not(feature = "dobe"))]
++                let _ = &label;
+                 let (id, index, node) = push_node(graph, "output", pos);
+                 if let Some(node) = node {
++                    #[cfg(feature = "dobe")]
++                    if !label.is_empty() && label != identifier {
++                        node.label = label;
++                    }
+                     node.params.insert("identifier".into(), Value::Text(identifier));
+                     node.params.insert("usage".into(), Value::Enum(usage));
+                 }
+@@ -591,12 +606,13 @@ pub(super) fn push_node<'g>(graph: &'g mut Graph, def: &str, pos: [f32; 2]) -> (
+     let index = graph.nodes.len() - 1;
+     (id, index, graph.nodes.last_mut())
+ }
+-pub(super) fn read_graph_outputs(element: XmlNode) -> HashMap<String, (String, u32)> {
++pub(super) fn read_graph_outputs(element: XmlNode) -> HashMap<String, (String, u32, String)> {
+     let mut outputs = HashMap::new();
+     for output in child_element(element, "graphOutputs").into_iter().flat_map(|o| children_named(o, "graphoutput")) {
+         let identifier = child_value(output, "identifier").unwrap_or("output").to_string();
+         let usage = component_usage::read(output);
+-        outputs.insert(child_value(output, "uid").unwrap_or("").to_string(), (identifier, usage));
++        let label = child_element(output, "attributes").and_then(|attributes| child_value(attributes, "label")).unwrap_or("").to_string();
++        outputs.insert(child_value(output, "uid").unwrap_or("").to_string(), (identifier, usage, label));
+     }
+     outputs
+ }
+diff --git a/crates/nodes/Cargo.toml b/crates/nodes/Cargo.toml
+index 437bb96..ecbdb7e 100644
+--- a/crates/nodes/Cargo.toml
++++ b/crates/nodes/Cargo.toml
+@@ -5,6 +5,9 @@ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/nodes/src/function/operation.rs b/crates/nodes/src/function/operation.rs
+index f83052d..dac77ca 100644
+--- a/crates/nodes/src/function/operation.rs
++++ b/crates/nodes/src/function/operation.rs
+@@ -38,6 +38,16 @@ pub(crate) fn evaluate(
+             return Err(format!("variable `{name}` has the wrong type for {op}"));
+         }
+ 
++        // Editable widgets keep their concrete Enum/Color variants in the
++        // document. Functions use the Integer/Float4 interface those widgets
++        // declare, including casts, arithmetic and equality with constants.
++        #[cfg(feature = "dobe")]
++        let value = match value {
++            Value::Enum(index) => Value::Int(i32::try_from(index).map_err(|_| "enum is outside the integer range")?),
++            Value::Color(color) => Value::Float4(color),
++            value => value,
++        };
++
+         return Ok(value);
+     }
+ 
+diff --git a/crates/render/Cargo.toml b/crates/render/Cargo.toml
+index a2fe2a0..8c78159 100644
+--- a/crates/render/Cargo.toml
++++ b/crates/render/Cargo.toml
+@@ -5,6 +5,9 @@ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/render/src/preview.rs b/crates/render/src/preview.rs
+index a7fca3b..b67b4a8 100644
+--- a/crates/render/src/preview.rs
++++ b/crates/render/src/preview.rs
+@@ -483,6 +483,31 @@ pub fn render(scene: &Scene, maps: &Maps, light: &Lighting, s: &Settings, w: u32
+ /// returns `None`: a frame the viewer no longer needs (the camera moved, the view was resized)
+ /// stops holding the CPU.
+ pub fn render_cancellable(scene: &Scene, maps: &Maps, light: &Lighting, s: &Settings, w: u32, h: u32, cancel: &AtomicBool) -> Option<Vec<u8>> {
++    render_inner(scene, maps, light, s, w, h, cancel, None)
++}
++
++/// Dobe refuses nonfinite linear or display samples before byte quantization.
++#[cfg(feature = "dobe")]
++pub fn render_checked(scene: &Scene, maps: &Maps, light: &Lighting, s: &Settings, w: u32, h: u32) -> Result<Vec<u8>, String> {
++    let invalid = AtomicBool::new(false);
++    let output = render_inner(scene, maps, light, s, w, h, &AtomicBool::new(false), Some(&invalid));
++    if invalid.load(Ordering::Relaxed) {
++        return Err("Dobe preview produced nonfinite shading samples".into());
++    }
++    output.ok_or_else(|| "Dobe preview cancelled".into())
++}
++
++#[allow(clippy::too_many_arguments)]
++fn render_inner(
++    scene: &Scene,
++    maps: &Maps,
++    light: &Lighting,
++    s: &Settings,
++    w: u32,
++    h: u32,
++    cancel: &AtomicBool,
++    invalid: Option<&AtomicBool>,
++) -> Option<Vec<u8>> {
+     let (w, h) = (w.clamp(1, 4096), h.clamp(1, 4096));
+     let cam = camera(scene, s);
+     let aspect = w as f32 / h as f32;
+@@ -525,6 +550,11 @@ pub fn render_cancellable(scene: &Scene, maps: &Maps, light: &Lighting, s: &Sett
+             let c = acc / (ss * ss) as f32;
+             let q = |v: f32| {
+                 let d = if s.alpha_view { v } else { linear_to_srgb(aces(v)) };
++                if (!v.is_finite() || !d.is_finite())
++                    && let Some(flag) = invalid
++                {
++                    flag.store(true, Ordering::Relaxed);
++                }
+                 (d.clamp(0.0, 1.0) * 255.0 + 0.5) as u8
+             };
+             if let Some(px) = row.get_mut(x * 4..x * 4 + 4) {

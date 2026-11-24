@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "media_generation": "disabled",
+    "network": "offline"
+  },
+  "components": [
+    {
+      "id": "poster",
+      "engine": "image",
+      "parameters": {
+        "width": 640,
+        "height": 360,
+        "background": "#090B0E",
+        "layers": [
+          {
+            "name": "accent",
+            "type": "solid",
+            "color": "#FF6A2B",
+            "opacity": 0.3,
+            "mask": {
+              "rect": [
+                40,
+                40,
+                600,
+                320
+              ],
+              "density": 100,
+              "feather": 8
+            }
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "x": 100,
+            "y": 135,
+            "text": "A dobe cli",
+            "font": "Inter",
+            "size": 48,
+            "color": "#F4F3EA"
+          }
+        ]
+      }
+    }
+  ]
+}

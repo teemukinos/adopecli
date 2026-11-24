@@ -1,0 +1,434 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index d51de6b..b34bf32 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1849,6 +1849,15 @@ dependencies = [
+  "libloading",
+ ]
+ 
++[[package]]
++name = "dobe-inspect"
++version = "0.6.1"
++dependencies = [
++ "craft-anything-analysis",
++ "libc",
++ "serde_json",
++]
++
+ [[package]]
+ name = "document-features"
+ version = "0.2.12"
+diff --git a/apps/dobe-inspect/Cargo.toml b/apps/dobe-inspect/Cargo.toml
+new file mode 100644
+index 0000000..d94dd45
+--- /dev/null
++++ b/apps/dobe-inspect/Cargo.toml
+@@ -0,0 +1,23 @@
++[package]
++name = "dobe-inspect"
++description = "Private bounded file transport for Dobe static inspection"
++version.workspace = true
++edition.workspace = true
++license.workspace = true
++publish = false
++
++[lints]
++workspace = true
++
++[features]
++dobe = ["craft-anything-analysis/dobe"]
++
++[[bin]]
++name = "dobe-inspect"
++path = "src/main.rs"
++required-features = ["dobe"]
++
++[dependencies]
++craft-anything-analysis = { workspace = true }
++serde_json = { workspace = true }
++libc = "0.2"
+diff --git a/apps/dobe-inspect/src/main.rs b/apps/dobe-inspect/src/main.rs
+new file mode 100644
+index 0000000..3287709
+--- /dev/null
++++ b/apps/dobe-inspect/src/main.rs
+@@ -0,0 +1,78 @@
++//! Private file transport. Public authorization and job control belong to Dobe's runtime.
++#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
++use craft_anything_analysis::dobe;
++use std::fs::OpenOptions;
++use std::io::{Read, Write};
++use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
++use std::path::Path;
++
++fn read_input(path: &Path) -> Result<Vec<u8>, String> {
++    let file = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path).map_err(|_| "cannot open regular input")?;
++    let before = file.metadata().map_err(|_| "cannot inspect input metadata")?;
++    if !before.is_file() || before.len() == 0 || before.len() > dobe::MAX_INPUT as u64 {
++        return Err("input must be a nonempty bounded regular file".into());
++    }
++    let mut bytes = Vec::new();
++    (&file).take(dobe::MAX_INPUT as u64 + 1).read_to_end(&mut bytes).map_err(|_| "cannot read input")?;
++    let after = file.metadata().map_err(|_| "cannot recheck input metadata")?;
++    if bytes.len() as u64 != before.len()
++        || before.len() != after.len()
++        || before.mtime() != after.mtime()
++        || before.mtime_nsec() != after.mtime_nsec()
++        || before.ctime() != after.ctime()
++        || before.ctime_nsec() != after.ctime_nsec()
++    {
++        return Err("input changed while reading".into());
++    }
++    Ok(bytes)
++}
++
++struct BoundedOutput(Vec<u8>);
++impl Write for BoundedOutput {
++    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
++        if data.len() > dobe::MAX_OUTPUT.saturating_sub(self.0.len()) {
++            return Err(std::io::Error::other("inspection output limit exceeded"));
++        }
++        self.0.extend_from_slice(data);
++        Ok(data.len())
++    }
++    fn flush(&mut self) -> std::io::Result<()> {
++        Ok(())
++    }
++}
++
++fn run() -> Result<(), String> {
++    let args: Vec<_> = std::env::args_os().skip(1).collect();
++    if args.len() == 1 && args.first().is_some_and(|a| a == "--version") {
++        println!("dobe-inspect {}", env!("CARGO_PKG_VERSION"));
++        return Ok(());
++    }
++    let [command, format, permission, expected, input, output] = args.as_slice() else {
++        return Err("usage: dobe-inspect inspect FORMAT --owned-or-authorized SHA256 INPUT OUTPUT".into());
++    };
++    if command != "inspect" || permission != "--owned-or-authorized" {
++        return Err("explicit owned-or-authorized input consent is required".into());
++    }
++    let kind = format.to_str().ok_or("invalid format")?;
++    if !dobe::supported(kind) {
++        return Err("unsupported inspection format".into());
++    }
++    let expected = expected.to_str().ok_or("invalid expected SHA-256")?;
++    let bytes = read_input(Path::new(input))?;
++    let report = dobe::inspect(kind, &bytes, expected, true)?;
++    let mut encoded = BoundedOutput(Vec::new());
++    serde_json::to_writer(&mut encoded, &report).map_err(|_| "cannot serialize bounded inspection output")?;
++    let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(output).map_err(|_| "output must be a new file")?;
++    file.write_all(&encoded.0).and_then(|()| file.sync_all()).map_err(|_| "cannot persist inspection output")?;
++    Ok(())
++}
++
++fn main() -> std::process::ExitCode {
++    match run() {
++        Ok(()) => std::process::ExitCode::SUCCESS,
++        Err(error) => {
++            eprintln!("{}", serde_json::json!({"error": "inspection_refused", "message": error}));
++            std::process::ExitCode::FAILURE
++        }
++    }
++}
+diff --git a/crates/analysis/Cargo.toml b/crates/analysis/Cargo.toml
+index 5dae63e..7919619 100644
+--- a/crates/analysis/Cargo.toml
++++ b/crates/analysis/Cargo.toml
+@@ -9,6 +9,9 @@ publish = false
+ [lints]
+ workspace = true
+ 
++[features]
++dobe = []
++
+ [dependencies]
+ craft-anything-evidence = { workspace = true }
+ craft-anything-formats = { workspace = true }
+diff --git a/crates/analysis/src/dobe.rs b/crates/analysis/src/dobe.rs
+new file mode 100644
+index 0000000..d550f46
+--- /dev/null
++++ b/crates/analysis/src/dobe.rs
+@@ -0,0 +1,233 @@
++//! Fixed static inspection profile for an independently authorized input.
++//! No file access, execution, dependency resolution or network operations.
++use craft_anything_evidence::{
++    Authority, Confidence, Coverage, CoverageStatus, Environment, Evidence, EvidenceBuilder, Limitation, Location, Subject, sha256_hex,
++};
++use craft_anything_formats::{Format, parse_binary};
++use serde_json::{Value, json};
++
++pub const MAX_INPUT: usize = 16 * 1024 * 1024;
++pub const MAX_OUTPUT: usize = 32 * 1024 * 1024;
++pub const MAX_JAVASCRIPT: usize = 2 * 1024 * 1024;
++pub const PROFILE: &str = "static-artifact-v1";
++pub const SOURCE_REVISION: &str = "48a9c5a60ff83ff620f98661339be6281a7debc6";
++
++struct Findings {
++    value: Value,
++    summary: String,
++    confidence: Confidence,
++    limitations: Vec<Limitation>,
++    locations: Vec<Location>,
++}
++
++struct Analyzer {
++    kind: &'static str,
++    max_bytes: usize,
++    run: fn(&[u8]) -> Result<Findings, String>,
++}
++
++const ANALYZERS: &[Analyzer] = &[
++    Analyzer { kind: "native", max_bytes: MAX_INPUT, run: native },
++    Analyzer { kind: "wasm", max_bytes: MAX_INPUT, run: wasm },
++    Analyzer { kind: "javascript", max_bytes: MAX_JAVASCRIPT, run: javascript },
++];
++
++pub fn supported(kind: &str) -> bool {
++    ANALYZERS.iter().any(|a| a.kind == kind)
++}
++
++/// The caller grants permission for exactly these bytes, never for referenced files.
++pub fn inspect(kind: &str, data: &[u8], expected_sha256: &str, permitted: bool) -> Result<Value, String> {
++    if !permitted {
++        return Err("explicit owned-or-authorized input consent is required".into());
++    }
++    let analyzer = ANALYZERS.iter().find(|a| a.kind == kind).ok_or("unsupported inspection format")?;
++    if data.is_empty() || data.len() > analyzer.max_bytes {
++        return Err("input exceeds the selected inspection profile".into());
++    }
++    if expected_sha256.len() != 64 || !expected_sha256.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
++        return Err("expected SHA-256 must be 64 lowercase hexadecimal characters".into());
++    }
++    if sha256_hex(data) != expected_sha256 {
++        return Err("input SHA-256 does not match consent".into());
++    }
++    let findings = (analyzer.run)(data)?;
++    let evidence = EvidenceBuilder::new(
++        "dobe_static_inspect",
++        Subject { kind: kind.into(), sha256: Some(expected_sha256.into()), name: None },
++        Environment::builtin(false),
++    )
++    .params(json!({"profile": PROFILE, "format": kind, "permission": "owned-or-authorized", "max_input_bytes": analyzer.max_bytes,
++                   "javascript_max_nesting": 256, "javascript_max_tokens": 100_000}))
++    .result(findings.value)
++    .summary(findings.summary)
++    .confidence(findings.confidence)
++    .authority(Authority::OriginalFiles)
++    .coverage(Coverage { status: CoverageStatus::Partial, examined: Some(data.len() as u64), total: Some(data.len() as u64), next_offset: None })
++    .limitations(findings.limitations)
++    .limitation(Limitation::new(
++        "static_only",
++        "Only the supplied file is inspected; runtime behavior, safety, ownership and external dependencies are not established.",
++    ))
++    .locations(findings.locations)
++    .target_content(true)
++    .build()
++    .map_err(|_| "cannot construct canonical inspection evidence")?;
++    if !evidence.verify() {
++        return Err("canonical evidence verification failed".into());
++    }
++    Ok(json!({"schema_version": 1, "product": "dobe-inspect", "profile": PROFILE,
++              "source_revision": SOURCE_REVISION, "input_sha256": expected_sha256, "input_bytes": data.len(),
++              "input_executed": false, "external_references_resolved": false, "evidence": evidence}))
++}
++
++fn native(data: &[u8]) -> Result<Findings, String> {
++    let binary = parse_binary(data).map_err(|_| "native input could not be parsed")?;
++    if !matches!(binary.format, Format::Elf | Format::Pe | Format::MachO) {
++        return Err("native profile supports ELF, PE and Mach-O only".into());
++    }
++    let report = crate::native::triage(&binary, data, "Supplied input");
++    let mut limitations = report.limitations;
++    for warning in &binary.warnings {
++        limitations.push(Limitation::new("native_parser_warning", warning));
++    }
++    if binary.symbols_truncated {
++        limitations.push(Limitation::new("symbols_truncated", "The native symbol inventory reached its parser limit."));
++    }
++    limitations.push(Limitation::new(
++        "triage_inference",
++        "Native platform and language descriptions include heuristics; parsed metadata and triage are separate fields.",
++    ));
++    Ok(Findings {
++        value: json!({"binary": binary, "triage": report.result}),
++        summary: report.summary,
++        confidence: Confidence::Inferred,
++        limitations,
++        locations: report.locations,
++    })
++}
++
++fn wasm(data: &[u8]) -> Result<Findings, String> {
++    let report = craft_anything_formats::wasm::inspect(data).map_err(|_| "WebAssembly input could not be parsed")?;
++    let mut limitations = Vec::new();
++    if report.truncated || report.parse_error.is_some() {
++        limitations.push(Limitation::new("wasm_partial", "The WebAssembly report is partial; inspect parse_error, truncated and warnings."));
++    }
++    if !report.validation.valid {
++        limitations.push(Limitation::new("wasm_invalid", "WebAssembly validation failed; retained fields do not establish an executable module."));
++    }
++    for warning in &report.warnings {
++        limitations.push(Limitation::new("wasm_parser_warning", warning));
++    }
++    Ok(Findings {
++        value: serde_json::to_value(report).map_err(|_| "cannot serialize WebAssembly findings")?,
++        summary: "Static WebAssembly structure and validation findings.".into(),
++        confidence: Confidence::Observed,
++        limitations,
++        locations: Vec::new(),
++    })
++}
++
++fn javascript(data: &[u8]) -> Result<Findings, String> {
++    let source = std::str::from_utf8(data).map_err(|_| "JavaScript must be valid UTF-8")?;
++    if source.contains('\0') {
++        return Err("JavaScript contains a NUL byte".into());
++    }
++    let limits = craft_anything_js::Limits { max_parse_bytes: MAX_JAVASCRIPT, max_nesting: 256, max_tokens: 100_000 };
++    let report = craft_anything_js::analyze("input.js", source, &limits);
++    let mut limitations = vec![Limitation::new(
++        "javascript_static",
++        "Only one JavaScript source is analyzed; imports, source maps, URLs and dynamic code are never loaded or executed.",
++    )];
++    if report.facts.mode != craft_anything_js::ParseMode::Parsed {
++        limitations.push(Limitation::new("javascript_fallback", "The parser recovered errors or used token scanning; see facts.mode and facts.mode_reason."));
++    }
++    Ok(Findings {
++        value: serde_json::to_value(report).map_err(|_| "cannot serialize JavaScript findings")?,
++        summary: "Static JavaScript imports, exports, calls and bundle findings.".into(),
++        confidence: Confidence::Derived,
++        limitations,
++        locations: Vec::new(),
++    })
++}
++
++/// Self-consistency is not permission or proof that a foreign report was generated here.
++pub fn verify_evidence(value: &Value) -> Result<bool, String> {
++    let evidence: Evidence = serde_json::from_value(value.clone()).map_err(|_| "invalid evidence structure")?;
++    Ok(evidence.verify())
++}
++
++#[cfg(test)]
++#[allow(clippy::expect_used)]
++mod tests {
++    use super::*;
++
++    fn inspect_bytes(kind: &str, data: &[u8]) -> Value {
++        inspect(kind, data, &sha256_hex(data), true).expect("owned fixture is inspectable")
++    }
++
++    #[test]
++    fn consent_is_bound_to_exact_bytes_and_format() {
++        let data = b"\0asm\x01\0\0\0";
++        let hash = sha256_hex(data);
++        assert!(inspect("wasm", data, &hash, false).is_err());
++        assert!(inspect("wasm", data, &"0".repeat(64), true).is_err());
++        assert!(inspect("wasm", data, &hash.to_uppercase(), true).is_err());
++        assert!(inspect("device", data, &hash, true).is_err());
++        assert!(inspect("native", data, &hash, true).is_err());
++        assert!(inspect("wasm", b"", &sha256_hex(b""), true).is_err());
++    }
++
++    #[test]
++    fn evidence_is_deterministic_bound_and_untrusted() {
++        let data = b"\0asm\x01\0\0\0";
++        let first = inspect_bytes("wasm", data);
++        assert_eq!(first, inspect_bytes("wasm", data));
++        assert_eq!(first["evidence"]["subject"]["sha256"], sha256_hex(data));
++        assert_eq!(first["evidence"]["carries_target_content"], true);
++        assert_eq!(first["evidence"]["coverage"]["status"], "partial");
++        assert_eq!(first["input_executed"], false);
++        assert_eq!(first["external_references_resolved"], false);
++        assert_eq!(first["evidence"]["result"]["validation"]["valid"], true);
++        assert!(verify_evidence(&first["evidence"]).expect("valid structure"));
++        let mut changed = first;
++        changed["evidence"]["result"]["version"] = json!(99);
++        assert!(!verify_evidence(&changed["evidence"]).expect("valid structure"));
++    }
++
++    #[test]
++    fn invalid_wasm_does_not_become_valid_evidence() {
++        let report = inspect_bytes("wasm", b"\0asm\x01\0\0\0\x01\x7f");
++        assert_eq!(report["evidence"]["result"]["validation"]["valid"], false);
++        assert!(report["evidence"]["limitations"].as_array().expect("list").iter().any(|l| l["code"] == "wasm_invalid"));
++    }
++
++    #[test]
++    fn javascript_refs_are_reported_as_data() {
++        let report = inspect_bytes("javascript", b"import value from 'https://invalid.example/never-fetch.js'; export const answer = 42;");
++        assert_eq!(report["evidence"]["result"]["facts"]["imports"][0]["specifier"], "https://invalid.example/never-fetch.js");
++        assert_eq!(report["evidence"]["result"]["facts"]["exports"]["esm"][0], "answer");
++        assert_eq!(report["evidence"]["result"]["facts"]["mode"], "parsed");
++    }
++
++    #[test]
++    fn javascript_limits_and_fallback_are_visible() {
++        let nested = format!("{}0{}", "(".repeat(300), ")".repeat(300));
++        let report = inspect_bytes("javascript", nested.as_bytes());
++        assert_eq!(report["evidence"]["result"]["facts"]["mode"], "lexer");
++        assert!(report["evidence"]["limitations"].as_array().expect("list").iter().any(|l| l["code"] == "javascript_fallback"));
++        for data in [vec![b' '; MAX_JAVASCRIPT + 1], vec![0xff], b"let x = '\0';".to_vec()] {
++            assert!(inspect("javascript", &data, &sha256_hex(&data), true).is_err());
++        }
++    }
++
++    #[test]
++    fn native_parser_keeps_observations_separate_from_triage() {
++        let (data, _) = craft_anything_testkit::elf64(craft_anything_testkit::ElfArch::X86_64, true);
++        let report = inspect_bytes("native", &data);
++        assert_eq!(report["evidence"]["result"]["binary"]["bits"], 64);
++        assert_eq!(report["evidence"]["result"]["binary"]["format"], "elf");
++        assert_eq!(report["evidence"]["confidence"], "inferred");
++        assert!(!report["evidence"]["result"]["binary"]["symbols"].as_array().expect("symbols").is_empty());
++    }
++}
+diff --git a/crates/analysis/src/lib.rs b/crates/analysis/src/lib.rs
+index bc50a12..deb531d 100644
+--- a/crates/analysis/src/lib.rs
++++ b/crates/analysis/src/lib.rs
+@@ -1,6 +1,8 @@
+ //! Analyzers that turn parsed targets into evidence for Craft Anything.
+ #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+ 
++#[cfg(feature = "dobe")]
++pub mod dobe;
+ pub mod function_match;
+ pub mod java_decompile;
+ pub mod js_app;
+diff --git a/docs/dobe-private-transport.md b/docs/dobe-private-transport.md
+new file mode 100644
+index 0000000..dee9e7f
+--- /dev/null
++++ b/docs/dobe-private-transport.md
+@@ -0,0 +1,29 @@
++# Maintained Dobe Inspect transport
++
++This local integration is claimed by Codex on `codex/dobe-inspect`, against the
++owner's complete Dobe Local/Cloud plan. It does not claim an upstream roadmap
++item or authorize publication. The owner's local-only rule supersedes upstream
++push and pull-request instructions. Referenced sibling `craftrules` is not
++available in the approved source snapshot.
++
++The private `dobe-inspect` executable uses the existing native, WebAssembly and
++JavaScript analyzers. It reads one explicitly authorized regular input, checks
++its expected SHA-256 and writes one new structured evidence artifact. It never
++executes input code, follows dependencies, extracts archives, contacts services,
++opens an editor, or starts the upstream agent loop. The runtime must separately
++enforce tenant and permitted-file policy; a private command-line assertion is
++not a substitute for that authorization boundary.
++
++The supported profile is `static-artifact-v1`. Native inputs are ELF, PE and
++Mach-O files; WebAssembly and JavaScript use explicit format selection. Input is
++bounded to 16 MiB, JavaScript to 2 MiB and output to 32 MiB. Static observations
++do not establish execution behavior, safety, ownership or a complete dependency
++graph. Parser warnings, fallback modes and truncation remain visible. Reports
++contain untrusted target data and must never be interpreted as instructions.
++
++The analysis module owns evidence construction; the CLI is a bounded file
++transport. Existing upstream tools and defaults are unchanged. Output includes
++the pinned source revision, input hash, analyzer parameters and canonical
++upstream evidence ID. Exact original bytes belong in the runtime's portable
++project. Public admission, durable jobs, replay, recovery, packaging and Linux
++qualification remain required before release.

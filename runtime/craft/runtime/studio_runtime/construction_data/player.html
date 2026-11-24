@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Constructed interactive component</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-content:center;background:#090b0e;color:#f4f3ea;font:16px system-ui}canvas{max-width:90vw;height:auto;outline-offset:8px;touch-action:none}canvas:focus-visible{outline:3px solid #6ea8ff}label{display:block;margin:1rem 0}button,input{font:inherit}</style>
+<main><canvas tabindex="0" role="button" aria-label="Activate constructed component"></canvas><label>Component state <input type="number" id="data"></label><label><input type="checkbox" id="reduced">Reduced motion</label><output aria-live="polite" id="status">Loading</output></main>
+<script src="rive.js"></script><script>
+(async()=>{const spec=await(await fetch('component.json')).json(),canvas=document.querySelector('canvas'),state=document.querySelector('#data'),status=document.querySelector('#status'),reduced=document.querySelector('#reduced');
+canvas.width=spec.width;canvas.height=spec.height;rive.RuntimeLoader.setWasmUrl('rive.wasm');
+let current=spec.states[0].value,file,hover=null,pressed=null;const preference=matchMedia('(prefers-reduced-motion: reduce)');reduced.checked=preference.matches;
+const targets=[...new Set(spec.events.map(e=>e.target))];let focused=targets[0];
+function apply(value){const pose=spec.states.find(s=>s.value===Number(value));if(!pose)throw Error('Unknown component state');current=pose.value;state.value=current;if(window.ready)file.stateMachineInputs('Construction').find(i=>i.name===spec.input).value=current;status.textContent=pose.id;window.currentState=pose.id;window.changeCount=(window.changeCount||0)+1;}
+function load(){window.ready=false;file?.cleanup();window.reducedMotion=reduced.checked;file=new rive.Rive({src:reduced.checked?'reduced.riv':'construction.riv',canvas,autoplay:true,stateMachines:'Construction',shouldDisableRiveListeners:true,onLoad(){queueMicrotask(()=>{window.construction=file;window.ready=true;apply(current);});},onLoadError(e){window.failure=String(e);status.textContent='Load failed';}});}
+function event(name,target){const binding=spec.events.find(e=>e.event===name&&e.target===target);if(binding)apply(binding.value);}
+function hit(e){const box=canvas.getBoundingClientRect(),x=(e.clientX-box.left)*spec.width/box.width,y=(e.clientY-box.top)*spec.height/box.height;for(const o of [...spec.objects].reverse()){if(!targets.includes(o.id)||o.kind==='text')continue;const pose=spec.states.find(s=>s.value===current).pose[o.id]||{},angle=-(pose.rotation||0),dx=x-(pose.x??o.x),dy=y-(pose.y??o.y),u=(dx*Math.cos(angle)-dy*Math.sin(angle))/(pose.scaleX??1),v=(dx*Math.sin(angle)+dy*Math.cos(angle))/(pose.scaleY??1);if(o.kind==='ellipse'?(u/(o.width/2))**2+(v/(o.height/2))**2<=1:Math.abs(u)<=o.width/2&&Math.abs(v)<=o.height/2)return o.id;}return null;}
+canvas.addEventListener('pointermove',e=>{if(e.pointerType==='touch')return;const target=hit(e);if(target!==hover){event('exit',hover);hover=target;event('enter',hover);}});
+canvas.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'){event('exit',hover);hover=null;}});
+canvas.addEventListener('pointerdown',e=>{pressed=hit(e);focused=pressed||focused;event('down',pressed);canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointerup',e=>{const target=hit(e);event('up',pressed);if(target===pressed)event('click',target);pressed=null;});
+canvas.addEventListener('pointercancel',()=>{event('exit',pressed);pressed=null;});
+canvas.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();focused=targets[(targets.indexOf(focused)+(e.key==='ArrowRight'?1:targets.length-1))%targets.length];canvas.setAttribute('aria-label','Activate '+focused);}if(e.key==='Enter'||e.key===' '){e.preventDefault();event('down',focused);}});
+canvas.addEventListener('keyup',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();event('up',focused);event('click',focused);}});
+state.addEventListener('change',()=>apply(state.value));reduced.addEventListener('change',load);preference.addEventListener('change',e=>{reduced.checked=e.matches;load();});window.setConstructionData=apply;load();
+})().catch(e=>{window.failure=String(e);document.querySelector('#status').textContent='Failed: '+e.message;});
+</script></html>

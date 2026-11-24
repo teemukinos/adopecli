@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "media_generation": "disabled",
+    "network": "offline"
+  },
+  "components": [
+    {
+      "id": "intro",
+      "engine": "blender",
+      "parameters": {
+        "width": 1920,
+        "height": 1080,
+        "fps": 24,
+        "frames": 240,
+        "samples": 32,
+        "preview_frame": 216,
+        "objects": [
+          {
+            "id": "background",
+            "kind": "noise",
+            "width": 1920,
+            "height": 1080,
+            "x": 960,
+            "y": 540,
+            "z": -100,
+            "color": "#090B0E",
+            "color2": "#20242B",
+            "noise_scale": 0.45,
+            "seed": 1.29,
+            "keys": {
+              "seed": [
+                [
+                  0,
+                  1.29,
+                  "BEZIER"
+                ],
+                [
+                  216,
+                  1.34,
+                  "BEZIER"
+                ],
+                [
+                  1000,
+                  1.52,
+                  "BEZIER"
+                ]
+              ]
+            }
+          },
+          {
+            "id": "ring",
+            "kind": "ellipse",
+            "x": 960,
+            "y": 540,
+            "width": 744,
+            "height": 744,
+            "stroke": 3.6,
+            "color": "#FF6A2B",
+            "keys": {
+              "opacity": [
+                [
+                  0,
+                  0,
+                  "BEZIER"
+                ],
+                [
+                  48,
+                  1,
+                  "BEZIER"
+                ]
+              ],
+              "scale": [
+                [
+                  0,
+                  0.94,
+                  "BEZIER"
+                ],
+                [
+                  48,
+                  0.94,
+                  "BEZIER"
+                ],
+                [
+                  120,
+                  1,
+                  "BEZIER"
+                ]
+              ]
+            }
+          },
+          {
+            "id": "glow",
+            "kind": "glow",
+            "parent": "ring",
+            "x": 0,
+            "y": 0,
+            "z": -10,
+            "radius": 372,
+            "falloff": -18,
+            "color": "#FF6A2B",
+            "opacity": 0.24,
+            "keys": {
+              "opacity": [
+                [
+                  0,
+                  0,
+                  "BEZIER"
+                ],
+                [
+                  48,
+                  0.32,
+                  "BEZIER"
+                ],
+                [
+                  168,
+                  0.32,
+                  "BEZIER"
+                ],
+                [
+                  216,
+                  0.24,
+                  "BEZIER"
+                ]
+              ]
+            }
+          },
+          {
+            "id": "title",
+            "kind": "text",
+            "x": 960,
+            "y": 525,
+            "z": 20,
+            "text": "A dobe cli",
+            "font": "Archivo",
+            "size": 108,
+            "color": "#F4F3EA",
+            "keys": {
+              "opacity": [
+                [
+                  0,
+                  0,
+                  "BEZIER"
+                ],
+                [
+                  120,
+                  0,
+                  "BEZIER"
+                ],
+                [
+                  168,
+                  1,
+                  "BEZIER"
+                ]
+              ]
+            }
+          },
+          {
+            "id": "tagline",
+            "kind": "text",
+            "x": 960,
+            "y": 605,
+            "z": 20,
+            "text": "Imagination. Executed.",
+            "font": "Archivo",
+            "size": 31,
+            "color": "#F4F3EA",
+            "keys": {
+              "opacity": [
+                [
+                  0,
+                  0,
+                  "BEZIER"
+                ],
+                [
+                  168,
+                  0,
+                  "BEZIER"
+                ],
+                [
+                  216,
+                  1,
+                  "BEZIER"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

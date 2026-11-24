@@ -1,0 +1,29 @@
+{
+  "cargo_lock_sha256": "6af58f2227d63ff87c24eb538f7d1c8327247747e0bd122a8987807febfa3ad2",
+  "engine_version": "0.6.1",
+  "fonts": {
+    "revision": "37827adc41fd165f9a9234ac40f94dbad353aa69",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "inspect.patch",
+    "sha256": "a58220b0c0401e99e56ec1ead33c7e2b6d8f54bcfeb1402018c3b8a360baee9e"
+  },
+  "patched_files": {
+    "Cargo.lock": "6af58f2227d63ff87c24eb538f7d1c8327247747e0bd122a8987807febfa3ad2",
+    "apps/dobe-inspect/Cargo.toml": "28ccdc8a1ee12828d27f2f10bf09466e8cbe49ffaff736d33012d4e2eb3be8b9",
+    "apps/dobe-inspect/src/main.rs": "2d978fb6ab3a8e0804e27ba44eeb6b33598bee991f8db4cdaf0f4ed0046e87a4",
+    "crates/analysis/Cargo.toml": "74ad64e4e4c5f1c67a5486ac094ce6b384e417823e2cdb129b8f7b6394dccbd7",
+    "crates/analysis/src/dobe.rs": "6f4700d983b416f6e3464cdeb1d7f7321d1f35dd62cfc8b6d243e49cebbf91be",
+    "crates/analysis/src/lib.rs": "43842125d35f8f3430ca620a45b40d249d656255f5da1b6b19f0e7a39ff1aaf6",
+    "docs/dobe-private-transport.md": "4f759c5356ce945c07ed7bba07f3791fb957ee45b41555bf02d36e00d6ba90aa"
+  },
+  "product": "dobe-inspect",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "48a9c5a60ff83ff620f98661339be6281a7debc6",
+    "url": "https://github.com/storytold/craft-anything"
+  },
+  "source_date_epoch": 1794445920
+}

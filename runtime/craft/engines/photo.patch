@@ -1,0 +1,444 @@
+diff --git a/apps/lightcraft-cli/Cargo.toml b/apps/lightcraft-cli/Cargo.toml
+index e55d458..cf21bbb 100644
+--- a/apps/lightcraft-cli/Cargo.toml
++++ b/apps/lightcraft-cli/Cargo.toml
+@@ -10,6 +10,11 @@ description = "LightCraft command-line tool: headless render, command listing an
+ name = "lightcraft-cli"
+ path = "src/main.rs"
+ 
++[[bin]]
++name = "dobe-photo"
++path = "src/main.rs"
++required-features = ["dobe"]
++
+ [lints]
+ workspace = true
+ 
+@@ -18,7 +23,7 @@ lightcraft-engine = { workspace = true }
+ lightcraft-denoise = { workspace = true }
+ lightcraft-sysmem = { workspace = true }
+ lightcraft-mcp = { workspace = true }
+-lightcraft-ui-egui = { workspace = true }
++lightcraft-ui-egui = { workspace = true, optional = true }
+ lightcraft-codecs = { workspace = true }
+ lightcraft-raster = { workspace = true }
+ lightcraft-merge = { workspace = true }
+@@ -29,7 +34,9 @@ dhat = { workspace = true, optional = true }
+ lightcraft-testkit = { workspace = true }
+ 
+ [features]
+-default = ["denoise"]
++default = ["denoise", "snapshot-ui"]
++snapshot-ui = ["dep:lightcraft-ui-egui"]
++dobe = ["lightcraft-mcp/dobe"]
+ denoise = ["lightcraft-engine/denoise"]
+ rawnind-model = ["denoise", "lightcraft-engine/rawnind-model"]
+ # Heap profiling: `cargo run --release -p lightcraft-cli --features dhat-heap -- snapshot …` counts
+diff --git a/apps/lightcraft-cli/src/main.rs b/apps/lightcraft-cli/src/main.rs
+index d384229..9fde840 100644
+--- a/apps/lightcraft-cli/src/main.rs
++++ b/apps/lightcraft-cli/src/main.rs
+@@ -27,6 +27,22 @@ use lightcraft_engine::Session;
+ use lightcraft_mcp::{Backend, DEFAULT_ADDR, Headless, Remote, Server, expand_paths};
+ use serde_json::{Value, json};
+ 
++const CLI_NAME: &str = if cfg!(feature = "dobe") { "dobe-photo" } else { "lightcraft-cli" };
++
++#[cfg(feature = "dobe")]
++const USAGE: &str = "Dobe Photo headless production engine\n\n\
++USAGE:\n\
++  dobe-photo mcp [--library DIR] [--compact] [FILES...]\n\
++  dobe-photo run [--library DIR] [--import PATH] COMMAND [key=value...]\n\
++  dobe-photo render INPUT -o OUTPUT [--set control=value] [--settings FILE]\n\
++  dobe-photo commands [--json]\n\
++  dobe-photo controls [--json]\n\
++  dobe-photo --version | --help\n\n\
++Native non-destructive photo development with editable libraries and presets.\n\
++Editor connections, UI snapshots and network denoise serving are unavailable.\n\
++The supported product MCP endpoint is dobe mcp for durable jobs.\n";
++
++#[cfg(not(feature = "dobe"))]
+ const USAGE: &str = "\
+ lightcraft-cli — headless LightCraft (photo library + raw developer)
+ 
+@@ -136,6 +152,9 @@ fn library_warnings(session: &mut Session, who: &str) {
+ }
+ 
+ fn library_error(dir: &str, e: lightcraft_engine::EngineError) -> String {
++    if cfg!(feature = "dobe") {
++        return format!("{dir}: {e}; use an independent library copy for Dobe Photo jobs");
++    }
+     match e {
+         lightcraft_engine::EngineError::LibraryInUse(why) => format!(
+             "{dir}: {why}\nTo work with the library while the app has it open, start the app with `--control PORT` and use `lightcraft-cli mcp --connect 127.0.0.1:PORT`."
+@@ -162,17 +181,25 @@ fn main() -> ExitCode {
+     alloc_release::install();
+     // Warnings (a GPU render redone on the CPU, an unknown backend name) on stderr; LIGHTCRAFT_LOG
+     // or RUST_LOG picks another level (#168).
+-    lightcraft_engine::logging::install("lightcraft-cli");
++    lightcraft_engine::logging::install(CLI_NAME);
+     let mut args: Vec<String> = Vec::new();
+     for (index, arg) in std::env::args_os().skip(1).enumerate() {
+         match arg.into_string() {
+             Ok(arg) => args.push(arg),
+             Err(_) => {
+-                eprintln!("lightcraft-cli: argument {} is not valid Unicode", index + 1);
++                eprintln!("{CLI_NAME}: argument {} is not valid Unicode", index + 1);
+                 return ExitCode::FAILURE;
+             }
+         }
+     }
++    // The distributed production engine never attaches to an editor or starts a network service.
++    if cfg!(feature = "dobe")
++        && (args.iter().any(|arg| arg == "--connect" || arg.starts_with("--connect="))
++            || matches!(args.first().map(String::as_str), Some("snapshot" | "denoise-serve")))
++    {
++        eprintln!("{CLI_NAME}: editor connections, UI snapshots and network serving are unavailable");
++        return ExitCode::FAILURE;
++    }
+     let r = match args.first().map(String::as_str) {
+         Some("run") => run(&args[1..]),
+         Some("mcp") => mcp(&args[1..]),
+@@ -186,7 +213,7 @@ fn main() -> ExitCode {
+         Some("calibrate") => calibrate(&args[1..]),
+         Some("bench-cull") => bench_cull::run(&args[1..]),
+         Some("--version" | "-V" | "version") => {
+-            println!("lightcraft-cli {}", env!("CARGO_PKG_VERSION"));
++            println!("{CLI_NAME} {}", env!("CARGO_PKG_VERSION"));
+             Ok(())
+         }
+         Some("--help" | "-h" | "help") | None => {
+@@ -198,7 +225,7 @@ fn main() -> ExitCode {
+     match r {
+         Ok(()) => ExitCode::SUCCESS,
+         Err(e) => {
+-            eprintln!("lightcraft-cli: {e}");
++            eprintln!("{CLI_NAME}: {e}");
+             ExitCode::FAILURE
+         }
+     }
+@@ -362,11 +389,11 @@ fn mcp(args: &[String]) -> Result<(), String> {
+             }
+             match Remote::connect(&addr) {
+                 Ok(r) => {
+-                    eprintln!("lightcraft-cli mcp: connected to LightCraft at {addr}");
++                    eprintln!("{CLI_NAME} mcp: connected to LightCraft at {addr}");
+                     Box::new(r)
+                 }
+                 Err(e) => {
+-                    eprintln!("lightcraft-cli mcp: LightCraft is not reachable at {addr} yet ({e}); will retry on each call");
++                    eprintln!("{CLI_NAME} mcp: LightCraft is not reachable at {addr} yet ({e}); will retry on each call");
+                     Box::new(Remote::lazy(&addr))
+                 }
+             }
+@@ -376,8 +403,8 @@ fn mcp(args: &[String]) -> Result<(), String> {
+                 Some(dir) => {
+                     let mut h = Headless::default();
+                     let r = h.session.open_library(dir, demo).map_err(|e| library_error(dir, e))?;
+-                    eprintln!("lightcraft-cli mcp: opened library {dir} ({r:?})");
+-                    library_warnings(&mut h.session, "lightcraft-cli mcp");
++                    eprintln!("{CLI_NAME} mcp: opened library {dir} ({r:?})");
++                    library_warnings(&mut h.session, &format!("{CLI_NAME} mcp"));
+                     h
+                 }
+                 None if demo => Headless::demo(),
+@@ -386,12 +413,12 @@ fn mcp(args: &[String]) -> Result<(), String> {
+             if !files.is_empty() {
+                 let paths = expand_paths(&files);
+                 let r = h.session.execute("library.import", &json!({"paths": paths})).map_err(|e| e.to_string())?;
+-                eprintln!("lightcraft-cli mcp: imported {} photo(s)", r["imported"].as_array().map_or(0, Vec::len));
++                eprintln!("{CLI_NAME} mcp: imported {} photo(s)", r["imported"].as_array().map_or(0, Vec::len));
+             }
+             Box::new(h)
+         }
+     };
+-    eprintln!("lightcraft-cli mcp: serving MCP on stdio ({})", backend.describe());
++    eprintln!("{CLI_NAME} mcp: serving MCP on stdio ({})", backend.describe());
+     let mut server = Server::new(backend).with_command_tools(!compact);
+     server.serve_stdio(std::io::stdout()).map_err(|e| e.to_string())
+ }
+@@ -603,7 +630,7 @@ fn run(args: &[String]) -> Result<(), String> {
+         }
+     }
+     if steps.is_empty() {
+-        return Err("run: no command given (see `lightcraft-cli commands`)".into());
++        return Err(format!("run: no command given (see `{CLI_NAME} commands`)"));
+     }
+     let mut backend: Box<dyn Backend> =
+         match connect {
+@@ -620,7 +647,7 @@ fn run(args: &[String]) -> Result<(), String> {
+                     Some(dir) => {
+                         let mut h = Headless::default();
+                         h.session.open_library(dir, demo).map_err(|e| library_error(dir, e))?;
+-                        library_warnings(&mut h.session, "lightcraft-cli");
++                        library_warnings(&mut h.session, CLI_NAME);
+                         h
+                     }
+                     None if demo => Headless::demo(),
+@@ -724,7 +751,14 @@ fn read_settings(p: &str) -> Result<SettingsFile, String> {
+ /// The session `render` and `merge` develop files in: with the lens database the desktop app downloaded, when it is
+ /// there (never fetched from here: scripts and tests stay offline).
+ fn file_session() -> Session {
+-    Session::new().with_fs().with_default_denoise_models().with_system_clock().with_default_lens_database()
++    #[cfg(feature = "dobe")]
++    {
++        Session::new().with_fs().with_system_clock()
++    }
++    #[cfg(not(feature = "dobe"))]
++    {
++        Session::new().with_fs().with_default_denoise_models().with_system_clock().with_default_lens_database()
++    }
+ }
+ 
+ fn render(args: &[String]) -> Result<(), String> {
+@@ -814,18 +848,24 @@ fn render(args: &[String]) -> Result<(), String> {
+     lightcraft_engine::export::write_file(&output, &e.bytes)?;
+     for (sc, bytes) in &sidecars {
+         lightcraft_engine::export::write_file(sc, bytes)?;
+-        eprintln!("lightcraft-cli: wrote {sc}");
++        eprintln!("{CLI_NAME}: wrote {sc}");
+     }
+-    eprintln!("lightcraft-cli: wrote {output} ({}×{})", e.width, e.height);
++    eprintln!("{CLI_NAME}: wrote {output} ({}×{})", e.width, e.height);
+     if let Some(photos) = after.run(&[json!({"path": output})], false) {
+         if let Some(err) = photos.get("error").and_then(Value::as_str) {
+             return Err(format!("render: {output} was written, but {err}"));
+         }
+-        eprintln!("lightcraft-cli: added to Apple Photos: {photos}");
++        eprintln!("{CLI_NAME}: added to Apple Photos: {photos}");
+     }
+     Ok(())
+ }
+ 
++#[cfg(not(feature = "snapshot-ui"))]
++fn snapshot(_args: &[String]) -> Result<(), String> {
++    Err("UI snapshots are unavailable in this headless build".into())
++}
++
++#[cfg(feature = "snapshot-ui")]
+ fn snapshot(args: &[String]) -> Result<(), String> {
+     use lightcraft_ui_egui::headless::Headless;
+     use std::time::{Duration, Instant};
+@@ -1142,9 +1182,10 @@ mod tests {
+     /// `render` and `merge` read the lens database the desktop app downloaded, as the desktop does (the same raw
+     /// gets the same profile everywhere), but never fetch it.
+     #[test]
+-    fn render_reads_the_downloaded_lens_database() {
++    fn render_lens_database_matches_the_product_contract() {
+         let s = super::file_session();
+-        assert_eq!(lightcraft_engine::lens_profiles::host_dir(), lightcraft_engine::lensfun_download::default_dir());
++        let expected = if cfg!(feature = "dobe") { None } else { lightcraft_engine::lensfun_download::default_dir() };
++        assert_eq!(lightcraft_engine::lens_profiles::host_dir(), expected);
+         assert!(!s.lens_auto_download, "selecting it is not permission to download it");
+     }
+ }
+diff --git a/crates/mcp/Cargo.toml b/crates/mcp/Cargo.toml
+index b05dae5..c8425d4 100644
+--- a/crates/mcp/Cargo.toml
++++ b/crates/mcp/Cargo.toml
+@@ -5,6 +5,9 @@ edition.workspace = true
+ license.workspace = true
+ description = "LightCraft MCP server (L5): JSON-RPC 2.0 over stdio, driving a running app or a headless session"
+ 
++[features]
++dobe = []
++
+ [lints]
+ workspace = true
+ 
+diff --git a/crates/mcp/src/headless.rs b/crates/mcp/src/headless.rs
+index 11de914..845c853 100644
+--- a/crates/mcp/src/headless.rs
++++ b/crates/mcp/src/headless.rs
+@@ -29,10 +29,17 @@ impl Drop for Headless {
+ 
+ impl Default for Headless {
+     fn default() -> Self {
+-        // the lens database the desktop app downloaded, when it is there (a headless session never fetches it)
+-        let session =
+-            Session::new().with_fs().with_default_denoise_models().with_system_clock().with_default_face_models().with_default_lens_database();
+-        Self::new(session.with_default_sam3_model().with_default_slide_templates())
++        #[cfg(feature = "dobe")]
++        {
++            Self::new(Session::new().with_fs().with_system_clock())
++        }
++        #[cfg(not(feature = "dobe"))]
++        {
++            // the lens database the desktop app downloaded, when it is there (a headless session never fetches it)
++            let session =
++                Session::new().with_fs().with_default_denoise_models().with_system_clock().with_default_face_models().with_default_lens_database();
++            Self::new(session.with_default_sam3_model().with_default_slide_templates())
++        }
+     }
+ }
+ 
+@@ -43,8 +50,15 @@ impl Headless {
+ 
+     /// A headless session with the procedurally generated demo library.
+     pub fn demo() -> Self {
+-        let session = Session::with_demo().with_fs().with_default_denoise_models().with_system_clock().with_default_face_models();
+-        Self::new(session.with_default_sam3_model().with_default_slide_templates())
++        #[cfg(feature = "dobe")]
++        {
++            Self::new(Session::with_demo().with_fs().with_system_clock())
++        }
++        #[cfg(not(feature = "dobe"))]
++        {
++            let session = Session::with_demo().with_fs().with_default_denoise_models().with_system_clock().with_default_face_models();
++            Self::new(session.with_default_sam3_model().with_default_slide_templates())
++        }
+     }
+ 
+     fn photo_or_active(&self, p: &Value) -> Result<PhotoId, String> {
+@@ -151,7 +165,11 @@ impl Backend for Headless {
+             }
+             "app.export" => self.export(&p),
+             m if m.starts_with("ui.") || m == "app.quit" => {
+-                Err(format!("`{m}` needs the desktop app: start `lightcraft --control 7980` and run the MCP server with `--connect`"))
++                if cfg!(feature = "dobe") {
++                    Err(format!("`{m}` is unavailable in Dobe Photo headless production"))
++                } else {
++                    Err(format!("`{m}` needs the desktop app: start `lightcraft --control 7980` and run the MCP server with `--connect`"))
++                }
+             }
+             other => Err(format!("unknown method `{other}`")),
+         }
+@@ -208,9 +226,10 @@ mod tests {
+     /// A headless session reads the lens database the desktop app downloaded, as the desktop does (the same raw gets
+     /// the same profile everywhere), but never fetches it by itself.
+     #[test]
+-    fn a_headless_session_reads_the_downloaded_lens_database() {
++    fn headless_lens_database_matches_the_product_contract() {
+         let h = Headless::default();
+-        assert_eq!(lightcraft_engine::lens_profiles::host_dir(), lightcraft_engine::lensfun_download::default_dir());
++        let expected = if cfg!(feature = "dobe") { None } else { lightcraft_engine::lensfun_download::default_dir() };
++        assert_eq!(lightcraft_engine::lens_profiles::host_dir(), expected);
+         assert!(!h.session.lens_auto_download, "selecting it is not permission to download it");
+     }
+ 
+@@ -239,7 +258,7 @@ mod tests {
+     /// Headless sessions look for the SAM 3 model where the desktop app does, and `segment.model.status` reports it (issue #619).
+     #[test]
+     fn headless_sessions_get_the_sam3_model_folder() {
+-        let dir = lightcraft_engine::config::default_sam3_dir();
++        let dir = if cfg!(feature = "dobe") { None } else { lightcraft_engine::config::default_sam3_dir() };
+         assert_eq!(Headless::default().session.segmenter.dir, dir);
+         assert_eq!(Headless::demo().session.segmenter.dir, dir);
+         let dir = std::env::temp_dir().join("lc-mcp-sam3-dir");
+diff --git a/crates/mcp/src/server.rs b/crates/mcp/src/server.rs
+index c00554f..27a81da 100644
+--- a/crates/mcp/src/server.rs
++++ b/crates/mcp/src/server.rs
+@@ -23,6 +23,7 @@ const INVALID_PARAMS: i64 = -32602;
+ const INTERNAL_ERROR: i64 = -32603;
+ const RESOURCE_NOT_FOUND: i64 = -32002;
+ 
++#[cfg(not(feature = "dobe"))]
+ const INSTRUCTIONS: &str = "LightCraft is a non-destructive photo library and raw developer (a Lightroom alternative). \
+ Photos have integer ids; most editing acts on the *active* photo (`set_develop`, `crop` and `export` with an explicit photo id end the current edit interaction, replace the selection with that one photo and make it active; `get_develop` and `render_photo` do not change the selection). \
+ Typical loop: query_photos → select_photos (or pass id) → list_controls → set_develop {values: {\"light.exposure\": 0.5}} → \
+@@ -30,14 +31,19 @@ render_preview to look at the result → export. Positions (crop rects, mask poi
+ coordinates 0..1 with the origin at the top-left. Every action is a command: command_list shows ids and parameter \
+ docs; command_run {id, params} runs any of them; command_batch runs steps in order. Inspect with doc_inspect. Edits are undoable (undo / redo).";
+ 
++#[cfg(feature = "dobe")]
++const INSTRUCTIONS: &str = "Dobe Photo is a native headless non-destructive photo developer. Use command_list and list_controls to discover commands and control ranges. Import source photos, select a photo by integer ID, set_develop with explicit values, inspect get_develop, then export. Crop coordinates are normalized 0..1. Save the editable library or native presets together with original assets. Editor connections are unavailable. The supported product endpoint is dobe mcp for durable jobs.";
++const SERVER_NAME: &str = if cfg!(feature = "dobe") { "dobe-photo" } else { "lightcraft" };
++const PRODUCT_NAME: &str = if cfg!(feature = "dobe") { "Dobe Photo" } else { "LightCraft" };
++
+ /// Resource URIs.
+-pub const DOCUMENT_URI: &str = "lightcraft://document";
+-pub const COMMANDS_URI: &str = "lightcraft://commands";
+-pub const LIBRARY_URI: &str = "lightcraft://library";
+-pub const PHOTOS_URI: &str = "lightcraft://photos";
+-pub const PHOTO_URI: &str = "lightcraft://photo/active";
+-pub const DEVELOP_URI: &str = "lightcraft://develop/active";
+-pub const CONTROLS_URI: &str = "lightcraft://controls";
++pub const DOCUMENT_URI: &str = if cfg!(feature = "dobe") { "dobe-photo://document" } else { "lightcraft://document" };
++pub const COMMANDS_URI: &str = if cfg!(feature = "dobe") { "dobe-photo://commands" } else { "lightcraft://commands" };
++pub const LIBRARY_URI: &str = if cfg!(feature = "dobe") { "dobe-photo://library" } else { "lightcraft://library" };
++pub const PHOTOS_URI: &str = if cfg!(feature = "dobe") { "dobe-photo://photos" } else { "lightcraft://photos" };
++pub const PHOTO_URI: &str = if cfg!(feature = "dobe") { "dobe-photo://photo/active" } else { "lightcraft://photo/active" };
++pub const DEVELOP_URI: &str = if cfg!(feature = "dobe") { "dobe-photo://develop/active" } else { "lightcraft://develop/active" };
++pub const CONTROLS_URI: &str = if cfg!(feature = "dobe") { "dobe-photo://controls" } else { "lightcraft://controls" };
+ 
+ /// An MCP server bound to one backend.
+ pub struct Server {
+@@ -167,7 +173,7 @@ impl Server {
+                 Ok(json!({
+                     "protocolVersion": version,
+                     "capabilities": {"tools": {"listChanged": false}, "resources": {"subscribe": false, "listChanged": false}},
+-                    "serverInfo": {"name": "lightcraft", "title": "LightCraft", "version": env!("CARGO_PKG_VERSION")},
++                    "serverInfo": {"name": SERVER_NAME, "title": PRODUCT_NAME, "version": env!("CARGO_PKG_VERSION")},
+                     "instructions": format!("{INSTRUCTIONS} Backend: {}.", self.backend.describe()),
+                 }))
+             }
+diff --git a/crates/mcp/src/tests.rs b/crates/mcp/src/tests.rs
+index 7cc61a3..b7fc47c 100644
+--- a/crates/mcp/src/tests.rs
++++ b/crates/mcp/src/tests.rs
+@@ -27,7 +27,7 @@ fn initialize_negotiates_version() {
+     let mut s = server();
+     let r = rpc(&mut s, 1, "initialize", json!({"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}));
+     assert_eq!(r["result"]["protocolVersion"], "2025-03-26");
+-    assert_eq!(r["result"]["serverInfo"]["name"], "lightcraft");
++    assert_eq!(r["result"]["serverInfo"]["name"], if cfg!(feature = "dobe") { "dobe-photo" } else { "lightcraft" });
+     assert!(r["result"]["capabilities"]["tools"].is_object());
+     let r = rpc(&mut s, 2, "initialize", json!({"protocolVersion": "1999-01-01"}));
+     assert_eq!(r["result"]["protocolVersion"], PROTOCOL_VERSION);
+@@ -360,7 +360,13 @@ fn ui_tools_need_the_app() {
+     let mut b = Headless::demo();
+     let r = call_tool(&mut b, "screenshot", &json!({}));
+     assert!(r.is_error);
+-    assert!(r.content[0]["text"].as_str().unwrap().contains("--connect"));
++    let message = r.content[0]["text"].as_str().unwrap();
++    if cfg!(feature = "dobe") {
++        assert!(message.contains("unavailable in Dobe Photo"));
++        assert!(!message.contains("--connect"));
++    } else {
++        assert!(message.contains("--connect"));
++    }
+ }
+ 
+ #[test]
+@@ -429,11 +435,11 @@ fn core_tools_have_hints_and_reject_unknown_keys() {
+         for key in lightcraft_engine::export::OPTION_PARAMS.iter().chain(lightcraft_engine::export::TARGET_PARAMS) {
+             assert!(export["inputSchema"]["properties"].get(*key).is_some(), "missing export argument {key}");
+         }
+-        let before = rpc(&mut s, 2, "resources/read", json!({"uri":"lightcraft://library"}));
++        let before = rpc(&mut s, 2, "resources/read", json!({"uri":crate::server::LIBRARY_URI}));
+         let image = rpc(&mut s, 2, "tools/call", json!({"name":"render_preview","arguments":{"max_side":64}}));
+         assert_eq!(image["result"]["isError"], false, "{image}");
+         assert!(image["result"]["content"].as_array().unwrap().iter().any(|c| c["type"] == "image"));
+-        assert_eq!(before, rpc(&mut s, 2, "resources/read", json!({"uri":"lightcraft://library"})));
++        assert_eq!(before, rpc(&mut s, 2, "resources/read", json!({"uri":crate::server::LIBRARY_URI})));
+         let batch = json!({"steps":[{"id":"catalog.stats"},{"id":"no.such"},{"id":"catalog.stats"}],"stop_on_error":false});
+         let r = rpc(&mut s, 3, "tools/call", json!({"name":"command_batch","arguments":batch}));
+         assert_eq!(r["result"]["isError"], true);
+@@ -452,7 +458,7 @@ fn core_resources_match_tools_after_parse_error() {
+     assert_eq!(bad["error"]["code"], -32700);
+     assert!(bad["id"].is_null());
+     let list = rpc(&mut s, 1, "resources/list", json!({}));
+-    for (uri, tool) in [("lightcraft://document", "doc_inspect"), ("lightcraft://commands", "command_list")] {
++    for (uri, tool) in [(crate::server::DOCUMENT_URI, "doc_inspect"), (crate::server::COMMANDS_URI, "command_list")] {
+         assert!(list["result"]["resources"].as_array().unwrap().iter().any(|r| r["uri"] == uri));
+         let resource = rpc(&mut s, 2, "resources/read", json!({"uri":uri}));
+         let call = rpc(&mut s, 3, "tools/call", json!({"name":tool,"arguments":{}}));
+@@ -460,7 +466,7 @@ fn core_resources_match_tools_after_parse_error() {
+         let b: Value = serde_json::from_str(call["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+         assert_eq!(a, b);
+     }
+-    let old = rpc(&mut s, 4, "resources/read", json!({"uri":"lightcraft://library"}));
++    let old = rpc(&mut s, 4, "resources/read", json!({"uri":crate::server::LIBRARY_URI}));
+     assert!(old["result"]["contents"].is_array(), "{old}");
+ }
+ 
+@@ -501,7 +507,7 @@ fn modern_requests_receive_result_and_cache_fields() {
+         ("tools/list", json!({})),
+         ("resources/list", json!({})),
+         ("resources/templates/list", json!({})),
+-        ("resources/read", json!({"uri":"lightcraft://library"})),
++        ("resources/read", json!({"uri":crate::server::LIBRARY_URI})),
+     ] {
+         params["_meta"] = meta.clone();
+         let r = rpc(&mut s, 1, method, params);

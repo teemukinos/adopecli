@@ -1,0 +1,205 @@
+{
+  "faces": {
+    "inter/Inter-Bold.ttf": {
+      "bytes": 420428,
+      "family": "Inter",
+      "glyphs": 2937,
+      "index": 0,
+      "italic": false,
+      "postscript": "Inter-Bold",
+      "sha256": "288316099b1e0a47a4716d159098005eef7c0066921f34e3200393dbdb01947f",
+      "weight": 700
+    },
+    "inter/Inter-Italic.ttf": {
+      "bytes": 417388,
+      "family": "Inter",
+      "glyphs": 2901,
+      "index": 0,
+      "italic": true,
+      "postscript": "Inter-Italic",
+      "sha256": "bbc051dd204b5019a1aa0bc0ae2aa8a05ab13e7a3f979fa357631dc7feb6833a",
+      "weight": 400
+    },
+    "inter/Inter-Regular.ttf": {
+      "bytes": 411640,
+      "family": "Inter",
+      "glyphs": 2937,
+      "index": 0,
+      "italic": false,
+      "postscript": "Inter-Regular",
+      "sha256": "40d692fce188e4471e2b3cba937be967878f631ad3ebbbdcd587687c7ebe0c82",
+      "weight": 400
+    },
+    "inter/Inter-SemiBold.ttf": {
+      "bytes": 419744,
+      "family": "Inter",
+      "glyphs": 2937,
+      "index": 0,
+      "italic": false,
+      "postscript": "Inter-SemiBold",
+      "sha256": "78a843fade9d4612a5567302fb595b56976eb5fcebf4fea5a5912d638bafcde3",
+      "weight": 600
+    },
+    "liberation-mono/LiberationMono-Bold.ttf": {
+      "bytes": 307996,
+      "family": "Liberation Mono",
+      "glyphs": 2423,
+      "index": 0,
+      "italic": false,
+      "postscript": "LiberationMono-Bold",
+      "sha256": "bd62a0672d0b9b6710b01df434c80ad54fa5f0835207eb7b17b7a761463067bb",
+      "weight": 700
+    },
+    "liberation-mono/LiberationMono-BoldItalic.ttf": {
+      "bytes": 284068,
+      "family": "Liberation Mono",
+      "glyphs": 2425,
+      "index": 0,
+      "italic": true,
+      "postscript": "LiberationMono-BoldItalic",
+      "sha256": "79451f3c09fe25116098853b7a2ca6e2436220ccc11af022979adbcf195be130",
+      "weight": 700
+    },
+    "liberation-mono/LiberationMono-Italic.ttf": {
+      "bytes": 281536,
+      "family": "Liberation Mono",
+      "glyphs": 2425,
+      "index": 0,
+      "italic": true,
+      "postscript": "LiberationMono-Italic",
+      "sha256": "605c01c711b44480a7508d349dfbf3264e81fa43d69e61cfa7d10b86e764c4d1",
+      "weight": 400
+    },
+    "liberation-mono/LiberationMono-Regular.ttf": {
+      "bytes": 319508,
+      "family": "Liberation Mono",
+      "glyphs": 2423,
+      "index": 0,
+      "italic": false,
+      "postscript": "LiberationMono",
+      "sha256": "f2b83c763e8afd21709333370bed4774337fae82267937e2b5aea7e2fbd922c1",
+      "weight": 400
+    },
+    "liberation-serif/LiberationSerif-Bold.ttf": {
+      "bytes": 370096,
+      "family": "Liberation Serif",
+      "glyphs": 2602,
+      "index": 0,
+      "italic": false,
+      "postscript": "LiberationSerif-Bold",
+      "sha256": "d754ba427cfe0bca54ae052384baa8f842da5bd6550ad4da024ac441e7a7d5ce",
+      "weight": 700
+    },
+    "liberation-serif/LiberationSerif-BoldItalic.ttf": {
+      "bytes": 376772,
+      "family": "Liberation Serif",
+      "glyphs": 2605,
+      "index": 0,
+      "italic": true,
+      "postscript": "LiberationSerif-BoldItalic",
+      "sha256": "f17db8af71e24d2066b587546021d4f0b296be389512b658dec3c09affeb11a7",
+      "weight": 700
+    },
+    "liberation-serif/LiberationSerif-Italic.ttf": {
+      "bytes": 375632,
+      "family": "Liberation Serif",
+      "glyphs": 2610,
+      "index": 0,
+      "italic": true,
+      "postscript": "LiberationSerif-Italic",
+      "sha256": "0e3dea9f8d613e006ccfa62201f33e265d19167bd0907725c3e145368b04fc2e",
+      "weight": 400
+    },
+    "liberation-serif/LiberationSerif-Regular.ttf": {
+      "bytes": 393576,
+      "family": "Liberation Serif",
+      "glyphs": 2602,
+      "index": 0,
+      "italic": false,
+      "postscript": "LiberationSerif",
+      "sha256": "058ea80864aef09a23f45cbec2bb5400bc3dfbdea01c3f10538a21fcb497fb74",
+      "weight": 400
+    },
+    "source-sans-3/SourceSans3-Bold.ttf": {
+      "bytes": 428176,
+      "family": "Source Sans 3",
+      "glyphs": 2478,
+      "index": 0,
+      "italic": false,
+      "postscript": "SourceSans3-Bold",
+      "sha256": "9214b9d95e4231c609802815c2646c98174e2102d0d37f88978a7f8e71006e6a",
+      "weight": 700
+    },
+    "source-sans-3/SourceSans3-It.ttf": {
+      "bytes": 315812,
+      "family": "Source Sans 3",
+      "glyphs": 1998,
+      "index": 0,
+      "italic": true,
+      "postscript": "SourceSans3-It",
+      "sha256": "192afd78f0f54a3c69eaf02d43f4d9a821e9d6110e41d3d25d61a7385cd580e4",
+      "weight": 400
+    },
+    "source-sans-3/SourceSans3-Regular.ttf": {
+      "bytes": 431196,
+      "family": "Source Sans 3",
+      "glyphs": 2478,
+      "index": 0,
+      "italic": false,
+      "postscript": "SourceSans3-Regular",
+      "sha256": "4644c81b86ec9caaa76b634889968ed3c4f4f52f054855933acc7c2b21e53b0f",
+      "weight": 400
+    },
+    "source-sans-3/SourceSans3-Semibold.ttf": {
+      "bytes": 425904,
+      "family": "Source Sans 3",
+      "glyphs": 2478,
+      "index": 0,
+      "italic": false,
+      "postscript": "SourceSans3-Semibold",
+      "sha256": "a3f4f8dcf343a8f24dc61951de93f3ba1558b15cd250ba24af8a40e957081b7d",
+      "weight": 600
+    },
+    "source-serif-4/SourceSerif4-Bold.ttf": {
+      "bytes": 271568,
+      "family": "Source Serif 4",
+      "glyphs": 1464,
+      "index": 0,
+      "italic": false,
+      "postscript": "SourceSerif4-Bold",
+      "sha256": "7cf4f4e1ad74f45058d5bc61716b82560442fbdcd9d3654d2dea96bf6c683d86",
+      "weight": 700
+    },
+    "source-serif-4/SourceSerif4-It.ttf": {
+      "bytes": 187808,
+      "family": "Source Serif 4",
+      "glyphs": 1093,
+      "index": 0,
+      "italic": true,
+      "postscript": "SourceSerif4-It",
+      "sha256": "9d2950a8f1da66e21502c35d646a1d2148e79f9ea43fd2158cf02f5232e7f430",
+      "weight": 400
+    },
+    "source-serif-4/SourceSerif4-Regular.ttf": {
+      "bytes": 261868,
+      "family": "Source Serif 4",
+      "glyphs": 1464,
+      "index": 0,
+      "italic": false,
+      "postscript": "SourceSerif4-Regular",
+      "sha256": "e5a4ee6a3d87bb9024796be390c6771e2a0eb1883dae25effaf57ca01668e24b",
+      "weight": 400
+    },
+    "source-serif-4/SourceSerif4-Semibold.ttf": {
+      "bytes": 272088,
+      "family": "Source Serif 4",
+      "glyphs": 1464,
+      "index": 0,
+      "italic": false,
+      "postscript": "SourceSerif4-Semibold",
+      "sha256": "36db62940cb5728b12b1802476dc7fcf4c6c519a7bdd476ba23a4e555fc4655f",
+      "weight": 600
+    }
+  },
+  "font_revision": "37827adc41fd165f9a9234ac40f94dbad353aa69"
+}

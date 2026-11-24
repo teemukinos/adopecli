@@ -1,0 +1,10 @@
+.venv/
+.engines/
+.build/
+__pycache__/
+*.pyc
+.DS_Store
+.verify/
+.env
+.env.*
+!.env.example

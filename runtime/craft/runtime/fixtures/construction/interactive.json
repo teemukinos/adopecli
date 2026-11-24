@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "media_generation": "disabled",
+    "network": "offline"
+  },
+  "components": [
+    {
+      "id": "control",
+      "engine": "rive",
+      "parameters": {
+        "events": [
+          {
+            "event": "enter",
+            "target": "button",
+            "value": 1
+          },
+          {
+            "event": "exit",
+            "target": "button",
+            "value": 0
+          },
+          {
+            "event": "down",
+            "target": "button",
+            "value": 2
+          },
+          {
+            "event": "up",
+            "target": "button",
+            "value": 1
+          },
+          {
+            "event": "click",
+            "target": "button",
+            "value": 3
+          }
+        ],
+        "height": 360,
+        "input": "state",
+        "objects": [
+          {
+            "color": "#FF6A2B",
+            "height": 120,
+            "id": "button",
+            "kind": "rectangle",
+            "width": 340,
+            "x": 320,
+            "y": 180
+          },
+          {
+            "color": "#F4F3EA",
+            "id": "label",
+            "kind": "text",
+            "size": 32,
+            "text": "A dobe cli",
+            "x": 320,
+            "y": 180
+          }
+        ],
+        "states": [
+          {
+            "id": "idle",
+            "pose": {
+              "button": {
+                "color": "#FF6A2B",
+                "scaleX": 1,
+                "scaleY": 1
+              }
+            },
+            "value": 0
+          },
+          {
+            "id": "hover",
+            "pose": {
+              "button": {
+                "color": "#6EA8FF",
+                "scaleX": 1.04,
+                "scaleY": 1.04
+              }
+            },
+            "value": 1
+          },
+          {
+            "id": "pressed",
+            "pose": {
+              "button": {
+                "color": "#304070",
+                "scaleX": 0.95,
+                "scaleY": 0.95
+              }
+            },
+            "value": 2
+          },
+          {
+            "id": "result",
+            "pose": {
+              "button": {
+                "color": "#64BD92",
+                "scaleX": 1,
+                "scaleY": 1
+              }
+            },
+            "value": 3
+          }
+        ],
+        "width": 640
+      }
+    }
+  ]
+}

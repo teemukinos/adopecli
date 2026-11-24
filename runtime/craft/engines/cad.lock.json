@@ -1,0 +1,41 @@
+{
+  "cargo_lock_sha256": "09e0044daa145b136ff2f75ea923a47e0a937e7bc9bcdc568d34c1302a759689",
+  "engine_version": "0.20.1",
+  "fonts": {
+    "revision": "37827adc41fd165f9a9234ac40f94dbad353aa69",
+    "url": "https://github.com/storytold/craft-fonts"
+  },
+  "patch": {
+    "file": "cad.patch",
+    "sha256": "830dfb48f156a94bd8d48eb87105cee85b9684740c96f27a2aa9a00f396e9b6f"
+  },
+  "patched_files": {
+    "apps/cadcraft-cli/Cargo.toml": "37a9003fe4ff5bc167c3d91b03ec20514c916886feeb90d8a92f6ae3d7328298",
+    "apps/cadcraft-cli/src/dobe_main.rs": "fb29f6be5c3da0a23be8afd94482a00373bc64353b30059149e766940a5f1ad6",
+    "apps/cadcraft-cli/src/dobe_solid.rs": "2620e9fbe3ef9caf99fb7e0a94da9717515052dfe6d3d4afc2e25c959386161b",
+    "apps/cadcraft-cli/src/dobe_solve.rs": "be495a1e15309a86e05b87a691877388326744bf2151de3c74bed31be2a4855f",
+    "apps/cadcraft-cli/src/lib.rs": "527f86a506eb0d88438faec51c52f476eb2654647807c8d1d8274439dcac0c05",
+    "crates/doc/Cargo.toml": "f7d78d4cdb48a34a994caa19a9f620fbc5413b61f263317b85c26c631bce1a40",
+    "crates/doc/src/array.rs": "61a33ca7aeda1dfdf3d24ce5518e04f1883b30d733a043236fea2fe3e8ddbad9",
+    "crates/doc/src/foreign.rs": "9e9922a30aa2c90a22e321389aa1762f6a3051ac934794704a66374fc0c43fde",
+    "crates/doc/src/lib.rs": "a7b3d05e97e1e88c606857feed6ec8ddb17f7aad7dda64f3719086a03188fcc0",
+    "crates/doc/src/raster.rs": "eac9c554dc3ccf26c34d40064f630884c41f08f0736b03c7acdb258b605e6f90",
+    "crates/doc/src/refedit.rs": "16401b65afc7e68da2396582767399b4802e73010f6b12eaf0bdfb00bac6fa54",
+    "crates/doc/src/store.rs": "594bd1452e590e5c7bdaa8e58be9e7256b35c33ada4059bfa9978f206bb2ca8c",
+    "crates/doc/src/tables.rs": "fb14755de04071f519939dd8ebc0acebb8a235d0869437337d01c525b5bf8737",
+    "crates/engine/Cargo.toml": "cc8058489135f1a6e305b56e47eccbe0059f37077abf24c2782e090bea16a9bc",
+    "crates/engine/src/lib.rs": "a1e7d1d2fb937172d2131b9aea148e42aa3156b1b0cb2af52dbf098498a59a00",
+    "crates/fonts/Cargo.toml": "c5e54de650d3804c4715da53e7ce55f19afd7cc4d013b7696e32e898e8f5c497",
+    "crates/fonts/src/shx/table.rs": "1b1826b185dba50e3f8908160ca2028fbafb4ee16ae79738abf72b920b495d7c",
+    "crates/fonts/src/ttf.rs": "e3bf278c805b58c410c9fac138a1ce3b8959c5d1369ad00378b7f8a9003ca9df",
+    "crates/io/Cargo.toml": "02901813c7066c1f3d009f5e0f36ccf9c06baf5bbb91f61eeb5e2807c514221f"
+  },
+  "product": "dobe-cad",
+  "rust_version": "1.100.0",
+  "schema_version": 1,
+  "source": {
+    "revision": "7526dc62c14e71b3c8d46e73bbf1fa29ef506af1",
+    "url": "https://github.com/storytold/cadcraft"
+  },
+  "source_date_epoch": 1794428757
+}
