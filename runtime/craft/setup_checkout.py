@@ -12,12 +12,15 @@ Layout inside the checkout (all ignored by Git):
   .build/             fetched sources, Cargo target cache and build logs
 """
 import argparse
+from contextlib import contextmanager
 import json
 import os
 import platform
+import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -29,15 +32,99 @@ FAMILIES = ('vector', 'image', 'photo', 'video', 'motion', 'audio', 'pdf', 'layo
 
 
 class SetupError(Exception):
-    pass
+    def __init__(self, message, log=None):
+        super().__init__(message)
+        self.log = log
 
 
-def say(message):
-    print('setup: ' + message, flush=True)
+def duration(seconds):
+    seconds = round(seconds)
+    if seconds < 60:
+        return f'{seconds} s'
+    minutes, seconds = divmod(seconds, 60)
+    return f'{minutes} min {seconds} s' if minutes < 60 else f'{minutes // 60} h {minutes % 60} min'
 
 
-def run(command, **kwargs):
-    return subprocess.run(command, check=True, **kwargs)
+class Output:
+    """Terminal output: a live line with a spinner on a terminal, plain lines elsewhere."""
+    FRAMES = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+
+    def __init__(self, stream=sys.stdout):
+        self.stream = stream
+        self.live = stream.isatty() and os.environ.get('TERM') != 'dumb'
+        self.color = self.live and 'NO_COLOR' not in os.environ
+        self.lock = threading.Lock()
+
+    def paint(self, code, text):
+        return f'\033[{code}m{text}\033[0m' if self.color else text
+
+    def bold(self, text): return self.paint('1', text)
+    def dim(self, text): return self.paint('2', text)
+    def green(self, text): return self.paint('32', text)
+    def red(self, text): return self.paint('31', text)
+    def cyan(self, text): return self.paint('36', text)
+
+    def line(self, text=''):
+        with self.lock:
+            self.stream.write(text + '\n')
+            self.stream.flush()
+
+    @contextmanager
+    def step(self, label):
+        """Show a running step; the body may call status(text) and set result['done']."""
+        state = {'text': label, 'done': None}
+        started = time.monotonic()
+        stop = threading.Event()
+
+        def spin():
+            frame = 0
+            while not stop.wait(0.1):
+                elapsed = time.monotonic() - started
+                clock = f'{int(elapsed) // 60}:{int(elapsed) % 60:02d}'
+                with self.lock:
+                    self.stream.write(f'\r\033[K  {self.cyan(self.FRAMES[frame % len(self.FRAMES)])} '
+                                      f'{state["text"]}  {self.dim(clock)}')
+                    self.stream.flush()
+                frame += 1
+
+        def status(text):
+            state['text'] = text
+            if not self.live:
+                self.line(f'  ... {text}')
+
+        if self.live:
+            spinner = threading.Thread(target=spin, daemon=True)
+            spinner.start()
+        else:
+            self.line(f'  ... {label}')
+        ok = False
+        try:
+            yield status, state
+            ok = True
+        finally:
+            stop.set()
+            if self.live:
+                spinner.join()
+                with self.lock:
+                    self.stream.write('\r\033[K')
+            mark = self.green('✓') if ok else self.red('✗')
+            detail = state['done'] or ('' if ok else 'failed after ' + duration(time.monotonic() - started))
+            self.line(f'  {mark} {label}' + (f'  {self.dim(detail)}' if detail else ''))
+
+
+out = Output()
+
+
+def run(command, log=None, **kwargs):
+    """Run a command; with log, its output goes there and is shown if it fails."""
+    if log is None:
+        return subprocess.run(command, check=True, **kwargs)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open('ab') as handle:
+        result = subprocess.run(command, stdout=handle, stderr=subprocess.STDOUT, **kwargs)
+    if result.returncode:
+        raise SetupError(f'{shlex.join(str(part) for part in command[:3])} ... failed', log)
+    return result
 
 
 def check_host():
@@ -58,8 +145,8 @@ def lock(family):
     return json.loads(path.read_bytes()), path
 
 
-def rust_bin(version):
-    run(['rustup', 'toolchain', 'install', version, '--profile', 'minimal'], stdout=subprocess.DEVNULL)
+def rust_bin(version, log):
+    run(['rustup', 'toolchain', 'install', version, '--profile', 'minimal'], log=log)
     rustc = subprocess.check_output(['rustup', 'which', '--toolchain', version, 'rustc'], text=True).strip()
     return Path(rustc).parent
 
@@ -67,16 +154,20 @@ def rust_bin(version):
 def python_env(root):
     venv = root / '.venv'
     python = venv / 'bin/python'
-    if not python.exists():
-        say('creating the Python environment in .venv')
-        try:
-            run([os.path.realpath(sys.executable), '-m', 'venv', str(venv)])
-        except subprocess.CalledProcessError:
-            shutil.rmtree(venv, ignore_errors=True)
-            raise SetupError(f'could not create .venv with {sys.executable}; '
-                             'install Python from Homebrew (brew install python) and run setup again')
-    run([str(python), '-m', 'pip', 'install', '--quiet', '--disable-pip-version-check',
-         '-r', str(REQUIREMENTS)])
+    log = root / '.build' / 'python.log'
+    with out.step('Python environment') as (status, state):
+        if not python.exists():
+            status('Python environment: creating .venv')
+            try:
+                run([os.path.realpath(sys.executable), '-m', 'venv', str(venv)], log=log)
+            except SetupError:
+                shutil.rmtree(venv, ignore_errors=True)
+                raise SetupError(f'could not create .venv with {sys.executable}; '
+                                 'install Python from Homebrew (brew install python) and run setup again', log)
+        status('Python environment: installing packages')
+        run([str(python), '-m', 'pip', 'install', '--disable-pip-version-check',
+             '-r', str(REQUIREMENTS)], log=log)
+        state['done'] = '.venv'
     return python
 
 
@@ -99,36 +190,40 @@ def installed(root, family, lock_data):
     return json.loads(manifest.read_bytes()).get('source_lock') == lock_data
 
 
-def build(root, family, toolchains, jobs):
+def build(root, family, toolchains, jobs, label):
     lock_data, _ = lock(family)
     if installed(root, family, lock_data):
-        say(f'{family}: already built')
+        out.line(f'  {out.green("✓")} {label}  {out.dim("already built")}')
         return 'kept'
     build_dir = root / '.build'
     sources = build_dir / 'src'
     sources.mkdir(parents=True, exist_ok=True)
-    say(f'{family}: fetching {lock_data["source"]["url"]} at {lock_data["source"]["revision"][:12]}')
-    source = fetch(sources, lock_data['source']['url'], lock_data['source']['revision'])
-    fonts = fetch(sources, lock_data['fonts']['url'], lock_data['fonts']['revision'])
     version = lock_data['rust_version']
     if version not in toolchains:
-        say(f'installing Rust {version} with rustup')
-        toolchains[version] = rust_bin(version)
-    output = build_dir / 'out' / family
-    if output.exists():
-        shutil.rmtree(output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    log = build_dir / f'{family}.log'
-    say(f'{family}: building (log: .build/{family}.log)')
-    started = time.monotonic()
-    with log.open('wb') as handle:
-        result = subprocess.run([sys.executable, '-B', str(ENGINES / 'build_engine.py'), '--engine', family,
-                                 '--source', str(source), '--fonts', str(fonts),
-                                 '--rust-bin', str(toolchains[version]), '--output', str(output),
-                                 '--target-cache', str(build_dir / 'target'), '--fetch', '--public-paths',
-                                 '--jobs', str(jobs)], stdout=handle, stderr=subprocess.STDOUT)
-    if result.returncode:
-        raise SetupError(f'{family} failed to build; see .build/{family}.log')
+        with out.step(f'Rust {version}') as (status, state):
+            toolchains[version] = rust_bin(version, build_dir / 'rust.log')
+            state['done'] = 'ready'
+    with out.step(label) as (status, state):
+        status(f'{label}  fetching source')
+        source = fetch(sources, lock_data['source']['url'], lock_data['source']['revision'])
+        fonts = fetch(sources, lock_data['fonts']['url'], lock_data['fonts']['revision'])
+        output = build_dir / 'out' / family
+        if output.exists():
+            shutil.rmtree(output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        log = build_dir / f'{family}.log'
+        log.unlink(missing_ok=True)
+        status(f'{label}  compiling')
+        started = time.monotonic()
+        try:
+            run([sys.executable, '-B', str(ENGINES / 'build_engine.py'), '--engine', family,
+                 '--source', str(source), '--fonts', str(fonts),
+                 '--rust-bin', str(toolchains[version]), '--output', str(output),
+                 '--target-cache', str(build_dir / 'target'), '--fetch', '--public-paths',
+                 '--jobs', str(jobs)], log=log)
+        except SetupError as error:
+            raise SetupError(f'the {family} engine failed to build', error.log) from None
+        state['done'] = 'built in ' + duration(time.monotonic() - started)
     package = output / f'dobe-{family}'
     target = root / '.engines' / family
     staging = target.with_name(f'.{family}.new')
@@ -139,8 +234,34 @@ def build(root, family, toolchains, jobs):
         shutil.rmtree(target)
     staging.rename(target)
     shutil.rmtree(output)
-    say(f'{family}: built in {round(time.monotonic() - started)} s')
     return 'built'
+
+
+def show_failure(error, root):
+    out.line()
+    out.line(out.red(out.bold('Setup stopped: ')) + str(error))
+    log = getattr(error, 'log', None)
+    if log and log.is_file():
+        lines = log.read_text(errors='replace').splitlines()[-15:]
+        out.line(out.dim(f'Last lines of {log.relative_to(root) if log.is_relative_to(root) else log}:'))
+        for text in lines:
+            out.line(out.dim('  ' + text))
+    out.line()
+    out.line('Fix the problem and run scripts/setup again. Engines that finished are kept.')
+
+
+def show_next_steps(root):
+    dope = shlex.quote(str(root / 'bin' / 'dope'))
+    out.line()
+    out.line(out.bold('Next steps'))
+    out.line(f'  1. Check the install      {out.cyan("bin/dope doctor")}')
+    out.line(f'  2. Connect your agent')
+    out.line(f'     Claude Code            {out.cyan(f"claude mcp add --scope user dope -- {dope} mcp")}')
+    out.line(f'     Codex                  {out.cyan(f"codex mcp add dope -- {dope} mcp")}')
+    out.line(f'  3. Restart the agent and ask it to run {out.cyan("dope_capabilities")}.')
+    out.line()
+    out.line(f'From the terminal: {out.cyan("bin/dope help")} lists the commands, '
+             f'{out.cyan("bin/dope capabilities")} what it can make.')
 
 
 def main(argv=None):
@@ -159,20 +280,55 @@ def main(argv=None):
         unknown = sorted(set(families) - set(FAMILIES))
         if unknown:
             parser.error('unknown engine families: ' + ', '.join(unknown))
+    started = time.monotonic()
+    pending = [family for family in families if not installed(root, family, lock(family)[0])]
+    out.line()
+    out.line(out.bold('A dope CLI setup'))
+    if not pending:
+        out.line(out.dim(f'All {len(families)} engines are already built. Checking the Python environment.'))
+    else:
+        if len(pending) == len(FAMILIES):
+            estimate = ' The first full build takes about 40 minutes.'
+        else:
+            estimate = ''
+        out.line(out.dim(f'Builds {len(pending)} of {len(families)} engines on this Mac from source.{estimate}'))
+        out.line(out.dim('You can leave it running. Build logs go to .build/; '
+                         'if you stop it, run scripts/setup again to continue.'))
+    out.line()
+    width = max(len(family) for family in families)
     try:
-        check_host()
+        with out.step('Mac and tools') as (status, state):
+            check_host()
+            state['done'] = f'macOS arm64, Python {platform.python_version()}'
         python_env(root)
-        toolchains, results = {}, {}
-        for family in families:
-            results[family] = build(root, family, toolchains, max(1, min(16, args.jobs)))
+        toolchains = {}
+        if not pending:
+            out.line(f'  {out.green("✓")} Engines  {out.dim(f"all {len(families)} already built")}')
+            families = ()
+        for number, family in enumerate(families, 1):
+            label = f'{out.dim(f"[{number:>{len(str(len(families)))}}/{len(families)}]")} {family:<{width}}'
+            build(root, family, toolchains, max(1, min(16, args.jobs)), label)
     except (SetupError, subprocess.CalledProcessError) as error:
-        print('setup: ' + str(error), file=sys.stderr)
+        show_failure(error, root)
         return 1
+    except KeyboardInterrupt:
+        out.line()
+        out.line('Stopped. Run scripts/setup again to continue; engines that finished are kept.')
+        return 130
     if args.clean and (root / '.build').exists():
         shutil.rmtree(root / '.build')
+        out.line(f'  {out.green("✓")} Removed the build cache (.build)')
     ready = [family for family in FAMILIES if (root / '.engines' / family / 'engine.json').is_file()]
-    say(f'ready: {len(ready)} of {len(FAMILIES)} engines ({", ".join(ready)})')
-    say('next: bin/dope doctor, then connect your agent (see README)')
+    out.line()
+    if len(ready) == len(FAMILIES):
+        out.line(out.green(out.bold(f'Done in {duration(time.monotonic() - started)}.')) +
+                 f' All {len(FAMILIES)} engines are ready.')
+    else:
+        missing = [family for family in FAMILIES if family not in ready]
+        out.line(out.green(out.bold(f'Done in {duration(time.monotonic() - started)}.')) +
+                 f' {len(ready)} of {len(FAMILIES)} engines are ready.')
+        out.line(out.dim('Not built yet: ' + ', '.join(missing) + '. Run scripts/setup to build them.'))
+    show_next_steps(root)
     return 0
 
 

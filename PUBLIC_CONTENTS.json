@@ -2101,9 +2101,9 @@
       "sha256": "07e4e1b34044b143fe2f2a7f7098df45a06c93bc6bacbe21799e4155490aca16"
     },
     "runtime/craft/setup_checkout.py": {
-      "bytes": 7717,
+      "bytes": 14350,
       "mode": "0o644",
-      "sha256": "b5af687ab5119f6f56912aed5ba046032e63d48519fc615bf929f18e099bb8f6"
+      "sha256": "5fbe9ff3fed9d6dae3675173ada42b38b4e660473f89bd586115cef3dfd5c74e"
     },
     "runtime/craft/tests/cad_engine_check.py": {
       "bytes": 19323,
@@ -4725,7 +4725,7 @@
       "source": "runtime/craft/runtime/tools/write_acceptance.py"
     },
     "runtime/craft/setup_checkout.py": {
-      "git_blob": "ba978fade45234bc31e5452dca90d60f87b317c5",
+      "git_blob": "c1dc2f8d14693c71c3728f8338245dd538bdfc6a",
       "overlay": false,
       "source": "runtime/craft/setup_checkout.py"
     },
@@ -5252,5 +5252,5 @@
     "source_files": 250,
     "source_sha256": "5e3896d86e98474126fa10780c7479991c7ee624a644d993927119a1f9725157"
   },
-  "source_revision": "65f78f9d0f6333cc33fead39ffd58b0dcca34627"
+  "source_revision": "2a2e96fc7cab2ee5c4be54c4b0ff02dde8f3ba44"
 }
