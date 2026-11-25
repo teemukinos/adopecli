@@ -1720,11 +1720,6 @@
       "mode": "0o644",
       "sha256": "7c9b4cc0ed880d832123dbb42af861facd033e75f283fc24f72eb9a675074e67"
     },
-    "runtime/craft/runtime/tools/MEASURE_IMAGE_API.md": {
-      "bytes": 4471,
-      "mode": "0o644",
-      "sha256": "7748a3b43bbba348fdc43b404e365fae06a449b3e01b215a8551f845ddc65c8a"
-    },
     "runtime/craft/runtime/tools/PRODUCTION_AGENT_GUIDE.md": {
       "bytes": 3941,
       "mode": "0o644",
@@ -1925,11 +1920,6 @@
       "mode": "0o644",
       "sha256": "9cd3d2dc2925af4a1ccbdb9f888e29bc433c201da666dad1a9f21122984c0f3c"
     },
-    "runtime/craft/runtime/tools/measure_image_api.py": {
-      "bytes": 9748,
-      "mode": "0o644",
-      "sha256": "2336e06a5ad82026506b869b84e613ea995c83d108e5d1e706c7c1c8779a888c"
-    },
     "runtime/craft/runtime/tools/movie_bundle_replay_acceptance.py": {
       "bytes": 13913,
       "mode": "0o644",
@@ -2025,11 +2015,6 @@
       "mode": "0o644",
       "sha256": "c7e9ff980be9fef2926922dbd9a1797e71debaa8ffe1ab91579ed0ce80f52764"
     },
-    "runtime/craft/runtime/tools/test_agent_package.py": {
-      "bytes": 7697,
-      "mode": "0o644",
-      "sha256": "b0645d6a892a0e267399bdcfbd7dc4bfd4dd99a5e147cb66ed54af32392a8bff"
-    },
     "runtime/craft/runtime/tools/test_agent_preparation_usage.py": {
       "bytes": 2459,
       "mode": "0o644",
@@ -2064,11 +2049,6 @@
       "bytes": 3417,
       "mode": "0o644",
       "sha256": "5ebb69924fadc35eaed1689ce733623b45e942e8e90bbbea56e590ad5e3670ff"
-    },
-    "runtime/craft/runtime/tools/test_measure_image_api.py": {
-      "bytes": 5701,
-      "mode": "0o644",
-      "sha256": "7aa96067f5ff2f35d48d2d11013b6bf12f09e1418a376707b6dc2ae5279e0503"
     },
     "runtime/craft/runtime/tools/test_pdf_rebind.py": {
       "bytes": 6284,
@@ -2124,11 +2104,6 @@
       "bytes": 7717,
       "mode": "0o644",
       "sha256": "b5af687ab5119f6f56912aed5ba046032e63d48519fc615bf929f18e099bb8f6"
-    },
-    "runtime/craft/tests/auth_check.sh": {
-      "bytes": 1121,
-      "mode": "0o755",
-      "sha256": "b4765fbdcfee0ec4fdd653c32320d1c575ccc7038bd0c1d8a48eff7449b11ed4"
     },
     "runtime/craft/tests/cad_engine_check.py": {
       "bytes": 19323,
@@ -2199,11 +2174,6 @@
       "bytes": 9783,
       "mode": "0o644",
       "sha256": "cfaece1d902e8a7efce6e3e157d2b9feb6c14260543282673ee72db94176a0dc"
-    },
-    "runtime/craft/tests/host_check.py": {
-      "bytes": 9599,
-      "mode": "0o644",
-      "sha256": "9ac39fd3ed190549283c0f0984a9f749ca18b6456dee62046abb6f1dc20b6335"
     },
     "runtime/craft/tests/inspect_engine_check.py": {
       "bytes": 12021,
@@ -2374,11 +2344,6 @@
       "bytes": 10331,
       "mode": "0o644",
       "sha256": "f79330f4bc3bb11ec422e9b9e3074681d925c33b1b35559b25d30cc072f4ee15"
-    },
-    "runtime/craft/tests/mcp_http_check.py": {
-      "bytes": 4628,
-      "mode": "0o644",
-      "sha256": "91bf8e20fc0bb25c82524cd51c762970b18f98f09965907bab62be56720d4c4e"
     },
     "runtime/craft/tests/mcp_stdio_check.py": {
       "bytes": 3593,
@@ -4379,11 +4344,6 @@
       "overlay": false,
       "source": "runtime/craft/runtime/tools/COMPARISON_AGENT_GUIDE.md"
     },
-    "runtime/craft/runtime/tools/MEASURE_IMAGE_API.md": {
-      "git_blob": "0b97e20c93fffc4ad46fa403a84f0950e2e112d2",
-      "overlay": false,
-      "source": "runtime/craft/runtime/tools/MEASURE_IMAGE_API.md"
-    },
     "runtime/craft/runtime/tools/PRODUCTION_AGENT_GUIDE.md": {
       "git_blob": "8ed6523699e9e983ae2571acabd1d3bba862746b",
       "overlay": false,
@@ -4584,11 +4544,6 @@
       "overlay": false,
       "source": "runtime/craft/runtime/tools/material_acceptance.py"
     },
-    "runtime/craft/runtime/tools/measure_image_api.py": {
-      "git_blob": "5dfde5e6beec54f42ac29f3a84a86bc2c5c70506",
-      "overlay": false,
-      "source": "runtime/craft/runtime/tools/measure_image_api.py"
-    },
     "runtime/craft/runtime/tools/movie_bundle_replay_acceptance.py": {
       "git_blob": "c5b653c85ca39cbe77ded16b7722b7a1307b6d5a",
       "overlay": false,
@@ -4684,11 +4639,6 @@
       "overlay": false,
       "source": "runtime/craft/runtime/tools/test_agent_erasure.py"
     },
-    "runtime/craft/runtime/tools/test_agent_package.py": {
-      "git_blob": "b5f2544995b52b9c2a3069d574557ce80d0f2b7b",
-      "overlay": false,
-      "source": "runtime/craft/runtime/tools/test_agent_package.py"
-    },
     "runtime/craft/runtime/tools/test_agent_preparation_usage.py": {
       "git_blob": "330851b586ad3ff6fdb43be36afae6ac505a6340",
       "overlay": false,
@@ -4723,11 +4673,6 @@
       "git_blob": "fb411bf00e42e041d3ac63625af33fad87c6ad2c",
       "overlay": false,
       "source": "runtime/craft/runtime/tools/test_layout_replacement.py"
-    },
-    "runtime/craft/runtime/tools/test_measure_image_api.py": {
-      "git_blob": "c98cf5591849cbda011cd13ce1ceaec8352d2a46",
-      "overlay": false,
-      "source": "runtime/craft/runtime/tools/test_measure_image_api.py"
     },
     "runtime/craft/runtime/tools/test_pdf_rebind.py": {
       "git_blob": "82b81c012efd11d9c947c0e1d0531b4e24bf8ad1",
@@ -4783,11 +4728,6 @@
       "git_blob": "ba978fade45234bc31e5452dca90d60f87b317c5",
       "overlay": false,
       "source": "runtime/craft/setup_checkout.py"
-    },
-    "runtime/craft/tests/auth_check.sh": {
-      "git_blob": "23cd0347c36b3bf64b609a677d459023906ed247",
-      "overlay": false,
-      "source": "runtime/craft/tests/auth_check.sh"
     },
     "runtime/craft/tests/cad_engine_check.py": {
       "git_blob": "e1bc1b4cf112ce19a62e1ee5e0b1a8aee48d83fb",
@@ -4858,11 +4798,6 @@
       "git_blob": "257ffa81517744fde45bc832aa253f6253647ceb",
       "overlay": false,
       "source": "runtime/craft/tests/dependency_notice_excerpt_check.py"
-    },
-    "runtime/craft/tests/host_check.py": {
-      "git_blob": "0822946eddc1726129e15f033995512170a5cd78",
-      "overlay": false,
-      "source": "runtime/craft/tests/host_check.py"
     },
     "runtime/craft/tests/inspect_engine_check.py": {
       "git_blob": "4cbe182b8ec44a51e2464a462c287510e80955fb",
@@ -5033,11 +4968,6 @@
       "git_blob": "904a47eb7242efca657ce59a17f33864a4183926",
       "overlay": false,
       "source": "runtime/craft/tests/material_values_check.py"
-    },
-    "runtime/craft/tests/mcp_http_check.py": {
-      "git_blob": "b67889dfbc118c748b6a0de49ebfca7f3116261f",
-      "overlay": false,
-      "source": "runtime/craft/tests/mcp_http_check.py"
     },
     "runtime/craft/tests/mcp_stdio_check.py": {
       "git_blob": "5ea24eefe045d9c6d4e3746a7f231be06a92e4ac",
@@ -5322,5 +5252,5 @@
     "source_files": 250,
     "source_sha256": "5e3896d86e98474126fa10780c7479991c7ee624a644d993927119a1f9725157"
   },
-  "source_revision": "8e0c0b60e522cb271ba826d380b55e6fc66aeb2b"
+  "source_revision": "65f78f9d0f6333cc33fead39ffd58b0dcca34627"
 }
