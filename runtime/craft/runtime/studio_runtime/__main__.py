@@ -154,7 +154,7 @@ def main(argv=None, product='studio', checkout=False):
     if args.command == "help":
         if args.topic == "advanced":
             sys.stdout.write(advanced_help(prog))
-        elif args.topic in sub.choices and args.topic != "help":
+        elif args.topic in sub.choices:
             sub.choices[args.topic].print_help()
         elif args.topic is None:
             parser.print_help()

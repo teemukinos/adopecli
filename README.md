@@ -67,6 +67,8 @@ Restart the agent. Ask it to run `dope_capabilities`. The tools start with `dope
 
 ## Use the CLI
 
+Run these from the clone, one at a time:
+
 ```sh
 bin/dope create-project "First project"
 bin/dope describe vector.create
@@ -74,6 +76,17 @@ bin/dope submit PROJECT_ID vector.create --parameters examples/vector.json --key
 bin/dope job JOB_ID
 bin/dope checkout REVISION_ID ./out
 ```
+
+Each command prints JSON. Replace the placeholders with values from earlier output:
+
+- `PROJECT_ID` is the `id` that `create-project` prints.
+- `JOB_ID` is the `id` that `submit` prints.
+- `REVISION_ID` is the `result_revision` that `job` prints once the job's `state`
+  is `succeeded`. Until then, run `bin/dope job JOB_ID` again every few seconds.
+
+`checkout` writes the revision's files to a new folder, here `./out`; the folder
+must not exist yet. `bin/dope describe` shows each operation's parameters and an
+example, and `examples/` has a parameter file for every engine.
 
 `bin/dope help` lists the commands and `bin/dope rules` lists the editing rules.
 Submitting a job starts a background worker if none is running, so jobs finish even
@@ -91,6 +104,29 @@ scripts/setup
 ```
 
 Then restart your agent.
+
+## Troubleshooting
+
+**A command exits with code 78.** Either setup has not run yet (the message says
+to run `scripts/setup`), or the command is running inside another sandbox, such as
+an agent's shell sandbox. `bin/dope` applies its own network-deny sandbox and macOS
+cannot nest them. Run the command with the agent's sandbox off, or connect the
+agent through `bin/dope mcp`, which the agent starts outside its shell sandbox.
+
+**An engine fails to build.** Setup prints the last lines of the compiler output
+and the log's path under `.build/`. Fix the cause it names, then retry that engine
+alone, for example `scripts/setup --only audio`. Engines that already built are kept.
+
+**Something else looks wrong.** `bin/dope doctor` checks that every engine is
+built, that the state folder is writable and that jobs cannot reach the network,
+and says what to fix.
+
+**Where your work is.** Projects and their revisions live in the state folder:
+`~/.local/share/a-dope-cli/state`, or `DOPE_STATE_DIR` if you set it.
+
+**Disconnect or remove.** Run `claude mcp remove --scope user dope` and
+`codex mcp remove dope`, and delete the entry from the Claude desktop config if you
+added one. Then delete the clone. The state folder stays until you delete it.
 
 ## What is in this repository
 

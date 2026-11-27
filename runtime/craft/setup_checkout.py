@@ -32,9 +32,35 @@ FAMILIES = ('vector', 'image', 'photo', 'video', 'motion', 'audio', 'pdf', 'layo
 
 
 class SetupError(Exception):
-    def __init__(self, message, log=None):
+    """log: the file whose last lines explain the failure; more: another log worth naming."""
+    def __init__(self, message, log=None, more=None):
         super().__init__(message)
         self.log = log
+        self.more = more
+
+
+def failure_logs(setup_log, compiler_log):
+    """Pick the log that explains a failed engine build.
+
+    build_engine.py writes cargo's messages to its own build.log; setup's log then
+    holds only the Python traceback around it. When cargo ran and failed, its log is
+    the one to show; otherwise setup's log has the reason (a checksum, a missing tool).
+    """
+    traceback = setup_log.read_text(errors='replace') if setup_log and setup_log.is_file() else ''
+    compiled = compiler_log.is_file() and compiler_log.stat().st_size > 0
+    if compiled and 'CalledProcessError' in traceback and 'cargo' in traceback:
+        return compiler_log, setup_log
+    return setup_log, compiler_log if compiled else None
+
+
+def last_lines(log, count=20):
+    """The last lines of a log, plus its first error line when that is further up."""
+    lines = log.read_text(errors='replace').splitlines()
+    tail = lines[-count:]
+    first_error = next((line for line in lines if line.startswith(('error:', 'error['))), None)
+    if first_error and first_error not in tail:
+        tail = [first_error, '...'] + tail
+    return tail
 
 
 def duration(seconds):
@@ -222,7 +248,8 @@ def build(root, family, toolchains, jobs, label):
                  '--target-cache', str(build_dir / 'target'), '--fetch', '--public-paths',
                  '--jobs', str(jobs)], log=log)
         except SetupError as error:
-            raise SetupError(f'the {family} engine failed to build', error.log) from None
+            raise SetupError(f'the {family} engine failed to build',
+                             *failure_logs(error.log, output / 'build.log')) from None
         state['done'] = 'built in ' + duration(time.monotonic() - started)
     package = output / f'dobe-{family}'
     target = root / '.engines' / family
@@ -240,12 +267,16 @@ def build(root, family, toolchains, jobs, label):
 def show_failure(error, root):
     out.line()
     out.line(out.red(out.bold('Setup stopped: ')) + str(error))
+    def name(path):
+        return path.relative_to(root) if path.is_relative_to(root) else path
     log = getattr(error, 'log', None)
     if log and log.is_file():
-        lines = log.read_text(errors='replace').splitlines()[-15:]
-        out.line(out.dim(f'Last lines of {log.relative_to(root) if log.is_relative_to(root) else log}:'))
-        for text in lines:
-            out.line(out.dim('  ' + text))
+        out.line(f'Last lines of {name(log)}:')
+        for text in last_lines(log):
+            out.line('  ' + text)
+    more = getattr(error, 'more', None)
+    if more and more.is_file():
+        out.line(out.dim(f'More detail: {name(more)}'))
     out.line()
     out.line('Fix the problem and run scripts/setup again. Engines that finished are kept.')
 

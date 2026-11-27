@@ -26,9 +26,9 @@
       "sha256": "5aa932b95824ca269b3f4df6dbbe2b68879d732869d34c56d52839718c8ddd4e"
     },
     "README.md": {
-      "bytes": 3631,
+      "bytes": 5497,
       "mode": "0o644",
-      "sha256": "d7dd23353427e5a135a676a16e17f0ff9b2a478e45db8827b620a26e594b58bc"
+      "sha256": "d7e4c30360432f37fb64fbef812c7548f36e453fa0095365170fe6864566f80c"
     },
     "SECURITY.md": {
       "bytes": 754,
@@ -68,7 +68,7 @@
     "runtime/craft/CAPABILITIES.json": {
       "bytes": 126358,
       "mode": "0o644",
-      "sha256": "746551ff0218e8f7c713221a6de87bc82e21491a0df4a043e4a1a4e9d2e0115b"
+      "sha256": "6da2f8bdb0b2d91e50b68a3fa18c62f99204a11ead3ef8951b6df65ed800760a"
     },
     "runtime/craft/CAPABILITIES.md": {
       "bytes": 6406,
@@ -631,9 +631,9 @@
       "sha256": "807f29d86c7d928f17e5d4ecab6d1b99f3d2f716fd639c6bbbd0da6d533e634f"
     },
     "runtime/craft/runtime/studio_runtime/__main__.py": {
-      "bytes": 14649,
+      "bytes": 14624,
       "mode": "0o644",
-      "sha256": "36d33fb51ff77b36a05352da0a87d255bf423fd5b11f51bb8a1389e8e6283dbf"
+      "sha256": "e61d6a505ba049a764b1f54642a45641769f1006d1aa9698f3a4e0fd274106f5"
     },
     "runtime/craft/runtime/studio_runtime/agent.py": {
       "bytes": 25362,
@@ -1236,9 +1236,9 @@
       "sha256": "f3236c4a2fe153a68c4471e488dddbf87d68f0b4721aa2d7452d0a60a19d7c5b"
     },
     "runtime/craft/runtime/studio_runtime/mcp.py": {
-      "bytes": 14148,
+      "bytes": 15642,
       "mode": "0o644",
-      "sha256": "28a21a7d0290851484d097d721e7db1a238ce058457a555cae43d827f1aa56b9"
+      "sha256": "482c51381f0fec4595fce0d3f26089ea7a7edc4b5e81ee03850a7d9c9963105c"
     },
     "runtime/craft/runtime/studio_runtime/media_binding.py": {
       "bytes": 1044,
@@ -2026,9 +2026,9 @@
       "sha256": "c354990adb56f036d4fe7df7319c85f2898d45fd5bab9526b2beb52f55daf9a3"
     },
     "runtime/craft/runtime/tools/test_cli_help.py": {
-      "bytes": 4120,
+      "bytes": 4512,
       "mode": "0o644",
-      "sha256": "913cae3c41ef5a0418196f80fff36862c9a4affcb273e1ee2473903c2fca2a83"
+      "sha256": "da7a62e714aa6d19dadafbecd8bdaa84a7e14a44b7508332a53cd247d77eaafd"
     },
     "runtime/craft/runtime/tools/test_construction.py": {
       "bytes": 3286,
@@ -2049,6 +2049,11 @@
       "bytes": 3417,
       "mode": "0o644",
       "sha256": "5ebb69924fadc35eaed1689ce733623b45e942e8e90bbbea56e590ad5e3670ff"
+    },
+    "runtime/craft/runtime/tools/test_mcp_instructions.py": {
+      "bytes": 1747,
+      "mode": "0o644",
+      "sha256": "cce7b41e5a96a0fb91203ab30e31d9556f576dd28f1f26d5349f5f1321ddd355"
     },
     "runtime/craft/runtime/tools/test_pdf_rebind.py": {
       "bytes": 6284,
@@ -2101,9 +2106,14 @@
       "sha256": "07e4e1b34044b143fe2f2a7f7098df45a06c93bc6bacbe21799e4155490aca16"
     },
     "runtime/craft/setup_checkout.py": {
-      "bytes": 14350,
+      "bytes": 15768,
       "mode": "0o644",
-      "sha256": "5fbe9ff3fed9d6dae3675173ada42b38b4e660473f89bd586115cef3dfd5c74e"
+      "sha256": "8092d90c15b6db08ee49d23223b984380db06fd32745e5c8b604a2dbb202a39a"
+    },
+    "runtime/craft/test_setup_checkout.py": {
+      "bytes": 3012,
+      "mode": "0o644",
+      "sha256": "dbbb1b95e86203b3d00b4ba6451f7d83c6e9d1ac7a359e07e5fd63a13a9c9ce3"
     },
     "runtime/craft/tests/cad_engine_check.py": {
       "bytes": 19323,
@@ -2650,7 +2660,7 @@
       "source": "runtime/LICENSE"
     },
     "README.md": {
-      "git_blob": "0c7d735057d71bf804f490cabd4e052d5263dfcd",
+      "git_blob": "37fbeb5907e922700920573c2de8e41de2eea2e6",
       "overlay": false,
       "source": "runtime/release/public-root/README.md"
     },
@@ -2690,7 +2700,7 @@
       "source": "runtime/LICENSE"
     },
     "runtime/craft/CAPABILITIES.json": {
-      "git_blob": "fa3058f6640bcb96405fa2fd48a9b1357d6b6c3a",
+      "git_blob": "331b301f0d506e4bab9535b133efb51d77f9575a",
       "overlay": false,
       "source": "runtime/craft/CAPABILITIES.json"
     },
@@ -3255,7 +3265,7 @@
       "source": "runtime/craft/runtime/studio_runtime/__init__.py"
     },
     "runtime/craft/runtime/studio_runtime/__main__.py": {
-      "git_blob": "c32fe1533d1df364a8c12faa45471f279607e0e2",
+      "git_blob": "2e26d6edc8ca21bf11031dc14dedcc5fbfafb5e7",
       "overlay": false,
       "source": "runtime/craft/runtime/studio_runtime/__main__.py"
     },
@@ -3860,7 +3870,7 @@
       "source": "runtime/craft/runtime/studio_runtime/material_values.py"
     },
     "runtime/craft/runtime/studio_runtime/mcp.py": {
-      "git_blob": "1bc62edc97aacf3da6c6d127fee424cf4766424b",
+      "git_blob": "b161831e403898cff788b1e9b7a264475fe7c4d0",
       "overlay": false,
       "source": "runtime/craft/runtime/studio_runtime/mcp.py"
     },
@@ -4650,7 +4660,7 @@
       "source": "runtime/craft/runtime/tools/test_agent_report.py"
     },
     "runtime/craft/runtime/tools/test_cli_help.py": {
-      "git_blob": "19f601a1f8a829ab448cc6a4f010f56946ca6159",
+      "git_blob": "a3ea4a6395073a48657fb2b9cd7470c62e6056c3",
       "overlay": false,
       "source": "runtime/craft/runtime/tools/test_cli_help.py"
     },
@@ -4673,6 +4683,11 @@
       "git_blob": "fb411bf00e42e041d3ac63625af33fad87c6ad2c",
       "overlay": false,
       "source": "runtime/craft/runtime/tools/test_layout_replacement.py"
+    },
+    "runtime/craft/runtime/tools/test_mcp_instructions.py": {
+      "git_blob": "9acde13bca73c4c951964f6dfcd8b955ad8204ce",
+      "overlay": false,
+      "source": "runtime/craft/runtime/tools/test_mcp_instructions.py"
     },
     "runtime/craft/runtime/tools/test_pdf_rebind.py": {
       "git_blob": "82b81c012efd11d9c947c0e1d0531b4e24bf8ad1",
@@ -4725,9 +4740,14 @@
       "source": "runtime/craft/runtime/tools/write_acceptance.py"
     },
     "runtime/craft/setup_checkout.py": {
-      "git_blob": "c1dc2f8d14693c71c3728f8338245dd538bdfc6a",
+      "git_blob": "f02fc757940b948d8e808f5feab9a96ed44e3a46",
       "overlay": false,
       "source": "runtime/craft/setup_checkout.py"
+    },
+    "runtime/craft/test_setup_checkout.py": {
+      "git_blob": "1c33a65617dc8039713f1d8167b23a0a21a4a401",
+      "overlay": false,
+      "source": "runtime/craft/test_setup_checkout.py"
     },
     "runtime/craft/tests/cad_engine_check.py": {
       "git_blob": "e1bc1b4cf112ce19a62e1ee5e0b1a8aee48d83fb",
@@ -5250,7 +5270,7 @@
     "documentation_sha256": "c0f603932359d092f1c0ad41b4ac34b93fc2d695a6b1ac49f42344520b62a06e",
     "operation_qualification_established": false,
     "source_files": 250,
-    "source_sha256": "5e3896d86e98474126fa10780c7479991c7ee624a644d993927119a1f9725157"
+    "source_sha256": "b714847fdbaddf6e725a44f8b7cb81735658ee88c2ad42673a92bae3ebf84e54"
   },
-  "source_revision": "2a2e96fc7cab2ee5c4be54c4b0ff02dde8f3ba44"
+  "source_revision": "e1cc64b4590f73d759e9e71f47a69ed731bf328e"
 }

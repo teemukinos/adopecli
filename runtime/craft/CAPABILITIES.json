@@ -2511,7 +2511,7 @@
     "craft/runtime/VIDEO.md": "7901815e7255e97888e6b8c5179cb92faade6539f42c37e5bab3b1512610bfa4",
     "craft/runtime/WRITE.md": "d3a100eafe23f148303015a77e87bb81694cb1732b0d96ebafee01d95cbffe5a",
     "craft/runtime/studio_runtime/__init__.py": "807f29d86c7d928f17e5d4ecab6d1b99f3d2f716fd639c6bbbd0da6d533e634f",
-    "craft/runtime/studio_runtime/__main__.py": "36d33fb51ff77b36a05352da0a87d255bf423fd5b11f51bb8a1389e8e6283dbf",
+    "craft/runtime/studio_runtime/__main__.py": "e61d6a505ba049a764b1f54642a45641769f1006d1aa9698f3a4e0fd274106f5",
     "craft/runtime/studio_runtime/agent.py": "7c36143241baa1d182e91c51d981839dec2377efe609166f87e21ec6011716b0",
     "craft/runtime/studio_runtime/agent_catalog.py": "33cbcadcb55ec746d29f0197da80df700c2390a8f16d708d5cf9dc53646b640c",
     "craft/runtime/studio_runtime/agent_context.py": "e6cfec1fd44e3c560c89b38b170761b05cfd17a853315439b6de1d87bc69b1f1",
@@ -2620,7 +2620,7 @@
     "craft/runtime/studio_runtime/material_revision.py": "b29c7551fa3b9c54695ef10e49dc98080bb8cd7230fb26c3c38a8b3e6cf1f095",
     "craft/runtime/studio_runtime/material_source.py": "85e123b00ce18185cffef331e1f979060aa507cf1eb7b8b212193649c99af612",
     "craft/runtime/studio_runtime/material_values.py": "f3236c4a2fe153a68c4471e488dddbf87d68f0b4721aa2d7452d0a60a19d7c5b",
-    "craft/runtime/studio_runtime/mcp.py": "28a21a7d0290851484d097d721e7db1a238ce058457a555cae43d827f1aa56b9",
+    "craft/runtime/studio_runtime/mcp.py": "482c51381f0fec4595fce0d3f26089ea7a7edc4b5e81ee03850a7d9c9963105c",
     "craft/runtime/studio_runtime/media_binding.py": "f749f7047c3a6b6378cfabf33fe8dbdbe10c5e1224b381647b93af8e1b5abc49",
     "craft/runtime/studio_runtime/media_decoders.py": "1cab2f24d8acdb23ef90f145871fdab6c57646eb60a5052cb1bcf4387b2eea70",
     "craft/runtime/studio_runtime/motion.py": "b270975cd1ef9fe10f763acfcf24d8cc5b45ee1d057d146bc14af877d352f9e2",
@@ -2705,7 +2705,7 @@
     "craft/runtime/studio_runtime/write_structure.py": "beb185cb92d93b64e0cd4c98726bc9cdce1fe17df93701ed78db1f05fd0ead39",
     "craft/runtime/studio_runtime/write_structure_styles.py": "cdc3ff8eb9c959b26dec54e8dcc4a5ee6d27759506ecf3648fd8107eb6730e85"
   },
-  "source_sha256": "5e3896d86e98474126fa10780c7479991c7ee624a644d993927119a1f9725157",
+  "source_sha256": "b714847fdbaddf6e725a44f8b7cb81735658ee88c2ad42673a92bae3ebf84e54",
   "qualification": {
     "engines_executed": false,
     "installed_package_verified": false,

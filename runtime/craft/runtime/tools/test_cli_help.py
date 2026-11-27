@@ -43,6 +43,15 @@ class HelpTest(unittest.TestCase):
         self.assertTrue(out.startswith('usage: dope submit '))
         self.assertNotEqual(run(['help', 'no-such-topic'])[0], 0)
 
+    def test_every_listed_command_has_help(self):
+        code, out, _ = run(['help'])
+        listed = re.search(r'\{([a-z,\-]+)\}', out).group(1).split(',')
+        self.assertIn('help', listed)
+        for name in listed:
+            code, text, _ = run(['help', name])
+            self.assertEqual(code, 0, name)
+            self.assertTrue(text.startswith(f'usage: dope {name}'), name)
+
     def test_help_advanced_lists_every_advanced_command(self):
         code, out, _ = run(['help', 'advanced'])
         self.assertEqual(code, 0)

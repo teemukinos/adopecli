@@ -1,4 +1,4 @@
-"""Local stdio MCP entry point. Job execution belongs to the separate supervisor."""
+"""Local stdio MCP entry point. Jobs run in a worker: a source checkout starts it on submit."""
 import json
 import sys
 from . import capabilities
@@ -134,13 +134,37 @@ def invoke(store, name, args, product='studio'):
 PUBLIC = {'studio': ('studio', 'Studio'), 'dobe': ('dope', 'dope')}
 
 
+def instructions(prefix, worker, starts_worker):
+    """What an agent reads first. starts_worker: submitting a job starts the worker itself."""
+    if not starts_worker:
+        return (f"Jobs are durable. Run the local {worker} worker separately; poll {prefix}_get_job. "
+                "Disconnection does not cancel a job.")
+    return (f"Make files in four steps. 1. {prefix}_capabilities lists the operations and the engines that are built. "
+            f"2. {prefix}_describe_operation gives an operation's parameter schema and a working example. "
+            f"3. {prefix}_create_project, then {prefix}_submit_job with the operation, its parameters and an "
+            "idempotency key. Submitting starts the job worker if none is running, and jobs keep running if you disconnect. "
+            f"4. Poll {prefix}_get_job until its state is succeeded; result_revision names the new revision. "
+            f"Call {prefix}_export_project with that revision and a new destination folder to get the files "
+            f"({prefix}_get_revision lists them). Before you revise a file, read {prefix}_rules.")
+
+
+def public_tools_for(product, starts_worker):
+    prefix, worker = PUBLIC[product]
+    tools = []
+    for tool in TOOLS:
+        description = tool['description'].replace('Studio', worker)
+        if starts_worker and tool['name'] == 'studio_submit_job':
+            description = (f'Persist a typed job and return its ID. Submitting starts the worker if none is running; '
+                           f'poll {prefix}_get_job for the result.')
+        tools.append({**tool, 'name': prefix + tool['name'][len('studio'):], 'description': description})
+    return tools
+
+
 def serve(store, product='studio', on_submit=None):
     if product not in PUBLIC:
         raise ValueError('unknown runtime identity')
     prefix, worker = PUBLIC[product]
-    public_tools = [{**tool, 'name': prefix + tool['name'][len('studio'):],
-                     'description': tool['description'].replace('Studio', worker)}
-                    for tool in TOOLS]
+    public_tools = public_tools_for(product, on_submit is not None)
     dispatch = {public['name']: internal['name'] for public, internal in zip(public_tools, TOOLS)}
     def reply(value):
         sys.stdout.write(json.dumps(value, allow_nan=False) + "\n"); sys.stdout.flush()
@@ -168,7 +192,7 @@ def serve(store, product='studio', on_submit=None):
                 version = proposed if proposed in ("2024-11-05", "2025-03-26", "2025-06-18") else "2025-06-18"
                 response["result"] = {"protocolVersion": version, "capabilities": {"tools": {}},
                                       "serverInfo": {"name": prefix + "-runtime", "version": "0.1.0"},
-                                      "instructions": f"Jobs are durable. Run the local {worker} worker separately; poll {prefix}_get_job. Disconnection does not cancel a job."}
+                                      "instructions": instructions(prefix, worker, on_submit is not None)}
             elif method == "ping": response["result"] = {}
             elif method == "tools/list": response["result"] = {"tools": public_tools}
             elif method == "tools/call":
